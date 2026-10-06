@@ -32,11 +32,12 @@ Read `docs/BRIDGE.md` (core ↔ shell contract) before working on the core or a 
 ## Repository layout
 
 ```
-core/              JS core: .mm model, jsMind projection, CRUD, Node tests
-web/               reference shell (open a local file, download the result), planned for milestone 2
+core/              core: .mm model, operations, bridge, jsMind view; Node tests
+  vendor/          jsMind 0.9.1, pinned (BSD-3-Clause, keeps its license)
+  assets/          stylesheet of the map view
+web/               reference web shell (open a local file, download a copy); drafts tested in Node
 android/           Kotlin shell (WebView + Storage Access Framework), planned for milestone 3
 ios/               not started, contributions welcome
-spike/             milestone 0 jsMind prototype, throwaway (to be removed once web/ replaces it)
 docs/              public documentation (English)
 fixtures/          public test maps (never modify)
 fixtures-private/  real user maps, git-ignored; tests use them only if present
@@ -48,7 +49,7 @@ Requires Node 24 or later (runs TypeScript tests natively).
 
 ```
 npm install     # dev dependencies only: typescript, @xmldom/xmldom
-npm test        # core tests (node:test), including round trips on every fixture
+npm test        # tests (node:test): core, with round trips on every fixture, and web shell drafts
 npm run check   # type check (tsc --noEmit)
 npm run build   # compile core/src to core/dist (ES modules for the WebView)
 ```

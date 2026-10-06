@@ -55,10 +55,12 @@ Adaptation examples:
 
 ```json
 { "v": 1, "type": "load", "requestId": "r1",
-  "name": "Project.mm", "data": "<base64 of the bytes>", "readOnly": false }
+  "name": "Project.mm", "data": "<base64 of the bytes>", "readOnly": false, "locale": "fr" }
 ```
 
 Response: `loaded` or `error`.
+
+`locale` (optional, e.g. `"fr"`, `"fr-CA"`) is the user's language. The core shows no interface text, but some map content is provided by Freeplane in the reader's language, such as the root of a new map ("New Mindmap", "Nouvelle carte"): the core displays it in this language, in English by default.
 
 To restore a draft (see section 6), send the draft's bytes with `"restoredDraft": true`: the map is then considered modified from the start, since it differs from the file.
 
@@ -102,6 +104,14 @@ Asks for a draft of the current state right away, typically when the app goes to
 ```
 
 Undoes or redoes the last change, typically from the native menu. Ignored when there is nothing to undo or redo (see `historyChanged`). Undoing back to the last saved state makes the map unmodified again (`dirtyChanged`).
+
+### `center`
+
+```json
+{ "v": 1, "type": "center" }
+```
+
+Scrolls the map so that the selected node, or the root when nothing is selected, is in the middle of the view (as far as the map extends). Useful on small screens. Not an edit: also available on a read-only map.
 
 ### `editText` / `addChild` / `addSibling` / `deleteNode`
 
@@ -187,6 +197,7 @@ The current state of the loaded map, to be kept as a local draft (see section 6)
 ```json
 { "v": 1, "type": "selectionChanged", "node": {
     "id": "ID_1964929139", "revision": 12, "root": false, "textEditable": true,
+    "hidden": { "note": 1 },
     "branch": { "descendants": 3, "hidden": { "note": 1, "icon": 2 } } } }
 { "v": 1, "type": "selectionChanged", "node": null }
 ```
@@ -198,7 +209,8 @@ Sent whenever what the shell knows about the selected node changes: another node
 | `id` | Target of the editing commands |
 | `revision` | Revision of the map described here; sent back with `deleteNode` |
 | `root` | The root cannot be deleted, and has no siblings: disable Delete and Add sibling |
-| `textEditable` | Enable Edit text (false for rich or multi-line text, or a read-only map) |
+| `textEditable` | Enable Edit text (false for rich or multi-line text, or a read-only map). In an editable map, false means the node shows a lock: explain it while it is selected (its text can only be edited in Freeplane; the node can still be moved or deleted) |
+| `hidden` | Content of the node itself that is not displayed, by kind: what its dot stands for. Explain it while the node is selected (e.g. "1 note, 2 icons, kept") |
 | `branch.descendants` | Number of nodes under the selected one, removed with it |
 | `branch.hidden` | Content of the branch that is not displayed, by kind (same kinds as `hiddenContent`), including connectors from elsewhere pointing into the branch. Ask for confirmation before `deleteNode` when it is not empty |
 
@@ -296,9 +308,24 @@ A mobile system may kill a backgrounded app without notice, and a phone may cras
 - [ ] Display `loaded` warnings from their `code`, translated; when `readOnly` is true, hide or disable editing and saving.
 - [ ] Tell the user once, when a map opens, about its `hiddenContent` (kept but not displayed).
 - [ ] Enable the Undo and Redo commands according to `historyChanged`, and the editing commands according to `selectionChanged`.
+- [ ] While a node with a lock or a dot is selected, explain what the mark means (`textEditable`, `hidden`), without taking room otherwise. The core's stylesheet offers the same marks for that (`.mapling-lock-mark`, `.mapling-dot-mark`).
 - [ ] Ask for confirmation before `deleteNode` when the selected branch holds hidden content, with a translated summary; send the node's `id` and the `revision` the confirmation was based on, and ask again on `OUTDATED_COMMAND`.
 - [ ] Serve the core's resources locally; no network access.
 
 ## 8. Reference implementation
 
-*Planned for milestone 2, not written yet.* `web/index.html` will implement this contract end to end (open a local file, download the result) and will then be the reference: when in doubt, its behavior will be authoritative. Until then, the core's tests (`core/test/bridge.test.ts`, `core/test/draft.test.ts`) show the expected exchanges.
+The web shell in [`web/`](../web/) implements this contract end to end, in a desktop browser: when in doubt, its behavior is the reference. It is plain JavaScript, with no build step:
+
+| File | Role |
+|---|---|
+| `web/index.html` | The page: toolbar, messages, and the `#mapling` element the core draws in. It loads `shell.js` (which defines `window.MindShell`), then jsMind, then the core (`core/dist/main.js`). |
+| `web/shell.js` | Opening a file, the messages of sections 4 and 5, enabling commands, confirmations, explanations of the marks, translations. |
+| `web/drafts.js` | Draft storage, tested in Node (`web/test/drafts.test.js`). |
+| `web/i18n/*.json` | The shell's texts, in English and French. |
+
+What a browser cannot do, and how the web shell deals with it (a native shell does better):
+
+- **Writing the opened file**: a page can only offer a download. The shell calls it *Download a copy*, and sends `saved` only when the user confirms the copy is saved: until then the map stays modified and its draft is kept.
+- **Identifying a document**: a page gets a file's name, not its path. Drafts are tied to the name and to a SHA-256 fingerprint of the opened content; a draft made on another file with the same name is offered with a warning, and kept if declined.
+- **Durable storage**: drafts are kept in `localStorage`, which the user or the browser may clear.
+- **Conflicts and backups**: there is no document to check or back up, so section 7's obligations about them do not apply.

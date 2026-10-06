@@ -13,7 +13,7 @@ This page describes the inside of the core (`core/`). To write a shell, read [BR
 │ map.ts                     │  the .mm DOM: index, projection, operations
 │ xml.ts · format.ts · …     │  parsing/serialization, format versions
 ├────────────────────────────┤
-│ jsMind (view adapter)      │  display and gestures only (milestone 2)
+│ jsmind-view.ts + jsMind    │  display and gestures only
 └────────────────────────────┘
 ```
 
@@ -28,10 +28,13 @@ This page describes the inside of the core (`core/`). To write a shell, read [BR
 
 | Module | Role |
 |---|---|
-| `xml.ts` | Parses with the platform `DOMParser` and serializes with `XMLSerializer`, plus the few rules that make the output identical to Freeplane's (no-break space and line breaks in attributes, text around the root element). Comments, CDATA and processing instructions are left untouched. |
+| `xml.ts` | Parses with the platform `DOMParser` and serializes with `XMLSerializer`, plus the few rules that make the output identical to Freeplane's (no-break space; line breaks and apostrophes in attributes; text around the root element). Comments, CDATA and processing instructions are left untouched. |
 | `format.ts` | Classifies the `<map version>`: only Freeplane versions covered by a fixture are editable; older (FreeMind included) and newer ones open read-only. |
 | `map.ts` | `MindMap`: indexes `<node>` elements by `ID` (or by an in-memory key for nodes without one), projects them for the view, detects hidden content, and implements the operations: edit text, add, remove, move. |
 | `html-text.ts` | Plain-text rendering of rich (HTML) nodes, for display only. |
+| `localized-text.ts` | Texts Freeplane provides itself (`LOCALIZED_TEXT`, e.g. the root of a new map), in the user's language. |
+| `jsmind-view.ts` | The view: displays the map with jsMind and turns gestures into operations (browser only). |
+| `main.ts` | Entry point in the page: connects the core to the shell's `MindShell`. |
 | `session.ts` | `MapSession`: the open map, its undo/redo history and its revisions. |
 | `bridge.ts` | `Bridge`: the core side of BRIDGE.md: messages, bytes ↔ text (UTF-8), saves and drafts. |
 | `errors.ts` | `MapError` and its codes. |
@@ -54,9 +57,20 @@ This page describes the inside of the core (`core/`). To write a shell, read [BR
 
 **Drafts.** At most one second after any change, the core sends the current state as a draft; the shell persists the latest one and retries on failure. This bounds, but does not remove, what can be lost if the app is killed.
 
+## The view (`jsmind-view.ts`)
+
+jsMind 0.9.1 (vendored in `core/vendor/`) draws the map and captures gestures, but never owns the map:
+
+- **Display**: the bridge gives the view a projection of the map (`ViewNode`). After an undo or redo, the view redraws it while keeping folding, selection and scroll position; after a load, it starts afresh.
+- **Gestures**: jsMind reports edits after changing its own model. Only two come from the user: editing a text (`update_node`) and dragging a node (`move_node`). For a move, the view reads the result (new parent, position, side) from jsMind's model, since the event only carries the call's arguments. Every gesture becomes an operation on the map through the bridge; if one is refused, the view redraws from the map.
+- **Commands** (add, delete, edit text, center) come from the shell's menu, through the bridge. A new node first exists only in the view, with a neutral placeholder; it is added to the map, in one operation with its text, when that text is validated. Validated unchanged, it simply disappears.
+- **Workarounds** for jsMind (checked in its source): non-editable texts are guarded by wrapping `begin_edit`; jsMind's own shortcuts for adding and deleting are disabled, since they bypass these rules; Enter is also recognized by `event.key`, since jsMind only checks the legacy `keyCode` that virtual keyboards may leave at 0 or 229.
+- **Marks** are drawn by CSS (`core/assets/mapling.css`): a lock on non-editable texts, a dot on nodes with hidden content. They contain no text.
+
 ## Tests (`core/test`)
 
 - Run in Node with `node:test`; xmldom provides `DOMParser`/`XMLSerializer`. Core code therefore uses only DOM Level 2 APIs (no `querySelector`, no `Element.remove()`).
 - Every fixture is round-tripped at two levels: same meaning (canonical comparison) always, same bytes for public fixtures. Real maps in the git-ignored `fixtures-private/` are used when present.
 - Operation tests compare the whole expected file, so any change outside the intended fragment fails.
 - The same scenarios have been checked to give identical results in Chromium, the engine of Android's WebView.
+- The view needs a browser, so it is not covered by `npm test`: it was validated end to end in Chromium through the reference web shell (gestures, commands, undo, drafts, all fixtures). Automating these checks would need a browser test tool, not added yet.
