@@ -1,0 +1,20 @@
+{
+  "name": "mapling",
+  "version": "0.1.0",
+  "private": true,
+  "description": "View and lightly edit Freeplane mind maps on Android.",
+  "license": "GPL-3.0-or-later",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "devDependencies": {
+    "@xmldom/xmldom": "0.9.12",
+    "typescript": "7.0.2"
+  },
+  "scripts": {
+    "test": "node --test 'core/test/**/*.test.ts'",
+    "check": "tsc --noEmit",
+    "build": "tsc"
+  }
+}

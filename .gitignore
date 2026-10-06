@@ -1,0 +1,15 @@
+# Private working notes and analysis documents (French, not published)
+notes/
+
+# Personal Claude Code instructions and settings
+CLAUDE.local.md
+.claude/settings.local.json
+.claude/worktrees/
+.claude/launch.json
+
+# Real user maps used for local testing only
+fixtures-private/
+
+# Dependencies
+node_modules/
+core/dist/
