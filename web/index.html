@@ -1,0 +1,62 @@
+<!doctype html>
+<!--
+SPDX-FileCopyrightText: 2026 Benoit Mercier and mapling contributors
+SPDX-License-Identifier: GPL-3.0-or-later
+
+Reference web shell: implements docs/BRIDGE.md end to end. Run `npm run build`,
+serve the repository root over HTTP, and open /web/.
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mapling</title>
+<link rel="stylesheet" href="../core/vendor/jsmind-0.9.1/jsmind.css">
+<link rel="stylesheet" href="../core/assets/mapling.css">
+<style>
+  html, body { margin: 0; height: 100%; font-family: system-ui, sans-serif; }
+  body { display: flex; flex-direction: column; }
+  #toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 6px; border-bottom: 1px solid #ccc; }
+  #toolbar button { font-size: 14px; padding: 6px 10px; }
+  #toolbar .separator { width: 1px; align-self: stretch; background: #ccc; margin: 0 4px; }
+  #status { margin-left: auto; font-size: 13px; color: #555; }
+  #status.modified { color: #b45309; font-weight: 600; }
+  #messages:empty { display: none; }
+  #messages p { margin: 0; padding: 6px 10px; font-size: 14px; border-bottom: 1px solid #ddd; }
+  #messages .warning { background: #fff4d6; }
+  #messages .info { background: #e8f0fe; }
+  #messages .error { background: #fde2e2; }
+  #messages .hint { background: #f4f4f4; color: #444; }
+  #map-area { flex: 1; min-height: 0; position: relative; }
+  #empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #777; }
+</style>
+</head>
+<body>
+<div id="toolbar">
+  <input type="file" id="file" accept=".mm" hidden>
+  <button data-action="open"></button>
+  <button data-action="save"></button>
+  <span class="separator"></span>
+  <button data-action="undo"></button>
+  <button data-action="redo"></button>
+  <span class="separator"></span>
+  <button data-action="editText"></button>
+  <button data-action="addChild"></button>
+  <button data-action="addSibling"></button>
+  <button data-action="deleteNode"></button>
+  <span class="separator"></span>
+  <button data-action="center"></button>
+  <span id="status"></span>
+</div>
+<div id="messages"></div>
+<div id="map-area">
+  <div id="mapling"></div>
+  <div id="empty"></div>
+</div>
+<!-- The shell defines window.MindShell before the core is loaded (docs/BRIDGE.md). -->
+<script type="module" src="shell.js"></script>
+<script src="../core/vendor/jsmind-0.9.1/jsmind.js"></script>
+<script src="../core/vendor/jsmind-0.9.1/jsmind.draggable-node.js"></script>
+<script type="module" src="../core/dist/main.js"></script>
+</body>
+</html>

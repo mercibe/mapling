@@ -13,7 +13,7 @@
     "typescript": "7.0.2"
   },
   "scripts": {
-    "test": "node --test 'core/test/**/*.test.ts'",
+    "test": "node --test 'core/test/**/*.test.ts' 'web/test/**/*.test.js'",
     "check": "tsc --noEmit",
     "build": "tsc"
   }
