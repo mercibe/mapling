@@ -8,10 +8,10 @@ mapling follows the [GitHub flow](https://docs.github.com/en/get-started/using-g
 
 - `main` is always stable: all tests pass and it could be released at any time. Nobody commits to it directly.
 - Work happens on a short-lived branch per milestone or feature (e.g. `milestone-2-web-shell`, `task-icons`).
-- Changes reach `main` through a pull request, reviewed before merging.
+- Contributions reach `main` through a pull request, reviewed before merging. The maintainer may also merge their own branches locally, as a fast-forward (`git merge --ff-only`), once the work is validated.
 - Releases are tags on `main` (`v0.1.0`, …).
 - Commit messages are in English, in the imperative mood ("Add …", "Fix …"), with small, readable commits.
-- Before opening a pull request, run `npm test` and `npm run check`.
+- Before opening a pull request or merging, run `npm test` and `npm run check`: every commit should pass them.
 
 ## License of contributions
 
