@@ -5,7 +5,7 @@
 // Platform-neutral: the shell's `send` function and the view are passed in.
 
 import { MapError } from './errors.ts';
-import type { HiddenKind, MindMap, ViewNode } from './map.ts';
+import type { BranchSummary, HiddenKind, MindMap, ViewNode } from './map.ts';
 import { MapSession } from './session.ts';
 
 export const PROTOCOL_VERSION = 1;
@@ -23,9 +23,23 @@ export type BridgeErrorCode =
   | 'UNSUPPORTED_ENCODING'
   | 'NO_MAP_LOADED'
   | 'PROTOCOL_VERSION'
+  | 'OUTDATED_COMMAND'
   | 'INTERNAL';
 
 export type WarningCode = 'FORMAT_TOO_OLD' | 'FORMAT_TOO_NEW' | 'DUPLICATE_IDS';
+
+/** Editing commands from the shell's menu; each names its target node. */
+export type Command = 'editText' | 'addChild' | 'addSibling' | 'deleteNode';
+
+/** What the shell needs to know about the selected node to enable its commands. */
+export interface SelectedNode {
+  id: string;
+  /** Revision of the map this report describes; `deleteNode` sends it back. */
+  revision: number;
+  root: boolean;
+  textEditable: boolean;
+  branch: BranchSummary;
+}
 
 /** Messages from the shell. */
 export type ShellMessage = { v: number; requestId?: string } & (
@@ -36,6 +50,7 @@ export type ShellMessage = { v: number; requestId?: string } & (
   | { type: 'setReadOnly'; readOnly: boolean }
   | { type: 'undo' }
   | { type: 'redo' }
+  | { type: Command; id: string; revision?: number }
 );
 
 /** Messages to the shell (`v` is added when sending). */
@@ -55,12 +70,15 @@ export type CoreMessage =
   | { type: 'dirtyChanged'; dirty: boolean }
   | { type: 'draftData'; revision: number; data: string | null }
   | { type: 'historyChanged'; canUndo: boolean; canRedo: boolean }
+  | { type: 'selectionChanged'; node: SelectedNode | null }
   | { type: 'error'; requestId?: string; code: BridgeErrorCode; message: string };
 
 /** What the bridge needs from the display (the jsMind adapter, or a fake in tests). */
 export interface View {
   show(root: ViewNode, readOnly: boolean): void;
   setReadOnly(readOnly: boolean): void;
+  /** Runs a menu command on an existing node (never called when the map is read-only). */
+  command(name: Command, key: string): void;
 }
 
 class BridgeError extends Error {
@@ -85,6 +103,9 @@ export class Bridge {
   /** Revision of the last draft sent (not necessarily written: the shell owns that); null when none. */
   private draftRevision: number | null = null;
   private draftTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Key of the node selected in the view, and what was last reported about it. */
+  private selectedKey: string | null = null;
+  private reportedSelection = 'null'; // as JSON, to compare with the next report
 
   constructor(send: (json: string) => void, view: View) {
     this.send = send;
@@ -121,6 +142,12 @@ export class Bridge {
     return this.session;
   }
 
+  /** Records the node selected in the view (null: none); the shell is told what it can do with it. */
+  select(key: string | null): void {
+    this.selectedKey = key;
+    this.reportState();
+  }
+
   /** Applies an edit coming from the view, then reports the new state to the shell. */
   edit<T>(operation: (map: MindMap) => T): T {
     const session = this.session;
@@ -150,6 +177,11 @@ export class Bridge {
       case 'undo':
       case 'redo':
         return this.history(message.type);
+      case 'editText':
+      case 'addChild':
+      case 'addSibling':
+      case 'deleteNode':
+        return this.command(message.type, message.id, message.revision);
       default:
         throw new BridgeError('INTERNAL', `Unknown message type: ${(message as { type: string }).type}`);
     }
@@ -157,7 +189,11 @@ export class Bridge {
 
   private load(requestId: string | undefined, data: string, readOnly: boolean, restoredDraft: boolean): void {
     // A failed load leaves the open map and its pending saves untouched.
-    const session = new MapSession(decode(data));
+    // Revisions continue from the previous map: a revision then designates one map
+    // and one state, so a deletion confirmed on a map cannot apply to its reloaded
+    // version, even with the same IDs.
+    const firstRevision = this.session ? this.session.lastCreatedRevision + 1 : 0;
+    const session = new MapSession(decode(data), firstRevision);
     this.session = session;
     this.shellReadOnly = readOnly;
     // Confirmations of saves and drafts from the previous map no longer apply to anything.
@@ -173,6 +209,9 @@ export class Bridge {
     if (map.formatStatus === 'too-old') warnings.push({ code: 'FORMAT_TOO_OLD' });
     if (map.formatStatus === 'too-new') warnings.push({ code: 'FORMAT_TOO_NEW' });
     if (map.hasDuplicateIds) warnings.push({ code: 'DUPLICATE_IDS' });
+    // The new map starts with no selection, even if it shares IDs with the previous one;
+    // the view reports its own selection, if any, while showing the map.
+    this.selectedKey = null;
     this.view.show(map.toView(), this.readOnly);
     this.post({
       type: 'loaded',
@@ -203,6 +242,22 @@ export class Bridge {
     this.session.markSaved(revision);
   }
 
+  /**
+   * A command names its target, so that a selection change cannot redirect it.
+   * A deletion also names the revision its confirmation was based on: if the
+   * map changed since, what the user confirmed may no longer be what would go.
+   */
+  private command(name: Command, key: string, revision: number | undefined): void {
+    const session = this.session;
+    if (!session) throw new BridgeError('NO_MAP_LOADED', 'No map loaded');
+    if (this.readOnly) return;
+    if (!session.map.has(key)) throw new BridgeError('OUTDATED_COMMAND', `Unknown node: ${key}`);
+    if (name === 'deleteNode' && revision !== session.revision) {
+      throw new BridgeError('OUTDATED_COMMAND', 'The map changed since the deletion was confirmed');
+    }
+    this.view.command(name, key);
+  }
+
   private history(direction: 'undo' | 'redo'): void {
     const session = this.session;
     if (!session || this.readOnly) return;
@@ -226,6 +281,30 @@ export class Bridge {
     }
     this.reported = now;
     this.updateDraft();
+    this.reportSelection();
+  }
+
+  /** Sends selectionChanged when what the shell knows about the selection changes. */
+  private reportSelection(): void {
+    const node = this.selection();
+    const json = JSON.stringify(node);
+    if (json === this.reportedSelection) return;
+    this.reportedSelection = json;
+    this.post({ type: 'selectionChanged', node });
+  }
+
+  private selection(): SelectedNode | null {
+    const session = this.session;
+    const key = this.selectedKey;
+    if (!session || key === null || !session.map.has(key)) return null;
+    const map = session.map;
+    return {
+      id: key,
+      revision: session.revision,
+      root: key === map.rootKey,
+      textEditable: !this.readOnly && !map.isReadOnly(key),
+      branch: map.branchSummary(key),
+    };
   }
 
   // ---------- drafts (see "Drafts" in docs/BRIDGE.md) ----------

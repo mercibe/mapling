@@ -103,7 +103,19 @@ Asks for a draft of the current state right away, typically when the app goes to
 
 Undoes or redoes the last change, typically from the native menu. Ignored when there is nothing to undo or redo (see `historyChanged`). Undoing back to the last saved state makes the map unmodified again (`dirtyChanged`).
 
-> Other editing commands sent from the native menu (edit, add, delete, with a summary of hidden content to confirm before deleting) will be specified at milestone 2.
+### `editText` / `addChild` / `addSibling` / `deleteNode`
+
+```json
+{ "v": 1, "type": "addChild", "id": "ID_1964929139" }
+{ "v": 1, "type": "deleteNode", "id": "ID_1964929139", "revision": 12, "requestId": "r7" }
+```
+
+Editing commands from the native menu. Each names its target node, `id`, taken from the latest `selectionChanged`: a selection change between the menu and the command cannot redirect it. They are ignored when the map is read-only. A command whose node no longer exists is refused with `OUTDATED_COMMAND`.
+
+- `editText` opens the text editor on the selected node, if its text can be edited.
+- `addChild` and `addSibling` add a node and open its editor at once. The node is created in the map only when its text is validated: validating the placeholder unchanged removes it, and the map stays unmodified.
+- `deleteNode` removes the node and its whole branch, without asking: **the shell asks for confirmation first** when `selectionChanged` reports hidden content in the branch, with a summary such as "Delete this node, 3 sub-nodes, 1 note and 2 icons?". Deleting can be undone.
+- `deleteNode` also sends back the `revision` of the `selectionChanged` the decision was based on. If the map changed since (an undo may have put a note back into the branch, for instance), the deletion is refused with `OUTDATED_COMMAND`: the shell then uses the latest `selectionChanged` and asks again if needed. The check is deliberately strict: any change invalidates it.
 
 ## 5. Core → shell messages
 
@@ -170,6 +182,26 @@ Emitted on every state change. The shell uses it to enable "Save" and to warn be
 
 The current state of the loaded map, to be kept as a local draft (see section 6). Sent one second after the first change not yet sent (later changes do not postpone it, so drafts keep coming during continuous editing, at most one per second), and at once on `flushDraft`. `data: null` means the map is no longer modified: delete the draft. A `draftData` always concerns the map currently loaded.
 
+### `selectionChanged`
+
+```json
+{ "v": 1, "type": "selectionChanged", "node": {
+    "id": "ID_1964929139", "revision": 12, "root": false, "textEditable": true,
+    "branch": { "descendants": 3, "hidden": { "note": 1, "icon": 2 } } } }
+{ "v": 1, "type": "selectionChanged", "node": null }
+```
+
+Sent whenever what the shell knows about the selected node changes: another node is selected, the map changed (new `revision`), or the node was removed or became read-only. `node` is `null` when nothing is selected; every successfully loaded map starts with no selection (a failed load keeps the current one). The shell uses it to enable its commands:
+
+| Field | Use |
+|---|---|
+| `id` | Target of the editing commands |
+| `revision` | Revision of the map described here; sent back with `deleteNode` |
+| `root` | The root cannot be deleted, and has no siblings: disable Delete and Add sibling |
+| `textEditable` | Enable Edit text (false for rich or multi-line text, or a read-only map) |
+| `branch.descendants` | Number of nodes under the selected one, removed with it |
+| `branch.hidden` | Content of the branch that is not displayed, by kind (same kinds as `hiddenContent`), including connectors from elsewhere pointing into the branch. Ask for confirmation before `deleteNode` when it is not empty |
+
 ### `historyChanged`
 
 ```json
@@ -196,6 +228,7 @@ Emitted whenever the possibility to undo or redo changes. The shell uses it to e
 | `UNSUPPORTED_ENCODING` | Unsupported encoding |
 | `NO_MAP_LOADED` | `save` received with no map loaded |
 | `PROTOCOL_VERSION` | Unsupported `v` version |
+| `OUTDATED_COMMAND` | An editing command targets a node that no longer exists, or a deletion was confirmed before the map changed |
 | `INTERNAL` | Unexpected core error |
 
 ## 6. Typical lifecycle
@@ -220,7 +253,7 @@ Shell                            Core
 
 The user may keep editing while a save is being written, or open another map before it completes. The core therefore ties each `save` to the revision it holds:
 
-- the core counts revisions: every change to the map creates a new one;
+- the core counts revisions: every change to the map creates a new one, and numbering continues across loaded maps, so a revision never designates two different maps (even a reloaded version of the same document);
 - `save` records the current revision under a new `saveId`, returned in `saveData`;
 - `saved` marks the map unmodified only if its revision is still the one recorded; any later change keeps it modified;
 - every `load` starts a new session: confirmations of saves made in a previous session are ignored.
@@ -262,7 +295,8 @@ A mobile system may kill a backgrounded app without notice, and a phone may cras
 - [ ] Display error messages from the `code`, translated in the user's language; never show `message` as-is.
 - [ ] Display `loaded` warnings from their `code`, translated; when `readOnly` is true, hide or disable editing and saving.
 - [ ] Tell the user once, when a map opens, about its `hiddenContent` (kept but not displayed).
-- [ ] Enable the Undo and Redo commands according to `historyChanged`.
+- [ ] Enable the Undo and Redo commands according to `historyChanged`, and the editing commands according to `selectionChanged`.
+- [ ] Ask for confirmation before `deleteNode` when the selected branch holds hidden content, with a translated summary; send the node's `id` and the `revision` the confirmation was based on, and ask again on `OUTDATED_COMMAND`.
 - [ ] Serve the core's resources locally; no network access.
 
 ## 8. Reference implementation

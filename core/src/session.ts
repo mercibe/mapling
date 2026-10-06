@@ -17,14 +17,19 @@ export const HISTORY_LIMIT = 50;
 
 export class MapSession {
   private current: MindMap;
-  private revisionNow = 0;
-  private lastRevision = 0;
-  private savedRevision = 0;
+  private revisionNow: number;
+  private lastRevision: number;
+  private savedRevision: number;
   private readonly undoStack: State[] = [];
   private readonly redoStack: State[] = [];
 
-  constructor(text: string) {
+  /**
+   * `firstRevision` lets successive sessions continue one numbering, so that a
+   * revision never designates two different maps (see Bridge.load).
+   */
+  constructor(text: string, firstRevision = 0) {
     this.current = new MindMap(text);
+    this.revisionNow = this.lastRevision = this.savedRevision = firstRevision;
   }
 
   get map(): MindMap {
@@ -33,6 +38,11 @@ export class MapSession {
 
   get revision(): number {
     return this.revisionNow;
+  }
+
+  /** The highest revision this session has created; the next session starts after it. */
+  get lastCreatedRevision(): number {
+    return this.lastRevision;
   }
 
   get dirty(): boolean {

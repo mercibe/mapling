@@ -112,6 +112,11 @@ export class MindMap {
 
   // ---------- reading ----------
 
+  /** Whether a node with this key exists in the map. */
+  has(key: string): boolean {
+    return this.byKey.has(key);
+  }
+
   /** Text of a node. Rich (HTML) nodes are returned as plain text. */
   text(key: string): string {
     const el = this.element(key);

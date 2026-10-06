@@ -5,4 +5,4 @@ export { MindMap, type BranchSummary, type HiddenKind, type Side, type ViewNode 
 export { MapError, type ErrorCode } from './errors.ts';
 export { formatStatus, type FormatStatus } from './format.ts';
 export { MapSession, HISTORY_LIMIT } from './session.ts';
-export { Bridge, CORE_VERSION, DRAFT_DELAY_MS, PROTOCOL_VERSION, type CoreMessage, type ShellMessage, type View } from './bridge.ts';
+export { Bridge, CORE_VERSION, DRAFT_DELAY_MS, PROTOCOL_VERSION, type Command, type CoreMessage, type SelectedNode, type ShellMessage, type View } from './bridge.ts';

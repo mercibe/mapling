@@ -17,10 +17,11 @@ function base64(text: string | Uint8Array): string {
 
 function setup() {
   const sent: any[] = [];
-  const view = { shown: [] as ViewNode[], readOnly: [] as boolean[] };
+  const view = { shown: [] as ViewNode[], readOnly: [] as boolean[], commands: [] as string[] };
   const bridge = new Bridge((json) => sent.push(JSON.parse(json)), {
     show: (root) => view.shown.push(root),
     setReadOnly: (readOnly) => view.readOnly.push(readOnly),
+    command: (name, key) => view.commands.push(`${name} ${key}`),
   });
   const send = (message: object) => bridge.receive(JSON.stringify({ v: 1, ...message }));
   /** Sends `save` and returns the saveId of the resulting saveData. */
@@ -216,4 +217,130 @@ test('unknown or already confirmed saveIds are ignored', () => {
   send({ type: 'saved', saveId: id }); // confirmed twice: must not mark "two" as saved
   assert.deepEqual(take(), []);
   assert.equal(bridge.current!.dirty, true);
+});
+
+test('menu commands go to the view with their target, unless the map is read-only', () => {
+  const { bridge, send, take, view } = setup();
+  send({ type: 'addChild', id: A, requestId: 'r0' });
+  assert.deepEqual(take().map((m) => [m.type, m.code]), [['error', 'NO_MAP_LOADED']]);
+  send({ type: 'load', requestId: 'r1', name: 'map.mm', data: base64(original) });
+  const revision = bridge.current!.revision;
+  for (const type of ['editText', 'addChild', 'addSibling']) send({ type, id: A });
+  send({ type: 'deleteNode', id: A, revision });
+  assert.deepEqual(view.commands, ['editText ' + A, 'addChild ' + A, 'addSibling ' + A, 'deleteNode ' + A]);
+  send({ type: 'setReadOnly', readOnly: true });
+  send({ type: 'deleteNode', id: A, revision });
+  assert.equal(view.commands.length, 4);
+});
+
+test('a command names its target: a selection change cannot redirect it', () => {
+  const { bridge, send, take, view } = loaded();
+  bridge.select(A);
+  const { id, revision } = take()[0].node; // the shell asks for confirmation about A…
+  bridge.select('ID_1469196726'); // …while the selection moves to E
+  send({ type: 'deleteNode', id, revision });
+  assert.deepEqual(view.commands, ['deleteNode ' + A]);
+});
+
+test('a deletion confirmed before the map changed is refused', () => {
+  const { bridge, send, take, view } = loaded();
+  bridge.select(A);
+  const { id, revision } = take()[0].node;
+  bridge.edit((m) => m.addNode(A, 0, 'new content in the branch', 'right', 1));
+  take();
+  send({ type: 'deleteNode', id, revision, requestId: 'r2' });
+  assert.deepEqual(take().map((m) => [m.type, m.code, m.requestId]), [['error', 'OUTDATED_COMMAND', 'r2']]);
+  assert.deepEqual(view.commands, []);
+  send({ type: 'deleteNode', id, requestId: 'r3' }); // no revision at all: refused too
+  assert.equal(take()[0].code, 'OUTDATED_COMMAND');
+});
+
+test('a command on a node that no longer exists is refused', () => {
+  const { bridge, send, take, view } = loaded();
+  bridge.edit((m) => m.removeNode(A));
+  take();
+  send({ type: 'addChild', id: A, requestId: 'r2' });
+  assert.deepEqual(take().map((m) => [m.type, m.code]), [['error', 'OUTDATED_COMMAND']]);
+  assert.deepEqual(view.commands, []);
+});
+
+test('selectionChanged tells the shell what it can do with the selected node', () => {
+  const { bridge, take } = loaded();
+  bridge.select('ID_1964929139'); // D, which has a note
+  assert.deepEqual(take(), [{ v: 1, type: 'selectionChanged', node: {
+    id: 'ID_1964929139', revision: 0, root: false, textEditable: true,
+    branch: { descendants: 0, hidden: { note: 1 } },
+  } }]);
+  bridge.select('ID_1500080539'); // rich text: its text cannot be edited
+  assert.equal(take()[0].node.textEditable, false);
+  bridge.select('ID_452131666');
+  const root = take()[0].node;
+  assert.deepEqual([root.root, root.branch.descendants], [true, 7]);
+  bridge.select(null);
+  assert.deepEqual(take(), [{ v: 1, type: 'selectionChanged', node: null }]);
+  bridge.select(null);
+  assert.deepEqual(take(), [], 'nothing new to report');
+});
+
+test('the selection report follows edits, undo and read-only changes', () => {
+  const { bridge, send, take } = loaded();
+  bridge.select(A);
+  take();
+  bridge.edit((m) => m.addNode(A, 0, 'child', 'right', 1));
+  const report = take().find((m) => m.type === 'selectionChanged');
+  assert.equal(report.node.branch.descendants, 1);
+  send({ type: 'setReadOnly', readOnly: true });
+  assert.equal(take().find((m) => m.type === 'selectionChanged').node.textEditable, false);
+  send({ type: 'setReadOnly', readOnly: false });
+  take();
+  bridge.edit((m) => m.removeNode(A));
+  assert.deepEqual(take().find((m) => m.type === 'selectionChanged'), { v: 1, type: 'selectionChanged', node: null });
+  send({ type: 'undo' }); // the selected node is back
+  assert.equal(take().find((m) => m.type === 'selectionChanged').node.id, A);
+});
+
+test('a new map starts with no selection, even if it shares IDs with the previous one', () => {
+  const { bridge, send, take } = loaded();
+  bridge.select(A);
+  take();
+  // Same file again: every ID exists in the new map too.
+  send({ type: 'load', requestId: 'r2', name: 'same.mm', data: base64(original) });
+  assert.deepEqual(take().filter((m) => m.type === 'selectionChanged'), [
+    { v: 1, type: 'selectionChanged', node: null },
+  ]);
+});
+
+test('the view can report its selection while a map is shown', () => {
+  const sent: any[] = [];
+  let bridge: Bridge;
+  bridge = new Bridge((json) => sent.push(JSON.parse(json)), {
+    show: () => bridge.select(A), // e.g. the view restores a selection when it renders
+    setReadOnly() {},
+    command() {},
+  });
+  bridge.receive(JSON.stringify({ v: 1, type: 'load', requestId: 'r1', name: 'm.mm', data: base64(original) }));
+  assert.equal(sent.find((m) => m.type === 'selectionChanged').node.id, A);
+});
+
+test('a failed load keeps the selection', () => {
+  const { bridge, send, take } = loaded();
+  bridge.select(A);
+  take();
+  send({ type: 'load', requestId: 'r2', name: 'bad.mm', data: base64('<map>') });
+  assert.deepEqual(take().map((m) => m.type), ['error'], 'no selection change reported');
+  bridge.edit((m) => m.addNode(A, 0, 'child', 'right', 1));
+  assert.equal(take().find((m) => m.type === 'selectionChanged').node.id, A);
+});
+
+test('a deletion confirmed on a map cannot apply to its reloaded version', () => {
+  const { bridge, send, take, view } = loaded();
+  bridge.select(A);
+  const { id, revision } = take()[0].node; // confirmation shown for A, in the first version
+  // The same document is reloaded (e.g. a newer version from the cloud): same IDs.
+  send({ type: 'load', requestId: 'r2', name: 'map.mm', data: base64(original) });
+  take();
+  assert.notEqual(bridge.current!.revision, revision, 'revisions never restart');
+  send({ type: 'deleteNode', id, revision, requestId: 'r3' });
+  assert.deepEqual(take().map((m) => [m.type, m.code]), [['error', 'OUTDATED_COMMAND']]);
+  assert.deepEqual(view.commands, []);
 });

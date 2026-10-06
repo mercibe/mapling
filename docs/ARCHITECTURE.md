@@ -48,7 +48,7 @@ This page describes the inside of the core (`core/`). To write a shell, read [BR
 
 **Undo by snapshots.** Before each operation, the session keeps the serialized map; undo reloads it. This is exact by construction, with no inverse operation to write. The history is limited to 50 states and cleared on load.
 
-**Revisions.** Every change creates a new revision number, never reused. The map is modified when its revision differs from the saved one, so undoing back to the saved state makes it unmodified again.
+**Revisions.** Every change creates a new revision number, never reused, even across loaded maps: a revision designates one map and one state, so a deletion confirmed on a map cannot apply to its reloaded version. The map is modified when its revision differs from the saved one, so undoing back to the saved state makes it unmodified again.
 
 **Saves.** Each `save` gets a `saveId` created by the core and tied to the revision it holds. A `saved` confirmation marks the map unmodified only if nothing changed since; unknown, repeated or stale confirmations are ignored.
 
