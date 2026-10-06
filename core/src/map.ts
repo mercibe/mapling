@@ -7,6 +7,7 @@
 import { MapError } from './errors.ts';
 import { formatStatus, type FormatStatus } from './format.ts';
 import { htmlToText } from './html-text.ts';
+import { localizedText } from './localized-text.ts';
 import { parseXml, serializeXml, type Envelope } from './xml.ts';
 
 export type Side = 'left' | 'right';
@@ -19,6 +20,13 @@ const HIDDEN_KINDS: HiddenKind[] = ['note', 'details', 'attribute', 'link', 'ico
 
 function kinds(counts: Partial<Record<HiddenKind, number>>): HiddenKind[] {
   return HIDDEN_KINDS.filter((kind) => kind in counts);
+}
+
+/** The same counts, with kinds in the usual order. */
+function ordered(counts: Partial<Record<HiddenKind, number>>): Partial<Record<HiddenKind, number>> {
+  const result: Partial<Record<HiddenKind, number>> = {};
+  for (const kind of kinds(counts)) result[kind] = counts[kind];
+  return result;
 }
 
 /** What a branch holds, to confirm its deletion: descendant nodes and hidden content. */
@@ -117,12 +125,18 @@ export class MindMap {
     return this.byKey.has(key);
   }
 
-  /** Text of a node. Rich (HTML) nodes are returned as plain text. */
-  text(key: string): string {
+  /**
+   * Text of a node, as displayed: rich (HTML) nodes as plain text, and texts that
+   * Freeplane provides itself (LOCALIZED_TEXT) in the given language.
+   */
+  text(key: string, locale = 'en'): string {
     const el = this.element(key);
     const rich = this.richContent(el);
     if (rich) return htmlToText(rich);
-    return el.getAttribute('TEXT') ?? '';
+    const text = el.getAttribute('TEXT');
+    if (text !== null) return text;
+    const localized = el.getAttribute('LOCALIZED_TEXT');
+    return localized === null ? '' : localizedText(localized, locale);
   }
 
   /** A node is read-only when editing its text with a single-line editor would lose information. */
@@ -140,13 +154,13 @@ export class MindMap {
   }
 
   /** Projection for the view. FOLDED is read here and never written (folding is in memory only). */
-  toView(key: string = this.rootKey): ViewNode {
+  toView(locale = 'en', key: string = this.rootKey): ViewNode {
     const el = this.element(key);
     const view: ViewNode = {
       id: key,
-      topic: this.text(key),
+      topic: this.text(key, locale),
       expanded: el.getAttribute('FOLDED') !== 'true',
-      children: this.childKeys(key).map((child) => this.toView(child)),
+      children: this.childKeys(key).map((child) => this.toView(locale, child)),
     };
     if (this.parentKey(key) === this.rootKey) view.direction = this.side(el);
     if (this.isReadOnly(key)) view.readOnly = true;
@@ -158,6 +172,11 @@ export class MindMap {
   /** Kinds of hidden content present anywhere in the map, for a notice when it opens. */
   hiddenContent(): HiddenKind[] {
     return kinds(this.hiddenCounts([...this.byKey.values()]));
+  }
+
+  /** Hidden content carried by the node itself (not its descendants), by kind. */
+  nodeHidden(key: string): Partial<Record<HiddenKind, number>> {
+    return ordered(this.hiddenCounts([this.element(key)]));
   }
 
   /**
@@ -175,7 +194,7 @@ export class MindMap {
       if (!fromBranch && ids.has(link.getAttribute('DESTINATION'))) incoming++;
     }
     if (incoming > 0) hidden.connector = (hidden.connector ?? 0) + incoming;
-    return { descendants: branch.length - 1, hidden };
+    return { descendants: branch.length - 1, hidden: ordered(hidden) };
   }
 
   // ---------- operations ----------
@@ -186,7 +205,14 @@ export class MindMap {
     const el = this.element(key);
     if (el.getAttribute('TEXT') === text) return false;
     this.ensureId(el);
-    el.setAttribute('TEXT', text);
+    if (el.hasAttribute('TEXT')) {
+      el.setAttribute('TEXT', text);
+    } else {
+      // A text Freeplane provided (LOCALIZED_TEXT) becomes the user's own TEXT,
+      // at the same place among the attributes, as Freeplane does when renaming it.
+      this.setAttributeBefore(el, 'TEXT', text, 'LOCALIZED_TEXT');
+      el.removeAttribute('LOCALIZED_TEXT');
+    }
     el.setAttribute('MODIFIED', String(now));
     return true;
   }
@@ -296,7 +322,7 @@ export class MindMap {
   }
 
   private isReadOnlyElement(el: Element): boolean {
-    const text = el.getAttribute('TEXT');
+    const text = el.getAttribute('TEXT') ?? (el.hasAttribute('LOCALIZED_TEXT') ? '' : null);
     return text === null || text.includes('\n') || !!this.richContent(el);
   }
 

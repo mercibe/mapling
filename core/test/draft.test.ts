@@ -17,7 +17,7 @@ afterEach(() => mock.timers.reset());
 
 function loaded(options: { restoredDraft?: boolean; text?: string } = {}) {
   const sent: any[] = [];
-  const bridge = new Bridge((json) => sent.push(JSON.parse(json)), { show() {}, setReadOnly() {}, command() {} });
+  const bridge = new Bridge((json) => sent.push(JSON.parse(json)), { show() {}, setReadOnly() {}, command() {}, center() {} });
   const send = (message: object) => bridge.receive(JSON.stringify({ v: 1, ...message }));
   const data = Buffer.from(options.text ?? original, 'utf8').toString('base64');
   send({ type: 'load', requestId: 'r1', name: 'map.mm', data, restoredDraft: options.restoredDraft });

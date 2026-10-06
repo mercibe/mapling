@@ -38,18 +38,21 @@ export interface SelectedNode {
   revision: number;
   root: boolean;
   textEditable: boolean;
+  /** Content of this node that is not displayed, by kind (what its dot stands for). */
+  hidden: Partial<Record<HiddenKind, number>>;
   branch: BranchSummary;
 }
 
 /** Messages from the shell. */
 export type ShellMessage = { v: number; requestId?: string } & (
-  | { type: 'load'; name: string; data: string; readOnly?: boolean; restoredDraft?: boolean }
+  | { type: 'load'; name: string; data: string; readOnly?: boolean; restoredDraft?: boolean; locale?: string }
   | { type: 'flushDraft' }
   | { type: 'save' }
   | { type: 'saved'; saveId: number }
   | { type: 'setReadOnly'; readOnly: boolean }
   | { type: 'undo' }
   | { type: 'redo' }
+  | { type: 'center' }
   | { type: Command; id: string; revision?: number }
 );
 
@@ -75,10 +78,16 @@ export type CoreMessage =
 
 /** What the bridge needs from the display (the jsMind adapter, or a fake in tests). */
 export interface View {
-  show(root: ViewNode, readOnly: boolean): void;
+  /**
+   * Displays the map. `keepViewState` is true when the same map is shown again
+   * (undo, redo): folding, selection and scroll position are then kept.
+   */
+  show(root: ViewNode, readOnly: boolean, keepViewState: boolean): void;
   setReadOnly(readOnly: boolean): void;
   /** Runs a menu command on an existing node (never called when the map is read-only). */
   command(name: Command, key: string): void;
+  /** Scrolls so that this node, or the root when null, is in the middle of the view. */
+  center(key: string | null): void;
 }
 
 class BridgeError extends Error {
@@ -95,6 +104,8 @@ export class Bridge {
   private readonly view: View;
   private session: MapSession | null = null;
   private shellReadOnly = false;
+  /** The user's language, for the texts Freeplane provides itself (e.g. a new map's root). */
+  private locale = 'en';
   /** Revision held by the content of each save not yet confirmed, by saveId. */
   private readonly pendingSaves = new Map<number, number>();
   /** Save identities come from the core, never reused, even across maps. */
@@ -137,6 +148,11 @@ export class Bridge {
     return !!this.session && (this.session.map.readOnly || this.shellReadOnly);
   }
 
+  /** What the view displays for the open map, in the user's language. */
+  projection(): ViewNode | null {
+    return this.session ? this.session.map.toView(this.locale) : null;
+  }
+
   /** The open map, for the view adapter; null before the first successful load. */
   get current(): MapSession | null {
     return this.session;
@@ -161,7 +177,7 @@ export class Bridge {
   private handle(message: ShellMessage): void {
     switch (message.type) {
       case 'load':
-        return this.load(message.requestId, message.data, !!message.readOnly, !!message.restoredDraft);
+        return this.load(message.requestId, message.data, !!message.readOnly, !!message.restoredDraft, message.locale);
       case 'flushDraft':
         // Always answered: the core cannot know whether the last draft reached the disk.
         if (this.session) this.sendDraft();
@@ -177,6 +193,10 @@ export class Bridge {
       case 'undo':
       case 'redo':
         return this.history(message.type);
+      case 'center':
+        // Not an edit: also available on a read-only map.
+        if (this.session) this.view.center(this.selection()?.id ?? null);
+        return;
       case 'editText':
       case 'addChild':
       case 'addSibling':
@@ -187,7 +207,13 @@ export class Bridge {
     }
   }
 
-  private load(requestId: string | undefined, data: string, readOnly: boolean, restoredDraft: boolean): void {
+  private load(
+    requestId: string | undefined,
+    data: string,
+    readOnly: boolean,
+    restoredDraft: boolean,
+    locale: string | undefined,
+  ): void {
     // A failed load leaves the open map and its pending saves untouched.
     // Revisions continue from the previous map: a revision then designates one map
     // and one state, so a deletion confirmed on a map cannot apply to its reloaded
@@ -196,6 +222,7 @@ export class Bridge {
     const session = new MapSession(decode(data), firstRevision);
     this.session = session;
     this.shellReadOnly = readOnly;
+    this.locale = locale ?? 'en';
     // Confirmations of saves and drafts from the previous map no longer apply to anything.
     this.pendingSaves.clear();
     this.cancelDraftTimer();
@@ -212,7 +239,7 @@ export class Bridge {
     // The new map starts with no selection, even if it shares IDs with the previous one;
     // the view reports its own selection, if any, while showing the map.
     this.selectedKey = null;
-    this.view.show(map.toView(), this.readOnly);
+    this.view.show(map.toView(this.locale), this.readOnly, false);
     this.post({
       type: 'loaded',
       requestId,
@@ -262,7 +289,7 @@ export class Bridge {
     const session = this.session;
     if (!session || this.readOnly) return;
     if (direction === 'undo' ? session.undo() : session.redo()) {
-      this.view.show(session.map.toView(), this.readOnly);
+      this.view.show(session.map.toView(this.locale), this.readOnly, true);
     }
   }
 
@@ -303,6 +330,7 @@ export class Bridge {
       revision: session.revision,
       root: key === map.rootKey,
       textEditable: !this.readOnly && !map.isReadOnly(key),
+      hidden: map.nodeHidden(key),
       branch: map.branchSummary(key),
     };
   }

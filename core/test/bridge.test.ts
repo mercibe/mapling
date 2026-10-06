@@ -22,6 +22,7 @@ function setup() {
     show: (root) => view.shown.push(root),
     setReadOnly: (readOnly) => view.readOnly.push(readOnly),
     command: (name, key) => view.commands.push(`${name} ${key}`),
+    center: (key) => view.commands.push(`center ${key}`),
   });
   const send = (message: object) => bridge.receive(JSON.stringify({ v: 1, ...message }));
   /** Sends `save` and returns the saveId of the resulting saveData. */
@@ -269,7 +270,7 @@ test('selectionChanged tells the shell what it can do with the selected node', (
   bridge.select('ID_1964929139'); // D, which has a note
   assert.deepEqual(take(), [{ v: 1, type: 'selectionChanged', node: {
     id: 'ID_1964929139', revision: 0, root: false, textEditable: true,
-    branch: { descendants: 0, hidden: { note: 1 } },
+    hidden: { note: 1 }, branch: { descendants: 0, hidden: { note: 1 } },
   } }]);
   bridge.select('ID_1500080539'); // rich text: its text cannot be edited
   assert.equal(take()[0].node.textEditable, false);
@@ -343,4 +344,32 @@ test('a deletion confirmed on a map cannot apply to its reloaded version', () =>
   send({ type: 'deleteNode', id, revision, requestId: 'r3' });
   assert.deepEqual(take().map((m) => [m.type, m.code]), [['error', 'OUTDATED_COMMAND']]);
   assert.deepEqual(view.commands, []);
+});
+
+test('the language given with load is used for texts Freeplane provides', () => {
+  const { send, take, view, bridge } = setup();
+  send({ type: 'load', requestId: 'r1', name: 'new.mm', data: base64(fixture('fixture05-newMapRoot.mm')), locale: 'fr' });
+  assert.equal(view.shown[0].topic, 'Nouvelle carte');
+  assert.equal(bridge.projection()!.topic, 'Nouvelle carte');
+  take();
+  bridge.select('ID_452131666');
+  assert.equal(take()[0].node.textEditable, true);
+  send({ type: 'load', requestId: 'r2', name: 'new.mm', data: base64(fixture('fixture05-newMapRoot.mm')) });
+  assert.equal(view.shown[1].topic, 'New Mindmap', 'English when no language is given');
+});
+
+test('center goes to the view with the selected node, or the root, even when read-only', () => {
+  const { bridge, send, view } = loaded();
+  send({ type: 'center' });
+  bridge.select(A);
+  send({ type: 'setReadOnly', readOnly: true });
+  send({ type: 'center' });
+  assert.deepEqual(view.commands, ['center null', 'center ' + A]);
+});
+
+test('the selection reports the hidden content of the node itself, apart from its branch', () => {
+  const { bridge, take } = loaded();
+  bridge.select('ID_452131666'); // the root: nothing of its own; a note in its branch (D)
+  const root = take()[0].node;
+  assert.deepEqual([root.hidden, root.branch.hidden], [{}, { note: 1 }]);
 });
