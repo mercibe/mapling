@@ -9,7 +9,7 @@
 // was really written (the user may cancel it). So the shell offers "Download a
 // copy", and sends `saved` only when the user confirms the copy is saved; until
 // then the map stays modified and its draft is kept. There is no conflict
-// detection or backup copy, and drafts are kept in localStorage, which may be cleared.
+// detection, and drafts are kept in localStorage, which may be cleared.
 
 import { deleteDraft, draftKey, draftsNamed, fingerprint, moveDraft, writeDraft } from './drafts.js';
 

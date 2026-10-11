@@ -14,7 +14,7 @@ Division of responsibilities:
 | Decode and encode the file (encoding, XML) | Pick and open a document |
 | Display the map and handle interactions | Read and write the document's bytes |
 | Apply changes to the DOM | Display the WebView and the native UI (menu, Save button) |
-| Report the "modified" state | Detect write conflicts, make the backup copy |
+| Report the "modified" state | Detect write conflicts |
 
 The shell never reads or parses the file's content.
 
@@ -255,8 +255,8 @@ Shell                            Core
    │ ◄──── dirtyChanged(true) ─────│
    │── save (r2) ─────────────────►│
    │ ◄────────── saveData (r2) ────│
-   │  checks for conflict, backs    │
-   │  up, writes the bytes          │
+   │  checks for conflict, writes   │
+   │  the bytes                     │
    │── saved (saveId) ────────────►│
    │ ◄──── dirtyChanged(false) ────│
 ```
@@ -295,8 +295,7 @@ A mobile system may kill a backgrounded app without notice, and a phone may cras
 - [ ] Define `window.MindShell.send` before the core is loaded.
 - [ ] Wait for `ready` before sending any message.
 - [ ] Pass the file's bytes **untransformed** (no decoding, no line-ending normalization).
-- [ ] Before writing: check that the document has not changed since it was opened (modification date); if it has, do not write and offer "save as" or switch to read-only.
-- [ ] Keep a copy of the original before the first write of a session.
+- [ ] Before writing: check that the document still holds what the map is based on (its content as last read or saved, compared by fingerprint: modification dates are unreliable, see section 6). If it was changed elsewhere, do not write: let the user save a copy elsewhere (keeping both versions), overwrite, or cancel.
 - [ ] Send `saved` only after a confirmed write, with the `saveId` of the `saveData` whose bytes were written.
 - [ ] Remember which document each `save` belongs to, and write its bytes to that document only, even if another map was opened meanwhile.
 - [ ] Write one save at a time per document, in request order, and send the `saved` confirmations in that order: the last confirmation must match what the file holds.
@@ -329,4 +328,4 @@ What a browser cannot do, and how the web shell deals with it (a native shell do
 - **Writing the opened file**: a page can only offer a download. The shell calls it *Download a copy*, and sends `saved` only when the user confirms the copy is saved: until then the map stays modified and its draft is kept.
 - **Identifying a document**: a page gets a file's name, not its path. Drafts are tied to the name and to a SHA-256 fingerprint of the opened content; a draft made on another file with the same name is offered with a warning, and kept if declined.
 - **Durable storage**: drafts are kept in `localStorage`, which the user or the browser may clear.
-- **Conflicts and backups**: there is no document to check or back up, so section 7's obligations about them do not apply.
+- **Conflicts**: there is no document to check, so section 7's obligation about them does not apply.

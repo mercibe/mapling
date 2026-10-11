@@ -102,8 +102,18 @@ class MainActivity : Activity() {
 
     private val pendingLoads = mutableMapOf<String, PendingLoad>()
 
-    /** Document each pending `save` request belongs to, by requestId (docs/BRIDGE.md, section 7). */
-    private val saveTargets = mutableMapOf<String, Uri>()
+    /**
+     * Document each pending `save` request belongs to, by requestId (docs/BRIDGE.md, section 7),
+     * with the fingerprint of the content its map was based on when the save was requested.
+     */
+    private class SaveTarget(val uri: Uri, val base: String)
+
+    private val saveTargets = mutableMapOf<String, SaveTarget>()
+
+    /** A save refused because of a change made elsewhere, while the user picks where to copy it. */
+    private class PendingCopy(val document: Uri, val name: String, val saveId: Long, val bytes: ByteArray)
+
+    private var pendingCopy: PendingCopy? = null
 
     /** A banner tells the user while unsaved changes are not protected by drafts. */
     private val protectionListener: (Boolean) -> Unit = { protected ->
@@ -452,10 +462,20 @@ class MainActivity : Activity() {
 
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        val uri = data?.data
-        if (requestCode != REQUEST_OPEN || resultCode != RESULT_OK || uri == null) return
-        keepAccess(uri, data.flags)
-        open(uri)
+        val uri = data?.data.takeIf { resultCode == RESULT_OK }
+        when (requestCode) {
+            REQUEST_OPEN -> if (uri != null) {
+                keepAccess(uri, data!!.flags)
+                open(uri)
+            }
+            REQUEST_SAVE_COPY -> {
+                val copy = pendingCopy ?: return
+                pendingCopy = null
+                if (uri == null) return // the map stays modified, protected by its draft
+                keepAccess(uri, data!!.flags)
+                saveWriter.execute { writeTo(uri, copy.saveId, copy.bytes, copyOf = copy.document) }
+            }
+        }
     }
 
     /** Keeps the right to read and write the document after the process dies or the phone restarts. */
@@ -594,50 +614,111 @@ class MainActivity : Activity() {
     private fun save(): String? {
         val uri = document ?: return null
         val requestId = "r${++requestCount}"
-        saveTargets[requestId] = uri
+        saveTargets[requestId] = SaveTarget(uri, base)
         sendToCore(JSONObject().put("type", "save").put("requestId", requestId))
         return requestId
     }
 
-    /** Writes the bytes of a `saveData` to its own document, then confirms with `saved`. */
+    /**
+     * Writes the bytes of a `saveData` to its own document, then confirms with `saved`;
+     * unless the document was changed elsewhere since its map was read or saved: then
+     * nothing is written, and the user chooses.
+     */
     private fun write(message: JSONObject) {
         val requestId = message.getString("requestId")
-        val uri = saveTargets.remove(requestId) ?: return
+        val target = saveTargets.remove(requestId) ?: return
         val saveId = message.getLong("saveId")
         val bytes = Base64.decode(message.getString("data"), Base64.NO_WRAP)
         saveWriter.execute {
-            val start = System.currentTimeMillis()
-            try {
-                contentResolver.openOutputStream(uri, "wt")!!.use { it.write(bytes) }
+            val current = try {
+                contentResolver.openInputStream(target.uri)!!.use { DraftStore.fingerprint(it.readBytes()) }
             } catch (e: Exception) {
-                Log.w(TAG, "Cannot write $uri", e)
+                Log.w(TAG, "Cannot read ${target.uri} before writing", e) // never write blindly
                 runOnUiThread {
-                    giveUpLeaving(requestId) // the map stays open, still modified
+                    giveUpLeaving(requestId)
                     alert(R.string.error_write)
                 }
                 return@execute
             }
-            val written = DraftStore.fingerprint(bytes)
-            runOnUiThread {
-                if (isDestroyed) return@runOnUiThread // its map is gone with it
-                sendToCore(JSONObject().put("type", "saved").put("saveId", saveId)) {
-                    // The core has handled `saved`, and its dirtyChanged, if any, is already
-                    // handled too: leave only if the map is now unmodified.
-                    val leave = leaveAfterSave?.takeIf { it.requestId == requestId } ?: return@sendToCore
-                    leaveAfterSave = null
-                    if (!dirty && document == leave.uri) leave.then()
+            if (!writeCheck.unchanged(target.uri.toString(), current, target.base)) {
+                Log.i(TAG, "Not written: changed elsewhere (${current.take(8)}, based on ${target.base.take(8)})")
+                runOnUiThread {
+                    giveUpLeaving(requestId) // the user decides again, once the conflict is settled
+                    if (!isDestroyed) offerConflict(target.uri, saveId, bytes)
                 }
-                if (document == uri) {
-                    // The document now holds these bytes. A draft left by later changes must
-                    // be based on them, even if no change follows: ask for it again.
-                    base = written
-                    Log.i(TAG, "Saved: now based on ${written.take(8)}")
-                    sendToCore(JSONObject().put("type", "flushDraft"))
-                }
-                toast(getString(R.string.saved))
+                return@execute
             }
-            Log.i(TAG, "Wrote ${bytes.size} bytes in ${System.currentTimeMillis() - start} ms: ${describe(uri)}")
+            writeTo(target.uri, saveId, bytes, requestId = requestId)
         }
+    }
+
+    /** Save a copy (recommended: nothing is lost), overwrite, or cancel. */
+    private fun offerConflict(uri: Uri, saveId: Long, bytes: ByteArray) {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.conflict_title)
+            .setMessage(R.string.conflict_message)
+            .setCancelable(false)
+            .setPositiveButton(R.string.save_copy) { _, _ -> pickCopy(uri, saveId, bytes) }
+            .setNeutralButton(R.string.overwrite) { _, _ -> saveWriter.execute { writeTo(uri, saveId, bytes) } }
+            .setNegativeButton(android.R.string.cancel, null) // the map stays modified
+            .show()
+    }
+
+    private fun pickCopy(uri: Uri, saveId: Long, bytes: ByteArray) {
+        val name = getString(R.string.copy_name, documentName.removeSuffix(".mm")) + ".mm"
+        pendingCopy = PendingCopy(uri, name, saveId, bytes)
+        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
+            .addCategory(Intent.CATEGORY_OPENABLE)
+            .setType("application/octet-stream") // providers know no type for .mm files
+            .putExtra(Intent.EXTRA_TITLE, name)
+        startActivityForResult(intent, REQUEST_SAVE_COPY)
+    }
+
+    /**
+     * Writes on the save writer's thread, then confirms with `saved`. A copy of `copyOf`
+     * becomes the open document, like "save as": the map is now based on the copy, and the
+     * original's draft is deleted, since the copy holds the changes.
+     */
+    private fun writeTo(uri: Uri, saveId: Long, bytes: ByteArray, requestId: String? = null, copyOf: Uri? = null) {
+        val start = System.currentTimeMillis()
+        try {
+            contentResolver.openOutputStream(uri, "wt")!!.use { it.write(bytes) }
+        } catch (e: Exception) {
+            Log.w(TAG, "Cannot write $uri", e)
+            runOnUiThread {
+                requestId?.let(::giveUpLeaving) // the map stays open, still modified
+                alert(R.string.error_write)
+            }
+            return
+        }
+        val written = DraftStore.fingerprint(bytes)
+        writeCheck.wrote(uri.toString(), written)
+        val name = if (copyOf != null) displayName(uri) else null
+        runOnUiThread {
+            if (isDestroyed) return@runOnUiThread // its map is gone with it
+            if (copyOf != null && document == copyOf) {
+                document = uri
+                documentName = name!!
+                drafts.submit(copyOf.toString(), null)
+                render()
+            }
+            sendToCore(JSONObject().put("type", "saved").put("saveId", saveId)) {
+                // The core has handled `saved`, and its dirtyChanged, if any, is already
+                // handled too: leave only if the map is now unmodified.
+                val leave = leaveAfterSave?.takeIf { it.requestId == requestId } ?: return@sendToCore
+                leaveAfterSave = null
+                if (!dirty && document == leave.uri) leave.then()
+            }
+            if (document == uri) {
+                // The document now holds these bytes. A draft left by later changes must
+                // be based on them, even if no change follows: ask for it again.
+                base = written
+                Log.i(TAG, "Saved: now based on ${written.take(8)}")
+                sendToCore(JSONObject().put("type", "flushDraft"))
+            }
+            toast(getString(R.string.saved))
+        }
+        Log.i(TAG, "Wrote ${bytes.size} bytes in ${System.currentTimeMillis() - start} ms: ${describe(uri)}")
     }
 
     /**
@@ -818,6 +899,7 @@ class MainActivity : Activity() {
             "image" to R.plurals.count_image,
         )
         const val REQUEST_OPEN = 1
+        const val REQUEST_SAVE_COPY = 2
         const val STATE_DOCUMENT = "document"
 
         // One of each for the whole process, not per activity: when Android recreates
@@ -825,6 +907,9 @@ class MainActivity : Activity() {
 
         /** Writes one save at a time, in request order. */
         val saveWriter = Executors.newSingleThreadExecutor()
+
+        /** Used on the save writer's thread only. */
+        val writeCheck = WriteCheck()
 
         private var drafts: DraftStore? = null
 

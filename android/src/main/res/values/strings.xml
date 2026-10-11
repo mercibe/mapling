@@ -89,4 +89,10 @@ SPDX-License-Identifier: GPL-3.0-or-later
     <string name="unsaved_changes">This map has unsaved changes.</string>
     <!-- %1$s: the WebView's name, e.g. "Android System WebView" or "Chrome"; %2$s: its version; %3$d: the oldest major version Mapling runs on -->
     <string name="webview_too_old">Mapling needs a more recent version of %1$s (version %2$s installed, %3$d or later needed). Update it from the Play Store, then open Mapling again.</string>
+    <string name="conflict_title">Changed elsewhere</string>
+    <string name="conflict_message">This map was changed elsewhere since it was opened (on another device or in Freeplane, for instance). Saving here would replace those changes.\n\nSave a copy to keep both versions.</string>
+    <string name="save_copy">Save a copy…</string>
+    <string name="overwrite">Overwrite</string>
+    <!-- %1$s: the map's name without its extension; the copy's suggested name -->
+    <string name="copy_name">%1$s (copy)</string>
 </resources>
