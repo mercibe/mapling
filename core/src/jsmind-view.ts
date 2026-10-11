@@ -185,6 +185,8 @@ export class JsMindView implements View {
       const node = jm.get_node(id);
       if (node && node.data.readOnly) return;
       beginEdit(id);
+      // jsMind sizes the editor to the node (a new node's "…" is tiny): let the CSS size it.
+      jm.view.e_editor.style.width = '';
     };
     const view = jm.view;
     const editNodeEnd = view.edit_node_end.bind(view);

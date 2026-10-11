@@ -20,6 +20,11 @@ jmnode { -webkit-touch-callout: none; }
 /* Keep line breaks of multi-line texts and let long texts wrap. */
 jmnode { white-space: pre-wrap; max-width: 20em; }
 
+/* The text editor: at least about fifteen characters wide, growing with the text where
+   the browser can (field-sizing), within the screen; the node grows with it meanwhile. */
+.jsmind-editor { min-width: 15ch; max-width: 80vw; field-sizing: content; }
+jmnode:has(> .jsmind-editor) { max-width: none; }
+
 /* A node being added: placeholder text until validated. */
 jmnode.mapling-pending { font-style: italic; color: #888; }
 
