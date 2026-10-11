@@ -13,4 +13,13 @@ SPDX-License-Identifier: GPL-3.0-or-later
     <string name="reload">Reload</string>
     <string name="saved">Saved.</string>
     <string name="error_write">The map could not be saved. It is still modified.</string>
+    <string name="draft_title">Unsaved changes</string>
+    <!-- %1$s: date and time of the draft -->
+    <string name="draft_message">This map has unsaved changes from %1$s.</string>
+    <string name="draft_document_changed">The document has changed since then. Restoring, then saving, would replace those changes.</string>
+    <string name="restore">Restore</string>
+    <string name="discard">Discard</string>
+    <string name="draft_unreadable">A draft of this map could not be read. It has been kept aside.</string>
+    <string name="drafts_not_protected">Unsaved changes are not protected: drafts cannot be written.</string>
+    <string name="drafts_protected">Drafts are written again.</string>
 </resources>

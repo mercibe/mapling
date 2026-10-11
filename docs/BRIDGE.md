@@ -284,7 +284,8 @@ A mobile system may kill a backgrounded app without notice, and a phone may cras
 
 - The core sends `draftData` at most one second after any change, and on `flushDraft`.
 - **The shell owns persistence.** It keeps only the latest `draftData` received, and a single writer persists it (write or delete) until it succeeds; a newer message replaces the pending one. So a failed write is retried with the latest state, and an older write can never recreate a deleted draft. No acknowledgement goes back to the core.
-- Each write is atomic (temporary file, then rename) and stored in private storage with the document it belongs to, the document's modification date when it was opened, and the time of the draft.
+- Each write is atomic (temporary file, then rename) and stored in private storage with the document it belongs to, the time of the draft, and what the draft is based on: the document's content as last read or successfully saved. A fingerprint of that content is more reliable than a modification date, which some providers (Google Drive) only update once their upload ends, minutes later when offline.
+- A restored draft keeps what it was based on, so that a change made elsewhere is still reported if it is restored again. After a successful save, the shell takes the bytes written as the new basis and sends `flushDraft`: a draft left by later changes is then rewritten on that basis, even if no further change follows.
 - `draftData` with `data: null` means the map is unmodified again (saved, or changes undone): the draft is deleted.
 - If drafts cannot be written for a while (e.g. storage full), the shell tells the user that unsaved changes are not protected.
 - When a document with a draft is opened again, the shell offers to restore or discard it, and says so if the document changed since. Restoring is a `load` of the draft with `"restoredDraft": true`.

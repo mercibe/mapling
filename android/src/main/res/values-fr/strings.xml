@@ -11,4 +11,12 @@ SPDX-License-Identifier: GPL-3.0-or-later
     <string name="reload">Recharger</string>
     <string name="saved">Enregistré.</string>
     <string name="error_write">La carte n’a pas pu être enregistrée. Elle reste modifiée.</string>
+    <string name="draft_title">Modifications non enregistrées</string>
+    <string name="draft_message">Cette carte a des modifications non enregistrées du %1$s.</string>
+    <string name="draft_document_changed">Le document a changé depuis. Restaurer, puis enregistrer, remplacerait ces changements.</string>
+    <string name="restore">Restaurer</string>
+    <string name="discard">Abandonner</string>
+    <string name="draft_unreadable">Un brouillon de cette carte est illisible. Il a été mis de côté.</string>
+    <string name="drafts_not_protected">Les modifications non enregistrées ne sont pas protégées : impossible d’écrire le brouillon.</string>
+    <string name="drafts_protected">Les brouillons sont de nouveau écrits.</string>
 </resources>

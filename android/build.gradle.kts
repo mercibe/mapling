@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 // The Android shell: a single module, no library dependency (Kotlin is built into
-// the Android Gradle plugin since 9.0).
+// the Android Gradle plugin since 9.0); JUnit for the tests only.
 
 plugins {
     id("com.android.application") version "9.4.1"
@@ -19,6 +19,11 @@ android {
         versionCode = 1
         versionName = "0.1.0"
     }
+}
+
+dependencies {
+    // Tests only: never part of the app.
+    testImplementation("junit:junit:4.13.2")
 }
 
 /**

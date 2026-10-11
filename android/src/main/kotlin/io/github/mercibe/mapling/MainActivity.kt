@@ -5,6 +5,8 @@ package io.github.mercibe.mapling
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.app.AlertDialog
+import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.net.Uri
@@ -25,7 +27,12 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
+import io.github.mercibe.mapling.DraftStore.Draft
+import io.github.mercibe.mapling.DraftStore.Found
 import org.json.JSONObject
+import java.io.File
+import java.text.DateFormat
+import java.util.Date
 import java.util.concurrent.Executors
 import kotlin.concurrent.thread
 
@@ -38,21 +45,37 @@ import kotlin.concurrent.thread
 class MainActivity : Activity() {
 
     private lateinit var webView: WebView
+    private lateinit var drafts: DraftStore
     private var coreReady = false
     private var requestCount = 0
 
     /** The open document: changes only when the core has accepted a new one. */
     private var document: Uri? = null
+    private var documentName = ""
+
+    /**
+     * Fingerprint of the content the open map is based on: the bytes read, then the bytes
+     * of each successful save. A restored draft keeps its own, so that a change made
+     * elsewhere is still reported next time.
+     */
+    private var base = ""
     private var dirty = false
 
-    /** Document and name of each pending `load`, by requestId: a refused load changes nothing. */
-    private val pendingLoads = mutableMapOf<String, Pair<Uri, String>>()
+    /** Document to reopen once the core is ready, after Android recreated the activity. */
+    private var reopen: Uri? = null
+
+    /** What each pending `load` will open, by requestId: a refused load changes nothing. */
+    private class PendingLoad(val uri: Uri, val name: String, val base: String, val discardDraft: Boolean)
+
+    private val pendingLoads = mutableMapOf<String, PendingLoad>()
 
     /** Document each pending `save` request belongs to, by requestId (docs/BRIDGE.md, section 7). */
     private val saveTargets = mutableMapOf<String, Uri>()
 
-    /** Writes one save at a time, in request order. */
-    private val writer = Executors.newSingleThreadExecutor()
+    /** Tells the user when unsaved changes stop, or start again, being protected by drafts. */
+    private val protectionListener: (Boolean) -> Unit = { protected ->
+        runOnUiThread { toast(getString(if (protected) R.string.drafts_protected else R.string.drafts_not_protected)) }
+    }
 
     @SuppressLint("SetJavaScriptEnabled") // the core is JavaScript; the page only runs our own code
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -61,6 +84,10 @@ class MainActivity : Activity() {
         setContentView(webView)
         keepClearOfSystemBars()
         WebView.setWebContentsDebuggingEnabled(isDebuggable())
+
+        drafts = draftStore(applicationContext)
+        drafts.onProtectionChanged = protectionListener
+        reopen = savedInstanceState?.getString(STATE_DOCUMENT)?.let(Uri::parse)
 
         webView.settings.apply {
             javaScriptEnabled = true
@@ -88,8 +115,25 @@ class MainActivity : Activity() {
         webView.loadUrl(AssetServer.PAGE_URL)
     }
 
+    /**
+     * The app may be killed at any time once in the background: ask for a draft now.
+     * Only a precaution: the answer and its writing are asynchronous, and Android may stop
+     * the process before they end. What is protected is the last draft actually written.
+     */
+    override fun onPause() {
+        super.onPause()
+        if (document != null) sendToCore(JSONObject().put("type", "flushDraft"))
+    }
+
+    /** Only the document: the map itself is protected by its draft on disk. */
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        (document ?: reopen)?.let { outState.putString(STATE_DOCUMENT, it.toString()) }
+    }
+
     override fun onDestroy() {
-        writer.shutdown() // pending writes still complete
+        // Unless a newer activity has already taken over.
+        if (drafts.onProtectionChanged === protectionListener) drafts.onProtectionChanged = null
         webView.destroy()
         super.onDestroy()
     }
@@ -133,17 +177,43 @@ class MainActivity : Activity() {
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         val uri = data?.data
-        if (requestCode == REQUEST_OPEN && resultCode == RESULT_OK && uri != null) open(uri)
+        if (requestCode != REQUEST_OPEN || resultCode != RESULT_OK || uri == null) return
+        keepAccess(uri, data.flags)
+        open(uri)
     }
 
-    /** Reads the document off the main thread: a provider such as Drive may download it first. */
+    /** Keeps the right to read and write the document after the process dies or the phone restarts. */
+    private fun keepAccess(uri: Uri, flags: Int) {
+        val modes = flags and (Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+        try {
+            contentResolver.takePersistableUriPermission(uri, modes)
+        } catch (e: SecurityException) {
+            Log.w(TAG, "No persistable access to $uri", e)
+        }
+    }
+
+    /**
+     * Reads the document off the main thread (a provider such as Drive may download it
+     * first), with its draft if it has one, and offers to restore it.
+     */
     private fun open(uri: Uri) {
         thread {
             try {
                 val bytes = contentResolver.openInputStream(uri)!!.use { it.readBytes() }
                 val name = displayName(uri)
-                Log.i(TAG, "Opened $name: ${bytes.size} bytes, ${describe(uri)}, $uri")
-                runOnUiThread { load(uri, name, bytes) }
+                val base = DraftStore.fingerprint(bytes)
+                val found = drafts.read(uri.toString())
+                Log.i(TAG, "Opened $name: ${bytes.size} bytes, ${describe(uri)}, draft: ${found.javaClass.simpleName}, $uri")
+                runOnUiThread {
+                    when (found) {
+                        is Found.Present -> offerDraft(uri, name, bytes, base, found.draft)
+                        is Found.Unreadable -> {
+                            toast(getString(R.string.draft_unreadable))
+                            load(uri, name, bytes, base)
+                        }
+                        Found.None -> load(uri, name, bytes, base)
+                    }
+                }
             } catch (e: Exception) {
                 Log.w(TAG, "Cannot read $uri", e)
                 runOnUiThread { toast(getString(R.string.error_read)) }
@@ -151,14 +221,35 @@ class MainActivity : Activity() {
         }
     }
 
+    /** Restore or discard: either way, the draft is deleted only once a map is loaded. */
+    private fun offerDraft(uri: Uri, name: String, bytes: ByteArray, base: String, draft: Draft) {
+        val time = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(draft.time))
+        var message = getString(R.string.draft_message, time)
+        if (base != draft.base) message += "\n\n" + getString(R.string.draft_document_changed)
+        AlertDialog.Builder(this)
+            .setTitle(R.string.draft_title)
+            .setMessage(message)
+            .setCancelable(false)
+            .setPositiveButton(R.string.restore) { _, _ -> load(uri, name, draft.bytes, draft.base, restoredDraft = true) }
+            .setNegativeButton(R.string.discard) { _, _ -> load(uri, name, bytes, base, discardDraft = true) }
+            .show()
+    }
+
     private fun displayName(uri: Uri): String =
         contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
             if (it.moveToFirst()) it.getString(0) else null
         } ?: uri.lastPathSegment.orEmpty()
 
-    private fun load(uri: Uri, name: String, bytes: ByteArray) {
+    private fun load(
+        uri: Uri,
+        name: String,
+        bytes: ByteArray,
+        base: String,
+        restoredDraft: Boolean = false,
+        discardDraft: Boolean = false,
+    ) {
         val requestId = "r${++requestCount}"
-        pendingLoads[requestId] = uri to name
+        pendingLoads[requestId] = PendingLoad(uri, name, base, discardDraft)
         sendToCore(
             JSONObject()
                 .put("type", "load")
@@ -166,8 +257,29 @@ class MainActivity : Activity() {
                 .put("name", name)
                 .put("data", Base64.encodeToString(bytes, Base64.NO_WRAP))
                 .put("readOnly", false)
+                .put("restoredDraft", restoredDraft)
                 .put("locale", resources.configuration.locales[0].toLanguageTag()),
         )
+    }
+
+    private fun loaded(load: PendingLoad) {
+        document = load.uri
+        documentName = load.name
+        base = load.base
+        title = load.name
+        Log.i(TAG, "Loaded ${load.name}, based on ${load.base.take(8)}")
+        if (load.discardDraft) drafts.submit(load.uri.toString(), null)
+    }
+
+    // ---------- drafts (docs/BRIDGE.md, section 6) ----------
+
+    /** A draft concerns the map loaded now: its document is fixed here, before any writing. */
+    private fun keepDraft(message: JSONObject) {
+        val uri = document ?: return
+        val bytes = if (message.isNull("data")) null else Base64.decode(message.getString("data"), Base64.NO_WRAP)
+        val draft = bytes?.let { Draft(uri.toString(), documentName, base, System.currentTimeMillis(), it) }
+        Log.i(TAG, "Draft of $documentName: ${bytes?.let { "${it.size} bytes, based on ${base.take(8)}" } ?: "delete"}")
+        drafts.submit(uri.toString(), draft)
     }
 
     // ---------- saving (docs/BRIDGE.md, section 6) ----------
@@ -184,7 +296,7 @@ class MainActivity : Activity() {
         val uri = saveTargets.remove(message.getString("requestId")) ?: return
         val saveId = message.getLong("saveId")
         val bytes = Base64.decode(message.getString("data"), Base64.NO_WRAP)
-        writer.execute {
+        saveWriter.execute {
             val start = System.currentTimeMillis()
             try {
                 contentResolver.openOutputStream(uri, "wt")!!.use { it.write(bytes) }
@@ -193,8 +305,17 @@ class MainActivity : Activity() {
                 runOnUiThread { toast(getString(R.string.error_write)) }
                 return@execute
             }
+            val written = DraftStore.fingerprint(bytes)
             runOnUiThread {
+                if (isDestroyed) return@runOnUiThread // its map is gone with it
                 sendToCore(JSONObject().put("type", "saved").put("saveId", saveId))
+                if (document == uri) {
+                    // The document now holds these bytes. A draft left by later changes must
+                    // be based on them, even if no change follows: ask for it again.
+                    base = written
+                    Log.i(TAG, "Saved: now based on ${written.take(8)}")
+                    sendToCore(JSONObject().put("type", "flushDraft"))
+                }
                 toast(getString(R.string.saved))
             }
             Log.i(TAG, "Wrote ${bytes.size} bytes in ${System.currentTimeMillis() - start} ms: ${describe(uri)}")
@@ -243,11 +364,11 @@ class MainActivity : Activity() {
             "ready" -> {
                 coreReady = true
                 invalidateOptionsMenu()
+                reopen?.let(::open)
+                reopen = null
             }
-            "loaded" -> pendingLoads.remove(message.getString("requestId"))?.let { (uri, name) ->
-                document = uri
-                title = name
-            }
+            "loaded" -> pendingLoads.remove(message.getString("requestId"))?.let(::loaded)
+            "draftData" -> keepDraft(message)
             "saveData" -> write(message)
             "dirtyChanged" -> {
                 dirty = message.getBoolean("dirty")
@@ -292,5 +413,18 @@ class MainActivity : Activity() {
         const val MENU_SAVE = 2
         const val MENU_RELOAD = 3
         const val REQUEST_OPEN = 1
+        const val STATE_DOCUMENT = "document"
+
+        // One of each for the whole process, not per activity: when Android recreates
+        // the activity, two writers must never work on the same files.
+
+        /** Writes one save at a time, in request order. */
+        val saveWriter = Executors.newSingleThreadExecutor()
+
+        private var drafts: DraftStore? = null
+
+        @Synchronized
+        fun draftStore(context: Context): DraftStore =
+            drafts ?: DraftStore(File(context.filesDir, "drafts"), WriterThread()).also { drafts = it }
     }
 }
