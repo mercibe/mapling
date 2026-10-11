@@ -12,6 +12,11 @@
 
 #mapling { width: 100%; height: 100%; }
 
+/* Fingers scroll the map, but never zoom the whole page: pinching zooms the map
+   itself (core/src/touch.ts). No callout menu when a finger rests on a node. */
+.jsmind-inner { touch-action: pan-x pan-y; }
+jmnode { -webkit-touch-callout: none; }
+
 /* Keep line breaks of multi-line texts and let long texts wrap. */
 jmnode { white-space: pre-wrap; max-width: 20em; }
 

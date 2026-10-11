@@ -8,6 +8,7 @@
 
 import type { Bridge, Command, View } from './bridge.ts';
 import type { MindMap, Side, ViewNode } from './map.ts';
+import { installTouchGestures, type TouchMap } from './touch.ts';
 
 // ---------- the parts of jsMind 0.9.1 used here (checked in its source) ----------
 
@@ -28,9 +29,14 @@ interface JmEditEvent {
   node?: string;
 }
 
-interface JsMindInstance {
+interface JsMindInstance extends TouchMap {
   mind: { root: JmNode; nodes: Record<string, JmNode> } | null;
-  view: { e_panel: HTMLElement; e_editor: HTMLInputElement; editing_node: JmNode | null; edit_node_end(): void };
+  view: TouchMap['view'] & {
+    e_panel: HTMLElement;
+    e_editor: HTMLInputElement;
+    editing_node: JmNode | null;
+    edit_node_end(): void;
+  };
   show(mind: object, skipCentering?: boolean): void;
   get_node(id: string): JmNode | null;
   get_selected_node(): JmNode | null;
@@ -80,6 +86,7 @@ export class JsMindView implements View {
       },
     });
     this.guardEditing();
+    installTouchGestures(this.jm);
     this.jm.add_event_listener((type, event) => this.onJsMindEvent(type, event));
   }
 

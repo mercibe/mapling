@@ -34,6 +34,7 @@ This page describes the inside of the core (`core/`). To write a shell, read [BR
 | `html-text.ts` | Plain-text rendering of rich (HTML) nodes, for display only. |
 | `localized-text.ts` | Texts Freeplane provides itself (`LOCALIZED_TEXT`, e.g. the root of a new map), in the user's language. |
 | `jsmind-view.ts` | The view: displays the map with jsMind and turns gestures into operations (browser only). |
+| `touch.ts` | Touch gestures on top of jsMind: moving only the selected node, after a short hold; pinching to zoom the map. |
 | `main.ts` | Entry point in the page: connects the core to the shell's `MindShell`. |
 | `session.ts` | `MapSession`: the open map, its undo/redo history and its revisions. |
 | `bridge.ts` | `Bridge`: the core side of BRIDGE.md: messages, bytes ↔ text (UTF-8), saves and drafts. |
@@ -65,6 +66,7 @@ jsMind 0.9.1 (vendored in `core/vendor/`) draws the map and captures gestures, b
 - **Gestures**: jsMind reports edits after changing its own model. Only two come from the user: editing a text (`update_node`) and dragging a node (`move_node`). For a move, the view reads the result (new parent, position, side) from jsMind's model, since the event only carries the call's arguments. Every gesture becomes an operation on the map through the bridge; if one is refused, the view redraws from the map.
 - **Commands** (add, delete, edit text, center) come from the shell's menu, through the bridge. A new node first exists only in the view, with a neutral placeholder; it is added to the map, in one operation with its text, when that text is validated. Validated unchanged, it simply disappears.
 - **Workarounds** for jsMind (checked in its source): non-editable texts are guarded by wrapping `begin_edit`; jsMind's own shortcuts for adding and deleting are disabled, since they bypass these rules; Enter is also recognized by `event.key`, since jsMind only checks the legacy `keyCode` that virtual keyboards may leave at 0 or 229.
+- **Touch** (`touch.ts`): jsMind's drag plugin moves any node a finger lands on, so scrolling would move nodes. On a touch screen, a node moves only if it is the selected one and the finger rests on it for 300 ms; any other slide scrolls the map. Two fingers zoom the map with jsMind's zoom, while CSS (`touch-action: pan-x pan-y`) keeps the browser from zooming the whole page. Moving and zooming never overlap: a move starts only under a single finger, and a second finger or an interrupted touch (`touchcancel`, which jsMind ignores) cancels it without applying it (the plugin's `dragend` applies a move only when `moved` is set; the cancellation also forgets the node and target of the move, which the plugin only clears when it applies one, so that a later move cannot fall back on an abandoned target). The mouse keeps jsMind's behavior. The gesture state (`TouchGestures`) is tested in Node with a stand-in for the plugin, including these sequences; the gestures were validated on a phone.
 - **Marks** are drawn by CSS (`core/assets/mapling.css`): a lock on non-editable texts, a dot on nodes with hidden content. They contain no text.
 
 ## Tests (`core/test`)
