@@ -57,6 +57,17 @@ class DraftStore(
     /** Called on the writer's thread when drafts stop, or start again, being written. */
     @Volatile
     var onProtectionChanged: ((protected: Boolean) -> Unit)? = null
+        private set
+
+    /**
+     * Watches whether drafts are written (null: stops watching), starting with the current
+     * state: a screen recreated while the process lives on must know about a failure under
+     * way. Told on the writer's thread, like every change, so always in order.
+     */
+    fun watchProtection(listener: ((protected: Boolean) -> Unit)?) {
+        onProtectionChanged = listener
+        if (listener != null) scheduler.execute { if (onProtectionChanged === listener) listener(protected) }
+    }
 
     private val lock = Any()
     private val pending = LinkedHashMap<String, Draft?>() // latest state per document; null deletes

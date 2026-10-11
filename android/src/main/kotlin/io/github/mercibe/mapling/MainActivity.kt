@@ -122,7 +122,7 @@ class MainActivity : Activity() {
         WebView.setWebContentsDebuggingEnabled(isDebuggable())
 
         drafts = draftStore(applicationContext)
-        drafts.onProtectionChanged = protectionListener
+        drafts.watchProtection(protectionListener)
         reopen = savedInstanceState?.getString(STATE_DOCUMENT)?.let(Uri::parse)
 
         webView.settings.apply {
@@ -169,7 +169,7 @@ class MainActivity : Activity() {
 
     override fun onDestroy() {
         // Unless a newer activity has already taken over.
-        if (drafts.onProtectionChanged === protectionListener) drafts.onProtectionChanged = null
+        if (drafts.onProtectionChanged === protectionListener) drafts.watchProtection(null)
         webView.destroy()
         super.onDestroy()
     }

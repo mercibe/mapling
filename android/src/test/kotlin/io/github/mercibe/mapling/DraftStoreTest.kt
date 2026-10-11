@@ -73,7 +73,11 @@ class DraftStoreTest {
                 if (failing) throw IOException("disk full")
                 file.delete()
             },
-        ).also { it.onProtectionChanged = { protected -> protection += protected } }
+        ).also {
+            it.watchProtection { protected -> protection += protected }
+            scheduler.runNow()
+            protection.clear() // only the changes matter in most tests
+        }
     }
 
     private fun draft(text: String, base: String = "base") = Draft(uri, "Map.mm", base, 1234L, text.toByteArray())
@@ -194,6 +198,36 @@ class DraftStoreTest {
         assertEquals(listOf(false, true), protection)
         assertEquals("text", store.text())
         assertTrue(scheduler.later.isEmpty())
+    }
+
+    @Test
+    fun aScreenThatStartsWatchingIsToldTheCurrentState() {
+        val store = store()
+        failing = true
+        store.submit(uri, draft("text"))
+        scheduler.runNow()
+        repeat(2) { scheduler.elapse() } // three failures: drafts are not protected
+        assertEquals(listOf(false), protection)
+
+        // Android recreates the activity, the process lives on: the new screen must know.
+        val newScreen = mutableListOf<Boolean>()
+        store.watchProtection { protected -> newScreen += protected }
+        scheduler.runNow()
+        assertEquals(listOf(false), newScreen)
+
+        failing = false
+        scheduler.elapse()
+        assertEquals(listOf(false, true), newScreen)
+    }
+
+    @Test
+    fun aScreenThatStoppedWatchingIsNotTold() {
+        val store = store()
+        val screen = mutableListOf<Boolean>()
+        store.watchProtection { protected -> screen += protected }
+        store.watchProtection(null) // gone before the writer's thread got to it
+        scheduler.runNow()
+        assertEquals(listOf<Boolean>(), screen)
     }
 
     @Test
