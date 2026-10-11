@@ -78,8 +78,13 @@ class MainActivity : Activity() {
     private var canRedo = false
     private var selection: JSONObject? = null
 
-    /** What to do once the save asked before leaving the map has been confirmed. */
-    private var afterSave: (() -> Unit)? = null
+    /**
+     * Leaving the map once a given save has been written (Save in leaveMap): tied to that
+     * save request and its document, so that nothing else can set it off later.
+     */
+    private class LeaveAfterSave(val requestId: String, val uri: Uri, val then: () -> Unit)
+
+    private var leaveAfterSave: LeaveAfterSave? = null
 
     /** The interception of "back" (Android 13+), declared only while the map is modified. */
     private var backCallback: Any? = null
@@ -251,11 +256,13 @@ class MainActivity : Activity() {
         AlertDialog.Builder(this)
             .setMessage(R.string.unsaved_changes)
             .setPositiveButton(R.string.save) { _, _ ->
-                afterSave = then // once the core reports the map saved (dirtyChanged)
-                save()
+                save()?.let { requestId -> leaveAfterSave = LeaveAfterSave(requestId, uri, then) }
             }
             .setNegativeButton(R.string.discard) { _, _ ->
+                // The core still holds the changes: closing the map first makes the shell
+                // ignore any draft it may still send for them (onPause asks for one).
                 drafts.submit(uri.toString(), null)
+                close()
                 then()
             }
             .setNeutralButton(android.R.string.cancel, null)
@@ -567,16 +574,19 @@ class MainActivity : Activity() {
 
     // ---------- saving (docs/BRIDGE.md, section 6) ----------
 
-    private fun save() {
-        val uri = document ?: return
+    /** Returns the request's id, or null with no document open. */
+    private fun save(): String? {
+        val uri = document ?: return null
         val requestId = "r${++requestCount}"
         saveTargets[requestId] = uri
         sendToCore(JSONObject().put("type", "save").put("requestId", requestId))
+        return requestId
     }
 
     /** Writes the bytes of a `saveData` to its own document, then confirms with `saved`. */
     private fun write(message: JSONObject) {
-        val uri = saveTargets.remove(message.getString("requestId")) ?: return
+        val requestId = message.getString("requestId")
+        val uri = saveTargets.remove(requestId) ?: return
         val saveId = message.getLong("saveId")
         val bytes = Base64.decode(message.getString("data"), Base64.NO_WRAP)
         saveWriter.execute {
@@ -586,7 +596,7 @@ class MainActivity : Activity() {
             } catch (e: Exception) {
                 Log.w(TAG, "Cannot write $uri", e)
                 runOnUiThread {
-                    afterSave = null // the map stays open, still modified
+                    giveUpLeaving(requestId) // the map stays open, still modified
                     alert(R.string.error_write)
                 }
                 return@execute
@@ -594,7 +604,13 @@ class MainActivity : Activity() {
             val written = DraftStore.fingerprint(bytes)
             runOnUiThread {
                 if (isDestroyed) return@runOnUiThread // its map is gone with it
-                sendToCore(JSONObject().put("type", "saved").put("saveId", saveId))
+                sendToCore(JSONObject().put("type", "saved").put("saveId", saveId)) {
+                    // The core has handled `saved`, and its dirtyChanged, if any, is already
+                    // handled too: leave only if the map is now unmodified.
+                    val leave = leaveAfterSave?.takeIf { it.requestId == requestId } ?: return@sendToCore
+                    leaveAfterSave = null
+                    if (!dirty && document == leave.uri) leave.then()
+                }
                 if (document == uri) {
                     // The document now holds these bytes. A draft left by later changes must
                     // be based on them, even if no change follows: ask for it again.
@@ -631,9 +647,18 @@ class MainActivity : Activity() {
 
     // ---------- bridge (docs/BRIDGE.md, section 3) ----------
 
-    private fun sendToCore(message: JSONObject) {
+    /**
+     * `handled`, if given, runs on the main thread once the core has handled the message:
+     * the messages it sent in return (through MindShell.send) have been posted before.
+     */
+    private fun sendToCore(message: JSONObject, handled: (() -> Unit)? = null) {
         message.put("v", 1)
-        webView.evaluateJavascript("MindCore.receive(${JSONObject.quote(message.toString())})", null)
+        val script = "MindCore.receive(${JSONObject.quote(message.toString())})"
+        webView.evaluateJavascript(script, handled?.let { { _: String? -> it() } })
+    }
+
+    private fun giveUpLeaving(requestId: String) {
+        if (leaveAfterSave?.requestId == requestId) leaveAfterSave = null
     }
 
     /** Exposed to the page as `window.MindShell`. */
@@ -659,7 +684,6 @@ class MainActivity : Activity() {
             "dirtyChanged" -> {
                 dirty = message.getBoolean("dirty")
                 render()
-                if (!dirty) afterSave?.also { afterSave = null }?.invoke()
             }
             "historyChanged" -> {
                 canUndo = message.getBoolean("canUndo")
@@ -675,6 +699,7 @@ class MainActivity : Activity() {
                 val requestId = message.optString("requestId")
                 pendingLoads.remove(requestId)
                 saveTargets.remove(requestId)
+                giveUpLeaving(requestId)
                 showError(message.getString("code"))
             }
             else -> Log.d(TAG, "Core: ${message.toString().take(200)}")
