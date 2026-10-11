@@ -4,11 +4,12 @@ Your Freeplane mind maps on your Android phone or tablet. Open `.mm` files from 
 
 ## Status
 
-**Work in progress: the Android app does not exist yet.**
+**Work in progress: the Android app works, but is not published yet.** Build it yourself: see [android/README.md](android/README.md).
 
 - Done: the platform-neutral core. It loads a map, applies edits (text, add, remove, move), undoes them, and writes the file back with no information loss: on our test maps, an unedited map is written back byte for byte.
 - Done: a reference web shell, to try Mapling in a desktop browser (see below).
-- Next: the Android app.
+- Done: the Android app (Android 8 or later): open a map from Google Drive or any storage, view it, edit it with touch gestures, save it back; unsaved changes are kept as drafts.
+- Next: conflict detection (a map changed elsewhere since it was opened), then publication.
 
 Supported format: maps written by Freeplane 1.12. Older (FreeMind included) and newer formats open read-only.
 
@@ -25,7 +26,6 @@ Then open <http://localhost:8765/web/>, and open a `.mm` file (for instance from
 - Select a node by clicking it; edit its text by double-clicking it (or F2, or the Edit text button); add, delete, undo and redo with the toolbar; drag a node onto another to move it.
 - A small lock marks a text that can only be edited in Freeplane (rich or multi-line text); a small dot marks content that is kept but not shown (notes, icons, links…). Select the node to see what it holds.
 - A browser cannot write to the file you opened: *Download a copy* saves the result, and the map counts as saved only once you confirm the copy is where you want it. Until then, unsaved changes are kept as a draft in the browser.
-- Touch gestures (double tap, long press, pinch) are not handled yet; they will come with the Android app.
 
 ## Principles
 
@@ -37,6 +37,7 @@ Then open <http://localhost:8765/web/>, and open a `.mm` file (for instance from
 
 - [Architecture](docs/ARCHITECTURE.md): how the core and its map view work.
 - [Bridge contract](docs/BRIDGE.md): everything needed to write a new shell (Android, iOS, web).
+- [Android app](android/README.md): building, installing, testing.
 - [Contributing](CONTRIBUTING.md): workflow, license of contributions, file headers.
 
 ## Development

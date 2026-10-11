@@ -36,7 +36,7 @@ core/              core: .mm model, operations, bridge, jsMind view; Node tests
   vendor/          jsMind 0.9.1, pinned (BSD-3-Clause, keeps its license)
   assets/          stylesheet of the map view
 web/               reference web shell (open a local file, download a copy); drafts tested in Node
-android/           Kotlin shell (WebView + Storage Access Framework), milestone 3 in progress
+android/           Kotlin shell (WebView + Storage Access Framework), see android/README.md
 ios/               not started, contributions welcome
 docs/              public documentation (English)
 fixtures/          public test maps (never modify)
