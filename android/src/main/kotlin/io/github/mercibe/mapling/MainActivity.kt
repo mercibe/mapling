@@ -29,7 +29,9 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.ImageButton
+import android.widget.LinearLayout
 import android.widget.PopupMenu
+import android.widget.TextView
 import android.widget.Toast
 import android.widget.Toolbar
 import io.github.mercibe.mapling.DraftStore.Draft
@@ -74,6 +76,11 @@ class MainActivity : Activity() {
     private var canRedo = false
     private var selection: JSONObject? = null
 
+    /** Messages shown in banners while they apply. */
+    private var readOnlyReasons = listOf<String>() // warning codes of `loaded`
+    private var hiddenNotice: String? = null // shown once per document, until dismissed
+    private var draftsProtected = true
+
     /** Document to reopen once the core is ready, after Android recreated the activity. */
     private var reopen: Uri? = null
 
@@ -85,9 +92,12 @@ class MainActivity : Activity() {
     /** Document each pending `save` request belongs to, by requestId (docs/BRIDGE.md, section 7). */
     private val saveTargets = mutableMapOf<String, Uri>()
 
-    /** Tells the user when unsaved changes stop, or start again, being protected by drafts. */
+    /** A banner tells the user while unsaved changes are not protected by drafts. */
     private val protectionListener: (Boolean) -> Unit = { protected ->
-        runOnUiThread { toast(getString(if (protected) R.string.drafts_protected else R.string.drafts_not_protected)) }
+        runOnUiThread {
+            draftsProtected = protected
+            render()
+        }
     }
 
     @SuppressLint("SetJavaScriptEnabled") // the core is JavaScript; the page only runs our own code
@@ -281,8 +291,73 @@ class MainActivity : Activity() {
         findViewById<View>(R.id.add_child).isEnabled = node != null
         findViewById<View>(R.id.add_sibling).isEnabled = !root
         findViewById<View>(R.id.delete_node).isEnabled = !root
+        renderMessages()
+        renderHints()
         invalidateOptionsMenu()
     }
+
+    private fun renderMessages() {
+        val messages = findViewById<LinearLayout>(R.id.messages)
+        messages.removeAllViews()
+        for (code in readOnlyReasons) {
+            READ_ONLY_TEXTS[code]?.let { messages.addView(banner(getString(it), R.color.message_warning)) }
+        }
+        hiddenNotice?.let {
+            messages.addView(banner(it, R.color.message_info) { hiddenNotice = null; render() })
+        }
+        if (!draftsProtected) messages.addView(banner(getString(R.string.drafts_not_protected), R.color.message_warning))
+    }
+
+    /** While a node with a lock or a dot is selected, what the mark means; nothing otherwise. */
+    private fun renderHints() {
+        val hints = findViewById<LinearLayout>(R.id.hints)
+        hints.removeAllViews()
+        val node = selection ?: return
+        if (!node.getBoolean("textEditable") && !mapReadOnly) {
+            hints.addView(hint(getString(R.string.hint_locked), R.drawable.mark_lock))
+        }
+        val hidden = node.getJSONObject("hidden")
+        val items = HIDDEN_KINDS.mapNotNull { (kind, plural) ->
+            hidden.optInt(kind).takeIf { it > 0 }?.let { resources.getQuantityString(plural, it, it) }
+        }
+        if (items.isNotEmpty()) {
+            hints.addView(hint(getString(R.string.hint_hidden, ListFormatter.getInstance().format(items)), R.drawable.mark_dot))
+        }
+    }
+
+    /** A message across the screen; with `dismiss`, a button closes it. */
+    private fun banner(text: String, color: Int, dismiss: (() -> Unit)? = null): View {
+        val row = LinearLayout(this)
+        row.setBackgroundColor(getColor(color))
+        row.gravity = Gravity.CENTER_VERTICAL
+        row.addView(messageText(text), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        if (dismiss != null) {
+            val close = ImageButton(this, null, android.R.attr.borderlessButtonStyle)
+            close.setImageResource(R.drawable.ic_close)
+            close.imageTintList = getColorStateList(R.color.message_text)
+            close.contentDescription = getString(R.string.dismiss)
+            close.tooltipText = getString(R.string.dismiss)
+            close.setOnClickListener { dismiss() }
+            row.addView(close, LinearLayout.LayoutParams(dp(48), dp(48)))
+        }
+        return row
+    }
+
+    /** An explanation preceded by the very mark it explains. */
+    private fun hint(text: String, mark: Int): View = messageText(text).apply {
+        setBackgroundColor(getColor(R.color.message_hint))
+        setCompoundDrawablesRelativeWithIntrinsicBounds(mark, 0, 0, 0)
+        compoundDrawablePadding = dp(8)
+    }
+
+    private fun messageText(text: String) = TextView(this).apply {
+        this.text = text
+        textSize = 14f
+        setTextColor(getColor(R.color.message_text))
+        setPadding(dp(12), dp(8), dp(12), dp(8))
+    }
+
+    private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
 
     // ---------- opening a document ----------
 
@@ -381,11 +456,14 @@ class MainActivity : Activity() {
         )
     }
 
-    private fun loaded(load: PendingLoad, readOnly: Boolean) {
+    private fun loaded(load: PendingLoad, message: JSONObject) {
         document = load.uri
         documentName = load.name
         base = load.base
-        mapReadOnly = readOnly
+        mapReadOnly = message.getBoolean("readOnly")
+        val warnings = message.getJSONArray("warnings")
+        readOnlyReasons = List(warnings.length()) { warnings.getJSONObject(it).getString("code") }
+        hiddenNotice = hiddenNotice(load.uri, message.getJSONArray("hiddenContent"))
         Log.i(TAG, "Loaded ${load.name}, based on ${load.base.take(8)}")
         if (load.discardDraft) drafts.submit(load.uri.toString(), null)
         render()
@@ -396,7 +474,25 @@ class MainActivity : Activity() {
         document = null
         documentName = ""
         selection = null
+        readOnlyReasons = listOf()
+        hiddenNotice = null
         render()
+    }
+
+    /**
+     * "This map contains notes and icons that are not shown here. They are kept.":
+     * told once per document, the first time it is opened with such content. The list of
+     * documents told grows by about 200 bytes per document; it is to move into the list
+     * of recent maps, once there is one, which will bound and clean it.
+     */
+    private fun hiddenNotice(uri: Uri, kinds: org.json.JSONArray): String? {
+        if (kinds.length() == 0) return null
+        val preferences = getSharedPreferences(PREFERENCES, MODE_PRIVATE)
+        val told = preferences.getStringSet(HIDDEN_NOTICE_TOLD, emptySet()).orEmpty()
+        if (uri.toString() in told) return null
+        preferences.edit().putStringSet(HIDDEN_NOTICE_TOLD, told + uri.toString()).apply()
+        val names = List(kinds.length()) { getString(KIND_NAMES.getValue(kinds.getString(it))) }
+        return getString(R.string.hidden_notice, ListFormatter.getInstance().format(names))
     }
 
     // ---------- drafts (docs/BRIDGE.md, section 6) ----------
@@ -495,7 +591,7 @@ class MainActivity : Activity() {
                 reopen?.let(::open)
                 reopen = null
             }
-            "loaded" -> pendingLoads.remove(message.getString("requestId"))?.let { loaded(it, message.getBoolean("readOnly")) }
+            "loaded" -> pendingLoads.remove(message.getString("requestId"))?.let { loaded(it, message) }
             "draftData" -> keepDraft(message)
             "saveData" -> write(message)
             "dirtyChanged" -> {
@@ -573,6 +669,27 @@ class MainActivity : Activity() {
             Triple(MENU_UNDO, R.string.undo, R.drawable.ic_undo),
             Triple(MENU_REDO, R.string.redo, R.drawable.ic_redo),
             Triple(MENU_SAVE, R.string.save, R.drawable.ic_save),
+        )
+
+        const val PREFERENCES = "mapling"
+        const val HIDDEN_NOTICE_TOLD = "hiddenNoticeTold"
+
+        /** Why a map opened read-only: warning codes of `loaded` (docs/BRIDGE.md, section 5). */
+        val READ_ONLY_TEXTS = mapOf(
+            "FORMAT_TOO_OLD" to R.string.read_only_FORMAT_TOO_OLD,
+            "FORMAT_TOO_NEW" to R.string.read_only_FORMAT_TOO_NEW,
+            "DUPLICATE_IDS" to R.string.read_only_DUPLICATE_IDS,
+        )
+
+        /** Names of the kinds of hidden content, for the notice shown when a map opens. */
+        val KIND_NAMES = mapOf(
+            "note" to R.string.kind_note,
+            "details" to R.string.kind_details,
+            "attribute" to R.string.kind_attribute,
+            "link" to R.string.kind_link,
+            "icon" to R.string.kind_icon,
+            "connector" to R.string.kind_connector,
+            "image" to R.string.kind_image,
         )
 
         /** The core's error codes (docs/BRIDGE.md, section 5) and their texts. */

@@ -19,7 +19,6 @@ SPDX-License-Identifier: GPL-3.0-or-later
     <string name="discard">Discard</string>
     <string name="draft_unreadable">A draft of this map could not be read. It has been kept aside.</string>
     <string name="drafts_not_protected">Unsaved changes are not protected: drafts cannot be written.</string>
-    <string name="drafts_protected">Drafts are written again.</string>
     <string name="undo">Undo</string>
     <string name="redo">Redo</string>
     <string name="edit_text">Edit text</string>
@@ -71,4 +70,20 @@ SPDX-License-Identifier: GPL-3.0-or-later
     <string name="error_PROTOCOL_VERSION">Internal error: incompatible versions.</string>
     <string name="error_OUTDATED_COMMAND">The map changed in the meantime: please try again.</string>
     <string name="error_INTERNAL">Internal error.</string>
+    <string name="read_only_FORMAT_TOO_OLD">Read-only: this map was written by FreeMind or an older Freeplane. Open it with Freeplane 1.12 or later and save it to edit it here.</string>
+    <string name="read_only_FORMAT_TOO_NEW">Read-only: this map was written by a Freeplane version newer than mapling supports. Check for a mapling update.</string>
+    <string name="read_only_DUPLICATE_IDS">Read-only: some nodes of this map share the same identifier, so editing could change the wrong node. Open and save it with Freeplane to repair it.</string>
+    <!-- %1$s: the kinds of content, e.g. "notes and icons" -->
+    <string name="hidden_notice">This map contains items that are not shown here: %1$s. They are kept.</string>
+    <string name="kind_note">notes</string>
+    <string name="kind_details">details</string>
+    <string name="kind_attribute">attributes</string>
+    <string name="kind_link">links</string>
+    <string name="kind_icon">icons</string>
+    <string name="kind_connector">connectors</string>
+    <string name="kind_image">images</string>
+    <string name="hint_locked">Text not editable here (rich or multi-line text): edit it in Freeplane. The node can still be moved or deleted.</string>
+    <!-- %1$s: what the node holds, e.g. "1 note and 2 icons" -->
+    <string name="hint_hidden">This node holds items that are not shown here, and kept: %1$s.</string>
+    <string name="dismiss">Dismiss</string>
 </resources>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+SPDX-FileCopyrightText: 2026 Benoit Mercier and mapling contributors
+SPDX-License-Identifier: GPL-3.0-or-later
+-->
+<!-- The dot drawn on the map for content kept but not shown: the same color as
+     the dot color in core/assets/mapling.css. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
+    <size android:width="7dp" android:height="7dp" />
+    <solid android:color="#4A7FD4" />
+</shape>

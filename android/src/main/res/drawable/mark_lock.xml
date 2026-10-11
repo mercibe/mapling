@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+SPDX-FileCopyrightText: 2026 Benoit Mercier and mapling contributors
+SPDX-License-Identifier: GPL-3.0-or-later
+-->
+<!-- The lock drawn on the map for a text that cannot be edited: the same drawing as
+     the lock in core/assets/mapling.css. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="12dp"
+    android:height="14dp"
+    android:viewportWidth="14"
+    android:viewportHeight="16">
+    <path
+        android:pathData="M3,7V5a4,4 0,0 1,8 0v2"
+        android:strokeColor="#777777"
+        android:strokeWidth="2" />
+    <path
+        android:fillColor="#777777"
+        android:pathData="M2.5,7h9a1.5,1.5 0,0 1,1.5 1.5v6a1.5,1.5 0,0 1,-1.5 1.5h-9a1.5,1.5 0,0 1,-1.5 -1.5v-6a1.5,1.5 0,0 1,1.5 -1.5z" />
+</vector>

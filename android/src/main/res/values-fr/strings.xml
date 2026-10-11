@@ -17,7 +17,6 @@ SPDX-License-Identifier: GPL-3.0-or-later
     <string name="discard">Abandonner</string>
     <string name="draft_unreadable">Un brouillon de cette carte est illisible. Il a été mis de côté.</string>
     <string name="drafts_not_protected">Les modifications non enregistrées ne sont pas protégées : impossible d’écrire le brouillon.</string>
-    <string name="drafts_protected">Les brouillons sont de nouveau écrits.</string>
     <string name="undo">Annuler</string>
     <string name="redo">Rétablir</string>
     <string name="edit_text">Modifier le texte</string>
@@ -76,4 +75,18 @@ SPDX-License-Identifier: GPL-3.0-or-later
     <string name="error_PROTOCOL_VERSION">Erreur interne : versions incompatibles.</string>
     <string name="error_OUTDATED_COMMAND">La carte a changé entre-temps : réessayez.</string>
     <string name="error_INTERNAL">Erreur interne.</string>
+    <string name="read_only_FORMAT_TOO_OLD">Lecture seule : cette carte a été écrite par FreeMind ou un Freeplane plus ancien. Ouvrez-la avec Freeplane 1.12 ou plus récent et enregistrez-la pour la modifier ici.</string>
+    <string name="read_only_FORMAT_TOO_NEW">Lecture seule : cette carte a été écrite par une version de Freeplane plus récente que celles prises en charge. Vérifiez si une mise à jour de mapling existe.</string>
+    <string name="read_only_DUPLICATE_IDS">Lecture seule : plusieurs nœuds de cette carte partagent le même identifiant, une modification pourrait toucher le mauvais nœud. Ouvrez-la et enregistrez-la avec Freeplane pour la réparer.</string>
+    <string name="hidden_notice">Cette carte contient des éléments qui ne sont pas affichés ici : %1$s. Ils sont conservés.</string>
+    <string name="kind_note">notes</string>
+    <string name="kind_details">détails</string>
+    <string name="kind_attribute">attributs</string>
+    <string name="kind_link">liens</string>
+    <string name="kind_icon">icônes</string>
+    <string name="kind_connector">connecteurs</string>
+    <string name="kind_image">images</string>
+    <string name="hint_locked">Texte non modifiable ici (texte enrichi ou sur plusieurs lignes) : modifiez-le dans Freeplane. Le nœud reste déplaçable et supprimable.</string>
+    <string name="hint_hidden">Ce nœud contient des éléments non affichés ici, et conservés : %1$s.</string>
+    <string name="dismiss">Fermer le message</string>
 </resources>

@@ -3,8 +3,8 @@
 SPDX-FileCopyrightText: 2026 Benoit Mercier and mapling contributors
 SPDX-License-Identifier: GPL-3.0-or-later
 -->
-<!-- The only screen: toolbar, the map (or, with no map open, a button to open one),
-     and the commands of the selected node. -->
+<!-- The only screen: toolbar, messages, the map (or, with no map open, a button to
+     open one), what the marks of the selected node mean, and its commands. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/root"
     android:layout_width="match_parent"
@@ -18,6 +18,13 @@ SPDX-License-Identifier: GPL-3.0-or-later
         android:background="@color/forest"
         android:minHeight="?android:attr/actionBarSize"
         android:theme="@style/Mapling.Toolbar" />
+
+    <!-- Banners: read-only map, hidden content, drafts not protected. -->
+    <LinearLayout
+        android:id="@+id/messages"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical" />
 
     <FrameLayout
         android:layout_width="match_parent"
@@ -37,6 +44,13 @@ SPDX-License-Identifier: GPL-3.0-or-later
             android:layout_gravity="center"
             android:text="@string/open_map" />
     </FrameLayout>
+
+    <!-- What the lock and the dot of the selected node mean. -->
+    <LinearLayout
+        android:id="@+id/hints"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical" />
 
     <LinearLayout
         android:id="@+id/node_bar"

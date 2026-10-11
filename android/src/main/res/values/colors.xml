@@ -8,4 +8,9 @@ SPDX-License-Identifier: GPL-3.0-or-later
     <color name="forest">#154D46</color>
     <color name="ivory">#FFF9E9</color>
     <color name="node_bar">#F3F5F4</color>
+    <!-- Messages, as in the web shell. -->
+    <color name="message_warning">#FFF4D6</color>
+    <color name="message_info">#E8F0FE</color>
+    <color name="message_hint">#F4F4F4</color>
+    <color name="message_text">#333333</color>
 </resources>
