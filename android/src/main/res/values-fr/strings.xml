@@ -90,4 +90,5 @@ SPDX-License-Identifier: GPL-3.0-or-later
     <string name="hint_hidden">Ce nœud contient des éléments non affichés ici, et conservés : %1$s.</string>
     <string name="dismiss">Fermer le message</string>
     <string name="unsaved_changes">Cette carte a des modifications non enregistrées.</string>
+    <string name="webview_too_old">Mapling a besoin d’une version plus récente de %1$s (version %2$s installée, %3$d ou plus récente nécessaire). Mettez-la à jour depuis le Play Store, puis rouvrez Mapling.</string>
 </resources>

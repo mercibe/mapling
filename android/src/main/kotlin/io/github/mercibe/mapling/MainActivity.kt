@@ -153,7 +153,23 @@ class MainActivity : Activity() {
         }
         // Defined before the page loads, as docs/BRIDGE.md requires.
         webView.addJavascriptInterface(CoreToShell(), "MindShell")
-        webView.loadUrl(AssetServer.PAGE_URL)
+        if (checkWebView()) webView.loadUrl(AssetServer.PAGE_URL)
+    }
+
+    /**
+     * An old WebView (a device without the Play Store, for instance) would show a blank
+     * page: say instead what to update, and close.
+     */
+    private fun checkWebView(): Boolean {
+        val webViewPackage = WebView.getCurrentWebViewPackage()
+        if (runsCore(webViewPackage?.versionName)) return true
+        val name = webViewPackage?.applicationInfo?.loadLabel(packageManager) ?: ""
+        AlertDialog.Builder(this)
+            .setMessage(getString(R.string.webview_too_old, name, webViewPackage?.versionName, MIN_CHROMIUM))
+            .setCancelable(false)
+            .setPositiveButton(android.R.string.ok) { _, _ -> finish() }
+            .show()
+        return false
     }
 
     /**

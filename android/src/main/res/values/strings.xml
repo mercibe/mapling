@@ -87,4 +87,6 @@ SPDX-License-Identifier: GPL-3.0-or-later
     <string name="hint_hidden">This node holds items that are not shown here, and kept: %1$s.</string>
     <string name="dismiss">Dismiss</string>
     <string name="unsaved_changes">This map has unsaved changes.</string>
+    <!-- %1$s: the WebView's name, e.g. "Android System WebView" or "Chrome"; %2$s: its version; %3$d: the oldest major version Mapling runs on -->
+    <string name="webview_too_old">Mapling needs a more recent version of %1$s (version %2$s installed, %3$d or later needed). Update it from the Play Store, then open Mapling again.</string>
 </resources>
