@@ -473,7 +473,7 @@ class MainActivity : Activity() {
                 pendingCopy = null
                 if (uri == null) return // the map stays modified, protected by its draft
                 keepAccess(uri, data!!.flags)
-                saveWriter.execute { writeTo(uri, copy.saveId, copy.bytes, copyOf = copy.document) }
+                saveWriter.execute { writeTo(uri, copy.saveId, copy.bytes, copy = copy) }
             }
         }
     }
@@ -675,11 +675,11 @@ class MainActivity : Activity() {
     }
 
     /**
-     * Writes on the save writer's thread, then confirms with `saved`. A copy of `copyOf`
-     * becomes the open document, like "save as": the map is now based on the copy, and the
-     * original's draft is deleted, since the copy holds the changes.
+     * Writes on the save writer's thread, then confirms with `saved`. A `copy` becomes the
+     * open document, like "save as": the map is now based on the copy, and the original's
+     * draft is deleted, since the copy holds the changes.
      */
-    private fun writeTo(uri: Uri, saveId: Long, bytes: ByteArray, requestId: String? = null, copyOf: Uri? = null) {
+    private fun writeTo(uri: Uri, saveId: Long, bytes: ByteArray, requestId: String? = null, copy: PendingCopy? = null) {
         val start = System.currentTimeMillis()
         try {
             contentResolver.openOutputStream(uri, "wt")!!.use { it.write(bytes) }
@@ -693,13 +693,21 @@ class MainActivity : Activity() {
         }
         val written = DraftStore.fingerprint(bytes)
         writeCheck.wrote(uri.toString(), written)
-        val name = if (copyOf != null) displayName(uri) else null
+        // The copy is written: a provider failing to tell its name must not stop the save.
+        val name = copy?.let {
+            try {
+                displayName(uri)
+            } catch (e: Exception) {
+                Log.w(TAG, "No name for $uri", e)
+                it.name
+            }
+        }
         runOnUiThread {
             if (isDestroyed) return@runOnUiThread // its map is gone with it
-            if (copyOf != null && document == copyOf) {
+            if (copy != null && name != null && document == copy.document) {
                 document = uri
-                documentName = name!!
-                drafts.submit(copyOf.toString(), null)
+                documentName = name
+                drafts.submit(copy.document.toString(), null)
                 render()
             }
             sendToCore(JSONObject().put("type", "saved").put("saveId", saveId)) {
