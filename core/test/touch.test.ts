@@ -3,7 +3,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { type DragPlugin, type Point, STILL_PX, TouchGestures, isStill, mayDrag, pinchZoom } from '../src/touch.ts';
+import { type DragPlugin, type Point, STILL_PX, TouchGestures, isStill, mayDrag, pinchZoom, withFinger } from '../src/touch.ts';
 
 test('only the selected node can be moved, and never while a text is edited', () => {
   assert.equal(mayDrag('ID_1', 'ID_1', false), true);
@@ -103,6 +103,17 @@ function setup() {
 
 const A = { x: 100, y: 100 };
 const B = { x: 200, y: 100 };
+
+test('a dragging finger is given to the edge zone as the event position', () => {
+  let prevented = false;
+  const touches = [{ clientX: 12, clientY: 640 }];
+  const event = withFinger({ touches, preventDefault: () => (prevented = true) });
+  assert.equal(event.clientX, 12);
+  assert.equal(event.clientY, 640);
+  assert.equal(event.touches, touches, 'the plugin still finds the finger where it looks for it');
+  event.preventDefault();
+  assert.equal(prevented, true, 'the page still does not scroll by itself');
+});
 
 test('a finger resting on the selected node moves it; the plugin applies the move when it is lifted', () => {
   const { plugin, holdElapses, touchStart, touchMove, touchEnd } = setup();

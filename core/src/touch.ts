@@ -60,6 +60,7 @@ export interface DragPlugin {
   target_node: unknown;
   target_direct: unknown;
   dragstart(event: unknown): void;
+  drag(event: unknown): void;
   dragend(event: unknown): void;
 }
 
@@ -157,6 +158,24 @@ export class TouchGestures {
   }
 }
 
+/** What jsMind's drag reads from its event (checked in its source). */
+export interface DragInput {
+  clientX: number;
+  clientY: number;
+  touches: ArrayLike<{ clientX: number; clientY: number }>;
+  preventDefault(): void;
+}
+
+/**
+ * jsMind's drag finds the finger in `touches`, but its edge zone (scrolling the map
+ * while a node is dragged near an edge) reads only `clientX` and `clientY`, which a
+ * touch event lacks: the zone worked only with the mouse. This gives it the finger.
+ */
+export function withFinger(event: Omit<DragInput, 'clientX' | 'clientY'>): DragInput {
+  const finger = event.touches[0];
+  return { clientX: finger.clientX, clientY: finger.clientY, touches: event.touches, preventDefault: () => event.preventDefault() };
+}
+
 function spread(fingers: Point[]): number {
   return Math.hypot(fingers[1].x - fingers[0].x, fingers[1].y - fingers[0].y);
 }
@@ -191,6 +210,11 @@ export function installTouchGestures(jm: TouchMap): void {
     const touch = event as TouchEvent;
     const touched = (touch.target as Element).closest('jmnode')?.getAttribute('nodeid') ?? null;
     gestures.dragstart(this, touch.touches.length, touched, () => dragstart.call(this, event));
+  };
+  const drag = prototype.drag;
+  prototype.drag = function (this: DragPlugin, event: unknown) {
+    if (!(event as Event).type.startsWith('touch')) return drag.call(this, event);
+    drag.call(this, withFinger(event as TouchEvent));
   };
 
   // Capture phase: these run before the plugin's own listeners on the same element.

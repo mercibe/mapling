@@ -84,6 +84,11 @@ export class JsMindView implements View {
         // confirmation of deletions); jsMind's own shortcuts would bypass them.
         mapping: { addchild: null, addbrother: null, delnode: null },
       },
+      plugin: {
+        // Dragging a node near an edge scrolls the map; the default 20 px zone
+        // is too narrow for a finger.
+        draggable_node: { scrolling_trigger_width: 48, scrolling_step_length: 16 },
+      },
     });
     this.guardEditing();
     installTouchGestures(this.jm);
