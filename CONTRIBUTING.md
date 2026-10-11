@@ -1,10 +1,10 @@
-# Contributing to mapling
+# Contributing to Mapling
 
 Contributions are welcome. This file will be expanded as the project takes shape.
 
 ## Workflow
 
-mapling follows the [GitHub flow](https://docs.github.com/en/get-started/using-github/github-flow):
+Mapling follows the [GitHub flow](https://docs.github.com/en/get-started/using-github/github-flow):
 
 - `main` is always stable: all tests pass and it could be released at any time. Nobody commits to it directly.
 - Work happens on a short-lived branch per milestone or feature (e.g. `milestone-2-web-shell`, `task-icons`).
@@ -15,7 +15,7 @@ mapling follows the [GitHub flow](https://docs.github.com/en/get-started/using-g
 
 ## License of contributions
 
-mapling is licensed under the GNU General Public License v3.0 or later
+Mapling is licensed under the GNU General Public License v3.0 or later
 (`LICENSE`), with an additional permission that allows distribution through
 application stores (`LICENSE-EXCEPTION.md`).
 
@@ -28,7 +28,7 @@ permission. Do not submit code you are not entitled to license this way.
 Every source file starts with:
 
 ```
-SPDX-FileCopyrightText: <year> <author> and mapling contributors
+SPDX-FileCopyrightText: <year> <author> and Mapling contributors
 SPDX-License-Identifier: GPL-3.0-or-later
 ```
 

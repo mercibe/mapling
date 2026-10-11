@@ -148,13 +148,13 @@ The shell sends no message before `ready`.
 - `readOnlyNodes`: number of nodes whose **text** cannot be edited (rich text, multi-line text). These nodes can still be moved, deleted, or given children.
 - `readOnly`: whether the **whole map** is read-only: nothing can be changed, either because the shell asked for it in `load` or because of its format version (see below).
 - `mapVersion`: the `version` attribute of `<map>`, as found in the file.
-- `hiddenContent`: kinds of content present in the map but not displayed by mapling, and kept intact. The shell tells the user once when opening the map (e.g. "This map contains notes and icons that are not shown. They are kept."). Kinds, always in this order: `note`, `details`, `attribute`, `link`, `icon`, `connector`, `image`. Images and link targets inside rich text count too, since rich text is shown as plain text. Formatting (fonts, colors, clouds, edge styles) is not reported.
+- `hiddenContent`: kinds of content present in the map but not displayed by Mapling, and kept intact. The shell tells the user once when opening the map (e.g. "This map contains notes and icons that are not shown. They are kept."). Kinds, always in this order: `note`, `details`, `attribute`, `link`, `icon`, `connector`, `image`. Images and link targets inside rich text count too, since rich text is shown as plain text. Formatting (fonts, colors, clouds, edge styles) is not reported.
 - `warnings`: non-blocking notices, each an object with a stable `code`. The shell displays them translated from the `code`.
 
 | Warning code | Meaning | Effect |
 |---|---|---|
 | `FORMAT_TOO_OLD` | Written by FreeMind or by a Freeplane version older than the supported range | Map opened read-only. Suggest opening and saving it with a recent Freeplane |
-| `FORMAT_TOO_NEW` | Written by a Freeplane version newer than the supported range | Map opened read-only. Suggest checking for a mapling update |
+| `FORMAT_TOO_NEW` | Written by a Freeplane version newer than the supported range | Map opened read-only. Suggest checking for a Mapling update |
 | `DUPLICATE_IDS` | Two nodes share the same `ID`, so edits could reach the wrong node | Map opened read-only. Suggest opening and saving it with Freeplane |
 
 Example:

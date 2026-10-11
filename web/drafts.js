@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2026 Benoit Mercier and mapling contributors
+// SPDX-FileCopyrightText: 2026 Benoit Mercier and Mapling contributors
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Drafts of the web shell, kept in a Web Storage (localStorage in the page, a fake

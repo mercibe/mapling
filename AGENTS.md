@@ -1,6 +1,6 @@
 # AGENTS.md
 
-mapling: a minimalist viewer/editor for Freeplane/FreeMind mind maps (`.mm`) on Android, built on a platform-neutral JS core that renders with jsMind inside a WebView.
+Mapling: a minimalist viewer/editor for Freeplane/FreeMind mind maps (`.mm`) on Android, built on a platform-neutral JS core that renders with jsMind inside a WebView.
 
 Read `docs/BRIDGE.md` (core ↔ shell contract) before working on the core or a shell. `docs/ARCHITECTURE.md` describes the internals of the core.
 

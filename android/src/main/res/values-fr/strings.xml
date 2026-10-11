@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-SPDX-FileCopyrightText: 2026 Benoit Mercier and mapling contributors
+SPDX-FileCopyrightText: 2026 Benoit Mercier and Mapling contributors
 SPDX-License-Identifier: GPL-3.0-or-later
 -->
 <resources>
@@ -70,13 +70,13 @@ SPDX-License-Identifier: GPL-3.0-or-later
     </plurals>
     <string name="error_PARSE_ERROR">Ce fichier est illisible : ce n\'est pas du XML valide.</string>
     <string name="error_NOT_A_MAP">Ce fichier n\'est pas une carte mentale.</string>
-    <string name="error_UNSUPPORTED_ENCODING">Ce fichier utilise un encodage de texte que mapling ne prend pas en charge (UTF-8 seulement).</string>
+    <string name="error_UNSUPPORTED_ENCODING">Ce fichier utilise un encodage de texte que Mapling ne prend pas en charge (UTF-8 seulement).</string>
     <string name="error_NO_MAP_LOADED">Aucune carte n\'est ouverte.</string>
     <string name="error_PROTOCOL_VERSION">Erreur interne : versions incompatibles.</string>
     <string name="error_OUTDATED_COMMAND">La carte a changé entre-temps : réessayez.</string>
     <string name="error_INTERNAL">Erreur interne.</string>
     <string name="read_only_FORMAT_TOO_OLD">Lecture seule : cette carte a été écrite par FreeMind ou un Freeplane plus ancien. Ouvrez-la avec Freeplane 1.12 ou plus récent et enregistrez-la pour la modifier ici.</string>
-    <string name="read_only_FORMAT_TOO_NEW">Lecture seule : cette carte a été écrite par une version de Freeplane plus récente que celles prises en charge. Vérifiez si une mise à jour de mapling existe.</string>
+    <string name="read_only_FORMAT_TOO_NEW">Lecture seule : cette carte a été écrite par une version de Freeplane plus récente que celles prises en charge. Vérifiez si une mise à jour de Mapling existe.</string>
     <string name="read_only_DUPLICATE_IDS">Lecture seule : plusieurs nœuds de cette carte partagent le même identifiant, une modification pourrait toucher le mauvais nœud. Ouvrez-la et enregistrez-la avec Freeplane pour la réparer.</string>
     <string name="hidden_notice">Cette carte contient des éléments qui ne sont pas affichés ici : %1$s. Ils sont conservés.</string>
     <string name="kind_note">notes</string>

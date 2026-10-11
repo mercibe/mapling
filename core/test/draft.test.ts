@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2026 Benoit Mercier and mapling contributors
+// SPDX-FileCopyrightText: 2026 Benoit Mercier and Mapling contributors
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 // Drafts protect unsaved changes if the app is killed (see "Drafts" in docs/BRIDGE.md).

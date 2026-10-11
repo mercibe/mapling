@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-SPDX-FileCopyrightText: 2026 Benoit Mercier and mapling contributors
+SPDX-FileCopyrightText: 2026 Benoit Mercier and Mapling contributors
 SPDX-License-Identifier: GPL-3.0-or-later
 -->
 <resources>
-    <string name="app_name" translatable="false">mapling</string>
+    <string name="app_name" translatable="false">Mapling</string>
     <string name="open">Open</string>
     <string name="error_read">This document could not be read.</string>
     <string name="save">Save</string>
@@ -65,13 +65,13 @@ SPDX-License-Identifier: GPL-3.0-or-later
     </plurals>
     <string name="error_PARSE_ERROR">This file cannot be read: it is not valid XML.</string>
     <string name="error_NOT_A_MAP">This file is not a mind map.</string>
-    <string name="error_UNSUPPORTED_ENCODING">This file uses a text encoding that mapling does not support (UTF-8 only).</string>
+    <string name="error_UNSUPPORTED_ENCODING">This file uses a text encoding that Mapling does not support (UTF-8 only).</string>
     <string name="error_NO_MAP_LOADED">No map is open.</string>
     <string name="error_PROTOCOL_VERSION">Internal error: incompatible versions.</string>
     <string name="error_OUTDATED_COMMAND">The map changed in the meantime: please try again.</string>
     <string name="error_INTERNAL">Internal error.</string>
     <string name="read_only_FORMAT_TOO_OLD">Read-only: this map was written by FreeMind or an older Freeplane. Open it with Freeplane 1.12 or later and save it to edit it here.</string>
-    <string name="read_only_FORMAT_TOO_NEW">Read-only: this map was written by a Freeplane version newer than mapling supports. Check for a mapling update.</string>
+    <string name="read_only_FORMAT_TOO_NEW">Read-only: this map was written by a Freeplane version newer than Mapling supports. Check for a Mapling update.</string>
     <string name="read_only_DUPLICATE_IDS">Read-only: some nodes of this map share the same identifier, so editing could change the wrong node. Open and save it with Freeplane to repair it.</string>
     <!-- %1$s: the kinds of content, e.g. "notes and icons" -->
     <string name="hidden_notice">This map contains items that are not shown here: %1$s. They are kept.</string>

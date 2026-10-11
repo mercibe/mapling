@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2026 Benoit Mercier and mapling contributors
+// SPDX-FileCopyrightText: 2026 Benoit Mercier and Mapling contributors
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 export { MindMap, type BranchSummary, type HiddenKind, type Side, type ViewNode } from './map.ts';

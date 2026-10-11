@@ -1,4 +1,4 @@
-# mapling
+# Mapling
 
 Your Freeplane mind maps on your Android phone or tablet. Open `.mm` files from Google Drive or any storage, view and lightly edit them, and save back without losing anything Freeplane wrote.
 
@@ -7,7 +7,7 @@ Your Freeplane mind maps on your Android phone or tablet. Open `.mm` files from 
 **Work in progress: the Android app does not exist yet.**
 
 - Done: the platform-neutral core. It loads a map, applies edits (text, add, remove, move), undoes them, and writes the file back with no information loss: on our test maps, an unedited map is written back byte for byte.
-- Done: a reference web shell, to try mapling in a desktop browser (see below).
+- Done: a reference web shell, to try Mapling in a desktop browser (see below).
 - Next: the Android app.
 
 Supported format: maps written by Freeplane 1.12. Older (FreeMind included) and newer formats open read-only.
@@ -54,4 +54,4 @@ npm run build   # compile the core to core/dist
 
 GPL-3.0-or-later, with an additional permission for distribution through app stores: see [LICENSE](LICENSE) and [LICENSE-EXCEPTION.md](LICENSE-EXCEPTION.md).
 
-Uses [jsMind](https://github.com/hizzgdev/jsmind) (BSD-3-Clause). The Android build uses the [Gradle](https://gradle.org) wrapper (`android/gradlew`, `android/gradle/wrapper/`, Apache-2.0). The Android app uses icons from [Material Symbols](https://github.com/google/material-design-icons) (Apache-2.0, see `android/LICENSE-material-symbols.txt`). mapling is not affiliated with the Freeplane project.
+Uses [jsMind](https://github.com/hizzgdev/jsmind) (BSD-3-Clause). The Android build uses the [Gradle](https://gradle.org) wrapper (`android/gradlew`, `android/gradle/wrapper/`, Apache-2.0). The Android app uses icons from [Material Symbols](https://github.com/google/material-design-icons) (Apache-2.0, see `android/LICENSE-material-symbols.txt`). Mapling is not affiliated with the Freeplane project.

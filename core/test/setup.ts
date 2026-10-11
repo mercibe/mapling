@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2026 Benoit Mercier and mapling contributors
+// SPDX-FileCopyrightText: 2026 Benoit Mercier and Mapling contributors
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 // Node has no DOMParser/XMLSerializer: install xmldom's, silenced, as globals.

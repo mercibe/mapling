@@ -1,7 +1,7 @@
-// SPDX-FileCopyrightText: 2026 Benoit Mercier and mapling contributors
+// SPDX-FileCopyrightText: 2026 Benoit Mercier and Mapling contributors
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-// Map format versions. mapling only edits versions covered by a fixture; the
+// Map format versions. Mapling only edits versions covered by a fixture; the
 // others open read-only (see docs/BRIDGE.md, `loaded` warnings).
 
 export type FormatStatus = 'supported' | 'too-old' | 'too-new';
