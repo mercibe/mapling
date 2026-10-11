@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+SPDX-FileCopyrightText: 2026 Benoit Mercier and mapling contributors
+SPDX-License-Identifier: GPL-3.0-or-later
+-->
+<resources>
+    <string name="app_name" translatable="false">mapling</string>
+    <string name="open">Open</string>
+    <string name="error_read">This document could not be read.</string>
+    <!-- %1$s: error code sent by the core (docs/BRIDGE.md, section 5) -->
+    <string name="error_core">This map could not be opened (%1$s).</string>
+    <string name="save">Save</string>
+    <string name="reload">Reload</string>
+    <string name="saved">Saved.</string>
+    <string name="error_write">The map could not be saved. It is still modified.</string>
+</resources>

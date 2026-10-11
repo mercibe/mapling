@@ -1,0 +1,5 @@
+# Line endings of the Gradle wrapper scripts, as Gradle itself sets them:
+# Windows needs CRLF in .bat files, whatever the contributor's Git settings.
+/android/gradlew text eol=lf
+*.bat text eol=crlf
+*.jar binary

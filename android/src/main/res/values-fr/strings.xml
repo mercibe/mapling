@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+SPDX-FileCopyrightText: 2026 Benoit Mercier and mapling contributors
+SPDX-License-Identifier: GPL-3.0-or-later
+-->
+<resources>
+    <string name="open">Ouvrir</string>
+    <string name="error_read">Impossible de lire ce document.</string>
+    <string name="error_core">Impossible d’ouvrir cette carte (%1$s).</string>
+    <string name="save">Enregistrer</string>
+    <string name="reload">Recharger</string>
+    <string name="saved">Enregistré.</string>
+    <string name="error_write">La carte n’a pas pu être enregistrée. Elle reste modifiée.</string>
+</resources>

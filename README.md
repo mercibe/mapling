@@ -54,4 +54,4 @@ npm run build   # compile the core to core/dist
 
 GPL-3.0-or-later, with an additional permission for distribution through app stores: see [LICENSE](LICENSE) and [LICENSE-EXCEPTION.md](LICENSE-EXCEPTION.md).
 
-Uses [jsMind](https://github.com/hizzgdev/jsmind) (BSD-3-Clause). mapling is not affiliated with the Freeplane project.
+Uses [jsMind](https://github.com/hizzgdev/jsmind) (BSD-3-Clause). The Android build uses the [Gradle](https://gradle.org) wrapper (`android/gradlew`, `android/gradle/wrapper/`, Apache-2.0). mapling is not affiliated with the Freeplane project.

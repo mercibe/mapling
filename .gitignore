@@ -13,3 +13,9 @@ fixtures-private/
 # Dependencies
 node_modules/
 core/dist/
+
+# Android build outputs and local settings
+android/.gradle/
+android/.kotlin/
+android/build/
+android/local.properties
