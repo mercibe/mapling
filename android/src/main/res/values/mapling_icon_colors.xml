@@ -1,0 +1,7 @@
+<!--
+SPDX-FileCopyrightText: 2026 Benoit Mercier and mapling contributors
+SPDX-License-Identifier: GPL-3.0-or-later
+-->
+<resources>
+    <color name="mapling_icon_background">#154D46</color>
+</resources>

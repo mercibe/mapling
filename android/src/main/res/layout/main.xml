@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+SPDX-FileCopyrightText: 2026 Benoit Mercier and mapling contributors
+SPDX-License-Identifier: GPL-3.0-or-later
+-->
+<!-- The only screen: toolbar, the map (or, with no map open, a button to open one),
+     and the commands of the selected node. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <Toolbar
+        android:id="@+id/toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/forest"
+        android:minHeight="?android:attr/actionBarSize"
+        android:theme="@style/Mapling.Toolbar" />
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <WebView
+            android:id="@+id/map"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="invisible" />
+
+        <Button
+            android:id="@+id/open_map"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:text="@string/open_map" />
+    </FrameLayout>
+
+    <LinearLayout
+        android:id="@+id/node_bar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/node_bar"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:visibility="gone">
+
+        <ImageButton
+            android:id="@+id/edit_text"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="56dp"
+            android:layout_height="48dp"
+            android:contentDescription="@string/edit_text"
+            android:src="@drawable/ic_edit"
+            android:tint="@color/node_icon"
+            android:tooltipText="@string/edit_text" />
+
+        <ImageButton
+            android:id="@+id/add_child"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="56dp"
+            android:layout_height="48dp"
+            android:contentDescription="@string/add_child"
+            android:src="@drawable/ic_subdirectory_arrow_right"
+            android:tint="@color/node_icon"
+            android:tooltipText="@string/add_child" />
+
+        <ImageButton
+            android:id="@+id/add_sibling"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="56dp"
+            android:layout_height="48dp"
+            android:contentDescription="@string/add_sibling"
+            android:src="@drawable/ic_add_row_below"
+            android:tint="@color/node_icon"
+            android:tooltipText="@string/add_sibling" />
+
+        <ImageButton
+            android:id="@+id/delete_node"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="56dp"
+            android:layout_height="48dp"
+            android:contentDescription="@string/delete_node"
+            android:src="@drawable/ic_delete"
+            android:tint="@color/node_icon"
+            android:tooltipText="@string/delete_node" />
+    </LinearLayout>
+</LinearLayout>

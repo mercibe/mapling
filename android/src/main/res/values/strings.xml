@@ -7,8 +7,6 @@ SPDX-License-Identifier: GPL-3.0-or-later
     <string name="app_name" translatable="false">mapling</string>
     <string name="open">Open</string>
     <string name="error_read">This document could not be read.</string>
-    <!-- %1$s: error code sent by the core (docs/BRIDGE.md, section 5) -->
-    <string name="error_core">This map could not be opened (%1$s).</string>
     <string name="save">Save</string>
     <string name="reload">Reload</string>
     <string name="saved">Saved.</string>
@@ -22,4 +20,55 @@ SPDX-License-Identifier: GPL-3.0-or-later
     <string name="draft_unreadable">A draft of this map could not be read. It has been kept aside.</string>
     <string name="drafts_not_protected">Unsaved changes are not protected: drafts cannot be written.</string>
     <string name="drafts_protected">Drafts are written again.</string>
+    <string name="undo">Undo</string>
+    <string name="redo">Redo</string>
+    <string name="edit_text">Edit text</string>
+    <string name="add_child">Add child</string>
+    <string name="add_sibling">Add sibling</string>
+    <string name="delete_node">Delete</string>
+    <string name="center">Center</string>
+    <string name="menu">Menu</string>
+    <string name="close">Close</string>
+    <string name="open_map">Open a map</string>
+    <!-- %1$s: what the branch holds, e.g. "3 sub-nodes, 1 note and 2 icons" -->
+    <string name="confirm_delete">Delete this node, with %1$s?</string>
+    <plurals name="count_descendants">
+        <item quantity="one">%d sub-node</item>
+        <item quantity="other">%d sub-nodes</item>
+    </plurals>
+    <plurals name="count_note">
+        <item quantity="one">%d note</item>
+        <item quantity="other">%d notes</item>
+    </plurals>
+    <plurals name="count_details">
+        <item quantity="one">%d details text</item>
+        <item quantity="other">%d details texts</item>
+    </plurals>
+    <plurals name="count_attribute">
+        <item quantity="one">%d attribute</item>
+        <item quantity="other">%d attributes</item>
+    </plurals>
+    <plurals name="count_link">
+        <item quantity="one">%d link</item>
+        <item quantity="other">%d links</item>
+    </plurals>
+    <plurals name="count_icon">
+        <item quantity="one">%d icon</item>
+        <item quantity="other">%d icons</item>
+    </plurals>
+    <plurals name="count_connector">
+        <item quantity="one">%d connector</item>
+        <item quantity="other">%d connectors</item>
+    </plurals>
+    <plurals name="count_image">
+        <item quantity="one">%d image</item>
+        <item quantity="other">%d images</item>
+    </plurals>
+    <string name="error_PARSE_ERROR">This file cannot be read: it is not valid XML.</string>
+    <string name="error_NOT_A_MAP">This file is not a mind map.</string>
+    <string name="error_UNSUPPORTED_ENCODING">This file uses a text encoding that mapling does not support (UTF-8 only).</string>
+    <string name="error_NO_MAP_LOADED">No map is open.</string>
+    <string name="error_PROTOCOL_VERSION">Internal error: incompatible versions.</string>
+    <string name="error_OUTDATED_COMMAND">The map changed in the meantime: please try again.</string>
+    <string name="error_INTERNAL">Internal error.</string>
 </resources>

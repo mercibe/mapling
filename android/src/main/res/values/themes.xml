@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+SPDX-FileCopyrightText: 2026 Benoit Mercier and mapling contributors
+SPDX-License-Identifier: GPL-3.0-or-later
+-->
+<resources>
+    <!-- The toolbar is part of the layout (res/layout/main.xml), not of the theme.
+         Before Android 15, the status bar takes the toolbar's color; from Android 15,
+         the toolbar itself extends under it (see MainActivity.keepClearOfSystemBars). -->
+    <style name="Mapling" parent="@android:style/Theme.DeviceDefault.Light.NoActionBar">
+        <item name="android:windowBackground">@android:color/white</item>
+        <item name="android:statusBarColor">@color/forest</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+
+    <!-- Light texts and icons on the forest-green toolbar. -->
+    <style name="Mapling.Toolbar" parent="@android:style/ThemeOverlay.Material.Dark.ActionBar">
+        <item name="android:colorControlNormal">@color/ivory</item>
+        <item name="android:textColorPrimary">@color/ivory</item>
+    </style>
+</resources>

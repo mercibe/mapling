@@ -9,6 +9,7 @@ import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
+import android.icu.text.ListFormatter
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -16,6 +17,7 @@ import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import android.util.Base64
 import android.util.Log
+import android.view.Gravity
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
@@ -26,7 +28,10 @@ import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.ImageButton
+import android.widget.PopupMenu
 import android.widget.Toast
+import android.widget.Toolbar
 import io.github.mercibe.mapling.DraftStore.Draft
 import io.github.mercibe.mapling.DraftStore.Found
 import org.json.JSONObject
@@ -45,6 +50,8 @@ import kotlin.concurrent.thread
 class MainActivity : Activity() {
 
     private lateinit var webView: WebView
+    private lateinit var openMapButton: View
+    private lateinit var nodeBar: View
     private lateinit var drafts: DraftStore
     private var coreReady = false
     private var requestCount = 0
@@ -60,6 +67,12 @@ class MainActivity : Activity() {
      */
     private var base = ""
     private var dirty = false
+
+    /** What the core reports, to enable the commands (docs/BRIDGE.md, section 5). */
+    private var mapReadOnly = false
+    private var canUndo = false
+    private var canRedo = false
+    private var selection: JSONObject? = null
 
     /** Document to reopen once the core is ready, after Android recreated the activity. */
     private var reopen: Uri? = null
@@ -80,8 +93,13 @@ class MainActivity : Activity() {
     @SuppressLint("SetJavaScriptEnabled") // the core is JavaScript; the page only runs our own code
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        webView = WebView(this)
-        setContentView(webView)
+        setContentView(R.layout.main)
+        webView = findViewById(R.id.map)
+        openMapButton = findViewById(R.id.open_map)
+        openMapButton.setOnClickListener { pickDocument() }
+        nodeBar = findViewById(R.id.node_bar)
+        setUpToolbar()
+        setUpNodeBar()
         keepClearOfSystemBars()
         WebView.setWebContentsDebuggingEnabled(isDebuggable())
 
@@ -138,41 +156,142 @@ class MainActivity : Activity() {
         super.onDestroy()
     }
 
-    // ---------- menu ----------
+    // ---------- toolbar and menus ----------
 
+    private fun setUpToolbar() {
+        val toolbar = findViewById<Toolbar>(R.id.toolbar)
+        setActionBar(toolbar)
+        actionBar?.setDisplayShowTitleEnabled(false)
+        toolbar.setNavigationIcon(R.drawable.ic_menu)
+        toolbar.setNavigationContentDescription(R.string.menu)
+        toolbar.setNavigationOnClickListener { showMainMenu(toolbar) }
+    }
+
+    /** Undo, redo and save, always at hand. */
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
-        menu.add(Menu.NONE, MENU_SAVE, Menu.NONE, R.string.save)
-            .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM)
-        menu.add(Menu.NONE, MENU_OPEN, Menu.NONE, R.string.open)
-            .setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM)
-        menu.add(Menu.NONE, MENU_RELOAD, Menu.NONE, R.string.reload)
+        val tint = getColorStateList(R.color.toolbar_icon)
+        for ((id, title, icon) in TOOLBAR_ACTIONS) {
+            menu.add(Menu.NONE, id, Menu.NONE, title).apply {
+                setIcon(icon)
+                iconTintList = tint
+                setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM)
+            }
+        }
         return true
     }
 
     override fun onPrepareOptionsMenu(menu: Menu): Boolean {
-        menu.findItem(MENU_OPEN).isEnabled = coreReady
+        val open = document != null
+        for ((id, _, _) in TOOLBAR_ACTIONS) menu.findItem(id).isVisible = open
+        menu.findItem(MENU_UNDO).isEnabled = canUndo
+        menu.findItem(MENU_REDO).isEnabled = canRedo
         menu.findItem(MENU_SAVE).isEnabled = dirty
-        // Until the shell warns about unsaved changes (step 5), reloading needs an unmodified map.
-        menu.findItem(MENU_RELOAD).isEnabled = document != null && !dirty
         return true
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         when (item.itemId) {
-            MENU_OPEN -> {
-                val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
-                    .addCategory(Intent.CATEGORY_OPENABLE)
-                    .setType("*/*") // providers disagree on the type of .mm files
-                startActivityForResult(intent, REQUEST_OPEN)
-            }
+            MENU_UNDO -> sendToCore(JSONObject().put("type", "undo"))
+            MENU_REDO -> sendToCore(JSONObject().put("type", "redo"))
             MENU_SAVE -> save()
-            MENU_RELOAD -> document?.let(::open)
             else -> return super.onOptionsItemSelected(item)
         }
         return true
     }
 
+    /** The ☰ menu: the document, and what is needed less often. */
+    private fun showMainMenu(anchor: View) {
+        val popup = PopupMenu(this, anchor, Gravity.START)
+        val menu = popup.menu
+        if (document != null) menu.add(documentName).isEnabled = false // a heading, not a command
+        val open = document != null
+        // Until the shell warns about unsaved changes, leaving the map needs it unmodified.
+        menu.add(Menu.NONE, MENU_OPEN, Menu.NONE, R.string.open).isEnabled = coreReady
+        menu.add(Menu.NONE, MENU_RELOAD, Menu.NONE, R.string.reload).isEnabled = open && !dirty
+        menu.add(Menu.NONE, MENU_CENTER, Menu.NONE, R.string.center).isEnabled = open
+        menu.add(Menu.NONE, MENU_CLOSE, Menu.NONE, R.string.close).isEnabled = open && !dirty
+        popup.setOnMenuItemClickListener { item ->
+            when (item.itemId) {
+                MENU_OPEN -> pickDocument()
+                MENU_RELOAD -> document?.let(::open)
+                MENU_CENTER -> sendToCore(JSONObject().put("type", "center"))
+                MENU_CLOSE -> close()
+            }
+            true
+        }
+        popup.show()
+    }
+
+    // ---------- commands on the selected node ----------
+
+    private fun setUpNodeBar() {
+        findViewById<ImageButton>(R.id.edit_text).setOnClickListener { nodeCommand("editText") }
+        findViewById<ImageButton>(R.id.add_child).setOnClickListener { nodeCommand("addChild") }
+        findViewById<ImageButton>(R.id.add_sibling).setOnClickListener { nodeCommand("addSibling") }
+        findViewById<ImageButton>(R.id.delete_node).setOnClickListener { deleteSelected() }
+    }
+
+    /** Commands name their target, taken from the latest selectionChanged (docs/BRIDGE.md). */
+    private fun nodeCommand(type: String) {
+        val node = selection ?: return
+        sendToCore(JSONObject().put("type", type).put("id", node.getString("id")))
+    }
+
+    /** Asks first when the branch holds content that is not shown, with a summary of it. */
+    private fun deleteSelected() {
+        val node = selection ?: return
+        val branch = node.getJSONObject("branch")
+        val hidden = branch.getJSONObject("hidden")
+        if (hidden.length() == 0) return sendDelete(node)
+        val items = mutableListOf<String>()
+        val descendants = branch.getInt("descendants")
+        if (descendants > 0) items += resources.getQuantityString(R.plurals.count_descendants, descendants, descendants)
+        for ((kind, plural) in HIDDEN_KINDS) {
+            val count = hidden.optInt(kind)
+            if (count > 0) items += resources.getQuantityString(plural, count, count)
+        }
+        AlertDialog.Builder(this)
+            .setMessage(getString(R.string.confirm_delete, ListFormatter.getInstance().format(items)))
+            .setPositiveButton(R.string.delete_node) { _, _ -> sendDelete(node) }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    /**
+     * Sends back the revision the decision was based on: if the map changed since, the core
+     * refuses it (OUTDATED_COMMAND) and the user, told so, starts again from what is shown now.
+     */
+    private fun sendDelete(node: JSONObject) {
+        sendToCore(
+            JSONObject().put("type", "deleteNode").put("requestId", "r${++requestCount}")
+                .put("id", node.getString("id")).put("revision", node.getInt("revision")),
+        )
+    }
+
+    /** Shows what can be done now: the map or the button to open one, and the enabled commands. */
+    private fun render() {
+        val open = document != null
+        webView.visibility = if (open) View.VISIBLE else View.INVISIBLE
+        openMapButton.visibility = if (open) View.GONE else View.VISIBLE
+        // Shown whenever the map can be edited, so that the map does not jump at each selection.
+        nodeBar.visibility = if (open && !mapReadOnly) View.VISIBLE else View.GONE
+        val node = selection
+        val root = node?.getBoolean("root") ?: true
+        findViewById<View>(R.id.edit_text).isEnabled = node?.getBoolean("textEditable") ?: false
+        findViewById<View>(R.id.add_child).isEnabled = node != null
+        findViewById<View>(R.id.add_sibling).isEnabled = !root
+        findViewById<View>(R.id.delete_node).isEnabled = !root
+        invalidateOptionsMenu()
+    }
+
     // ---------- opening a document ----------
+
+    private fun pickDocument() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
+            .addCategory(Intent.CATEGORY_OPENABLE)
+            .setType("*/*") // providers disagree on the type of .mm files
+        startActivityForResult(intent, REQUEST_OPEN)
+    }
 
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -216,7 +335,7 @@ class MainActivity : Activity() {
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "Cannot read $uri", e)
-                runOnUiThread { toast(getString(R.string.error_read)) }
+                runOnUiThread { alert(R.string.error_read) }
             }
         }
     }
@@ -262,13 +381,22 @@ class MainActivity : Activity() {
         )
     }
 
-    private fun loaded(load: PendingLoad) {
+    private fun loaded(load: PendingLoad, readOnly: Boolean) {
         document = load.uri
         documentName = load.name
         base = load.base
-        title = load.name
+        mapReadOnly = readOnly
         Log.i(TAG, "Loaded ${load.name}, based on ${load.base.take(8)}")
         if (load.discardDraft) drafts.submit(load.uri.toString(), null)
+        render()
+    }
+
+    /** Back to the screen with no map. The core keeps the map until the next load. */
+    private fun close() {
+        document = null
+        documentName = ""
+        selection = null
+        render()
     }
 
     // ---------- drafts (docs/BRIDGE.md, section 6) ----------
@@ -302,7 +430,7 @@ class MainActivity : Activity() {
                 contentResolver.openOutputStream(uri, "wt")!!.use { it.write(bytes) }
             } catch (e: Exception) {
                 Log.w(TAG, "Cannot write $uri", e)
-                runOnUiThread { toast(getString(R.string.error_write)) }
+                runOnUiThread { alert(R.string.error_write) }
                 return@execute
             }
             val written = DraftStore.fingerprint(bytes)
@@ -363,23 +491,32 @@ class MainActivity : Activity() {
         when (message.getString("type")) {
             "ready" -> {
                 coreReady = true
-                invalidateOptionsMenu()
+                render()
                 reopen?.let(::open)
                 reopen = null
             }
-            "loaded" -> pendingLoads.remove(message.getString("requestId"))?.let(::loaded)
+            "loaded" -> pendingLoads.remove(message.getString("requestId"))?.let { loaded(it, message.getBoolean("readOnly")) }
             "draftData" -> keepDraft(message)
             "saveData" -> write(message)
             "dirtyChanged" -> {
                 dirty = message.getBoolean("dirty")
-                invalidateOptionsMenu()
+                render()
+            }
+            "historyChanged" -> {
+                canUndo = message.getBoolean("canUndo")
+                canRedo = message.getBoolean("canRedo")
+                render()
+            }
+            "selectionChanged" -> {
+                selection = message.optJSONObject("node")
+                render()
             }
             "error" -> {
                 // A refused load leaves the previous map, and so the previous document, open.
                 val requestId = message.optString("requestId")
                 pendingLoads.remove(requestId)
                 saveTargets.remove(requestId)
-                toast(getString(R.string.error_core, message.getString("code")))
+                showError(message.getString("code"))
             }
             else -> Log.d(TAG, "Core: ${message.toString().take(200)}")
         }
@@ -388,18 +525,33 @@ class MainActivity : Activity() {
     // ---------- helpers ----------
 
     /**
-     * Since Android 15, the app draws under the system bars, and the action bar lies over
-     * the content: pad the content so the map stays clear of them and of the keyboard.
-     * The top inset received here already includes the action bar. The insets are then
-     * consumed: passed on, the keyboard would be subtracted a second time by the WebView,
-     * leaving it a visible area of zero height (the map jumped at each key typed).
+     * Since Android 15, the app draws under the system bars: the toolbar extends under the
+     * status bar, and the rest of the screen stays clear of the other bars, of the camera
+     * cutout and of the keyboard. The insets are then consumed: passed on, the keyboard
+     * would be subtracted a second time by the WebView, leaving it a visible area of zero
+     * height (the map jumped at each key typed).
      */
     private fun keepClearOfSystemBars() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.VANILLA_ICE_CREAM) return
-        findViewById<View>(android.R.id.content).setOnApplyWindowInsetsListener { v, insets ->
-            val bars = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.ime())
-            v.setPadding(bars.left, bars.top, bars.right, bars.bottom)
+        val toolbar = findViewById<View>(R.id.toolbar)
+        findViewById<View>(R.id.root).setOnApplyWindowInsetsListener { root, insets ->
+            val types = WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout() or WindowInsets.Type.ime()
+            val bars = insets.getInsets(types)
+            toolbar.setPadding(0, bars.top, 0, 0)
+            root.setPadding(bars.left, 0, bars.right, bars.bottom)
             WindowInsets.CONSUMED
+        }
+    }
+
+    /** The core's errors are shown from their code, translated; their `message` is only for logs. */
+    private fun showError(code: String) = alert(ERROR_TEXTS[code] ?: R.string.error_INTERNAL)
+
+    /** Errors are rare and matter: shown until dismissed on purpose, not by a stray touch. */
+    private fun alert(text: Int) {
+        if (isFinishing) return
+        AlertDialog.Builder(this).setMessage(text).setPositiveButton(android.R.string.ok, null).create().apply {
+            setCanceledOnTouchOutside(false)
+            show()
         }
     }
 
@@ -412,6 +564,38 @@ class MainActivity : Activity() {
         const val MENU_OPEN = 1
         const val MENU_SAVE = 2
         const val MENU_RELOAD = 3
+        const val MENU_UNDO = 4
+        const val MENU_REDO = 5
+        const val MENU_CENTER = 6
+        const val MENU_CLOSE = 7
+
+        val TOOLBAR_ACTIONS = listOf(
+            Triple(MENU_UNDO, R.string.undo, R.drawable.ic_undo),
+            Triple(MENU_REDO, R.string.redo, R.drawable.ic_redo),
+            Triple(MENU_SAVE, R.string.save, R.drawable.ic_save),
+        )
+
+        /** The core's error codes (docs/BRIDGE.md, section 5) and their texts. */
+        val ERROR_TEXTS = mapOf(
+            "PARSE_ERROR" to R.string.error_PARSE_ERROR,
+            "NOT_A_MAP" to R.string.error_NOT_A_MAP,
+            "UNSUPPORTED_ENCODING" to R.string.error_UNSUPPORTED_ENCODING,
+            "NO_MAP_LOADED" to R.string.error_NO_MAP_LOADED,
+            "PROTOCOL_VERSION" to R.string.error_PROTOCOL_VERSION,
+            "OUTDATED_COMMAND" to R.string.error_OUTDATED_COMMAND,
+            "INTERNAL" to R.string.error_INTERNAL,
+        )
+
+        /** Kinds of hidden content, in the order of docs/BRIDGE.md, with their counted text. */
+        val HIDDEN_KINDS = listOf(
+            "note" to R.plurals.count_note,
+            "details" to R.plurals.count_details,
+            "attribute" to R.plurals.count_attribute,
+            "link" to R.plurals.count_link,
+            "icon" to R.plurals.count_icon,
+            "connector" to R.plurals.count_connector,
+            "image" to R.plurals.count_image,
+        )
         const val REQUEST_OPEN = 1
         const val STATE_DOCUMENT = "document"
 

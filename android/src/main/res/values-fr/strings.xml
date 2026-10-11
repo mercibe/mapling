@@ -6,7 +6,6 @@ SPDX-License-Identifier: GPL-3.0-or-later
 <resources>
     <string name="open">Ouvrir</string>
     <string name="error_read">Impossible de lire ce document.</string>
-    <string name="error_core">Impossible d’ouvrir cette carte (%1$s).</string>
     <string name="save">Enregistrer</string>
     <string name="reload">Recharger</string>
     <string name="saved">Enregistré.</string>
@@ -19,4 +18,62 @@ SPDX-License-Identifier: GPL-3.0-or-later
     <string name="draft_unreadable">Un brouillon de cette carte est illisible. Il a été mis de côté.</string>
     <string name="drafts_not_protected">Les modifications non enregistrées ne sont pas protégées : impossible d’écrire le brouillon.</string>
     <string name="drafts_protected">Les brouillons sont de nouveau écrits.</string>
+    <string name="undo">Annuler</string>
+    <string name="redo">Rétablir</string>
+    <string name="edit_text">Modifier le texte</string>
+    <string name="add_child">Ajouter un enfant</string>
+    <string name="add_sibling">Ajouter un frère</string>
+    <string name="delete_node">Supprimer</string>
+    <string name="center">Recentrer</string>
+    <string name="menu">Menu</string>
+    <string name="close">Fermer</string>
+    <string name="open_map">Ouvrir une carte</string>
+    <string name="confirm_delete">Supprimer ce nœud, avec %1$s ?</string>
+    <plurals name="count_descendants">
+        <item quantity="one">%d sous-nœud</item>
+        <item quantity="other">%d sous-nœuds</item>
+        <item quantity="many">%d de sous-nœuds</item>
+    </plurals>
+    <plurals name="count_note">
+        <item quantity="one">%d note</item>
+        <item quantity="other">%d notes</item>
+        <item quantity="many">%d de notes</item>
+    </plurals>
+    <plurals name="count_details">
+        <item quantity="one">%d texte de détails</item>
+        <item quantity="other">%d textes de détails</item>
+        <item quantity="many">%d de textes de détails</item>
+    </plurals>
+    <plurals name="count_attribute">
+        <item quantity="one">%d attribut</item>
+        <item quantity="other">%d attributs</item>
+        <item quantity="many">%d de attributs</item>
+    </plurals>
+    <plurals name="count_link">
+        <item quantity="one">%d lien</item>
+        <item quantity="other">%d liens</item>
+        <item quantity="many">%d de liens</item>
+    </plurals>
+    <plurals name="count_icon">
+        <item quantity="one">%d icône</item>
+        <item quantity="other">%d icônes</item>
+        <item quantity="many">%d de icônes</item>
+    </plurals>
+    <plurals name="count_connector">
+        <item quantity="one">%d connecteur</item>
+        <item quantity="other">%d connecteurs</item>
+        <item quantity="many">%d de connecteurs</item>
+    </plurals>
+    <plurals name="count_image">
+        <item quantity="one">%d image</item>
+        <item quantity="other">%d images</item>
+        <item quantity="many">%d de images</item>
+    </plurals>
+    <string name="error_PARSE_ERROR">Ce fichier est illisible : ce n\'est pas du XML valide.</string>
+    <string name="error_NOT_A_MAP">Ce fichier n\'est pas une carte mentale.</string>
+    <string name="error_UNSUPPORTED_ENCODING">Ce fichier utilise un encodage de texte que mapling ne prend pas en charge (UTF-8 seulement).</string>
+    <string name="error_NO_MAP_LOADED">Aucune carte n\'est ouverte.</string>
+    <string name="error_PROTOCOL_VERSION">Erreur interne : versions incompatibles.</string>
+    <string name="error_OUTDATED_COMMAND">La carte a changé entre-temps : réessayez.</string>
+    <string name="error_INTERNAL">Erreur interne.</string>
 </resources>

@@ -1,0 +1,15 @@
+<!--
+SPDX-FileCopyrightText: 2026 Benoit Mercier and mapling contributors
+SPDX-License-Identifier: GPL-3.0-or-later
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <group android:translateX="20.5" android:translateY="20.5" android:scaleX="0.67" android:scaleY="0.67">
+        <path android:pathData="M 19,69 C 30,69 31,45 45,45 C 58,45 61,69 76,70 C 81,70 74,60 74,51" android:fillColor="#00000000"
+            android:strokeColor="#FFFFFFFF" android:strokeWidth="7.2"
+            android:strokeLineCap="round" android:strokeLineJoin="round"/>
+        <path android:pathData="M 9.5,69 A 9.5,9.5 0 1,0 28.5,69 A 9.5,9.5 0 1,0 9.5,69 Z M 36.5,45 A 8.5,8.5 0 1,0 53.5,45 A 8.5,8.5 0 1,0 36.5,45 Z M 69.5,70 A 9.5,9.5 0 1,0 88.5,70 A 9.5,9.5 0 1,0 69.5,70 Z" android:fillColor="#FFFFFFFF"/>
+        <path android:pathData="M 70.4,51 C 63.5,34 78,25 91,24 C 92,39 84,44 77.6,51 Z" android:fillColor="#FFFFFFFF"/>
+    </group>
+</vector>
