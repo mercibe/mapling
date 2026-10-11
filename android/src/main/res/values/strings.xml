@@ -86,4 +86,5 @@ SPDX-License-Identifier: GPL-3.0-or-later
     <!-- %1$s: what the node holds, e.g. "1 note and 2 icons" -->
     <string name="hint_hidden">This node holds items that are not shown here, and kept: %1$s.</string>
     <string name="dismiss">Dismiss</string>
+    <string name="unsaved_changes">This map has unsaved changes.</string>
 </resources>

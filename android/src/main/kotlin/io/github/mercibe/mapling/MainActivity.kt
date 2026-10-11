@@ -22,6 +22,8 @@ import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import android.view.WindowInsets
+import android.window.OnBackInvokedCallback
+import android.window.OnBackInvokedDispatcher
 import android.webkit.ConsoleMessage
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
@@ -75,6 +77,12 @@ class MainActivity : Activity() {
     private var canUndo = false
     private var canRedo = false
     private var selection: JSONObject? = null
+
+    /** What to do once the save asked before leaving the map has been confirmed. */
+    private var afterSave: (() -> Unit)? = null
+
+    /** The interception of "back" (Android 13+), declared only while the map is modified. */
+    private var backCallback: Any? = null
 
     /** Messages shown in banners while they apply. */
     private var readOnlyReasons = listOf<String>() // warning codes of `loaded`
@@ -215,21 +223,71 @@ class MainActivity : Activity() {
         val menu = popup.menu
         if (document != null) menu.add(documentName).isEnabled = false // a heading, not a command
         val open = document != null
-        // Until the shell warns about unsaved changes, leaving the map needs it unmodified.
         menu.add(Menu.NONE, MENU_OPEN, Menu.NONE, R.string.open).isEnabled = coreReady
-        menu.add(Menu.NONE, MENU_RELOAD, Menu.NONE, R.string.reload).isEnabled = open && !dirty
+        menu.add(Menu.NONE, MENU_RELOAD, Menu.NONE, R.string.reload).isEnabled = open
         menu.add(Menu.NONE, MENU_CENTER, Menu.NONE, R.string.center).isEnabled = open
-        menu.add(Menu.NONE, MENU_CLOSE, Menu.NONE, R.string.close).isEnabled = open && !dirty
+        menu.add(Menu.NONE, MENU_CLOSE, Menu.NONE, R.string.close).isEnabled = open
         popup.setOnMenuItemClickListener { item ->
             when (item.itemId) {
-                MENU_OPEN -> pickDocument()
-                MENU_RELOAD -> document?.let(::open)
+                MENU_OPEN -> leaveMap(::pickDocument)
+                MENU_RELOAD -> document?.let { uri -> leaveMap { open(uri) } }
                 MENU_CENTER -> sendToCore(JSONObject().put("type", "center"))
-                MENU_CLOSE -> close()
+                MENU_CLOSE -> leaveMap(::close)
             }
             true
         }
         popup.show()
+    }
+
+    // ---------- leaving a modified map ----------
+
+    /**
+     * Before the map is left (another one opened, reloaded, closed, or the app quit):
+     * with unsaved changes, save them, discard them (and their draft), or stay.
+     */
+    private fun leaveMap(then: () -> Unit) {
+        val uri = document
+        if (!dirty || uri == null) return then()
+        AlertDialog.Builder(this)
+            .setMessage(R.string.unsaved_changes)
+            .setPositiveButton(R.string.save) { _, _ ->
+                afterSave = then // once the core reports the map saved (dirtyChanged)
+                save()
+            }
+            .setNegativeButton(R.string.discard) { _, _ ->
+                drafts.submit(uri.toString(), null)
+                then()
+            }
+            .setNeutralButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    /**
+     * Since Android 13, the system shows where "back" leads while the gesture is under
+     * way, so an app declares beforehand that it intercepts it, rather than being asked
+     * at the last moment (onBackPressed, used up to Android 12). Declared only while the
+     * map is modified: otherwise, "back" leaves as usual, with the system's animation.
+     */
+    private fun interceptBackWhileModified() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        val modified = dirty && document != null
+        val dispatcher = onBackInvokedDispatcher
+        val callback = backCallback as OnBackInvokedCallback?
+        if (modified && callback == null) {
+            val intercept = OnBackInvokedCallback { leaveMap(::finish) }
+            dispatcher.registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT, intercept)
+            backCallback = intercept
+        } else if (!modified && callback != null) {
+            dispatcher.unregisterOnBackInvokedCallback(callback)
+            backCallback = null
+        }
+    }
+
+    /** Up to Android 12 only: from Android 13, "back" goes through interceptBackWhileModified. */
+    @SuppressLint("GestureBackNavigation") // the Android 13+ path exists, without AndroidX
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        if (dirty && document != null) leaveMap(::finish) else super.onBackPressed()
     }
 
     // ---------- commands on the selected node ----------
@@ -293,6 +351,7 @@ class MainActivity : Activity() {
         findViewById<View>(R.id.delete_node).isEnabled = !root
         renderMessages()
         renderHints()
+        interceptBackWhileModified()
         invalidateOptionsMenu()
     }
 
@@ -526,7 +585,10 @@ class MainActivity : Activity() {
                 contentResolver.openOutputStream(uri, "wt")!!.use { it.write(bytes) }
             } catch (e: Exception) {
                 Log.w(TAG, "Cannot write $uri", e)
-                runOnUiThread { alert(R.string.error_write) }
+                runOnUiThread {
+                    afterSave = null // the map stays open, still modified
+                    alert(R.string.error_write)
+                }
                 return@execute
             }
             val written = DraftStore.fingerprint(bytes)
@@ -597,6 +659,7 @@ class MainActivity : Activity() {
             "dirtyChanged" -> {
                 dirty = message.getBoolean("dirty")
                 render()
+                if (!dirty) afterSave?.also { afterSave = null }?.invoke()
             }
             "historyChanged" -> {
                 canUndo = message.getBoolean("canUndo")

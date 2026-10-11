@@ -89,4 +89,5 @@ SPDX-License-Identifier: GPL-3.0-or-later
     <string name="hint_locked">Texte non modifiable ici (texte enrichi ou sur plusieurs lignes) : modifiez-le dans Freeplane. Le nœud reste déplaçable et supprimable.</string>
     <string name="hint_hidden">Ce nœud contient des éléments non affichés ici, et conservés : %1$s.</string>
     <string name="dismiss">Fermer le message</string>
+    <string name="unsaved_changes">Cette carte a des modifications non enregistrées.</string>
 </resources>
