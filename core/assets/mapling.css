@@ -20,13 +20,53 @@ jmnode { -webkit-touch-callout: none; }
 /* Keep line breaks of multi-line texts and let long texts wrap. */
 jmnode { white-space: pre-wrap; max-width: 20em; }
 
+/* Nodes drawn as Freeplane draws them: no box, an underline in the links' color and width
+   (jsMind's defaults: #555, 2px), and the links meeting that underline. jsMind joins a link
+   to the middle of a node's side; moving each node up by half its height puts the joint on
+   its bottom line instead, for incoming and outgoing links alike. The root keeps a bubble,
+   as in Freeplane, around the point its links start from. Overrides jsMind's default theme. */
+jmnode, jmnode:hover {
+  font: 16px/1.25 system-ui, Roboto, "Segoe UI", sans-serif;
+  color: #222;
+  padding: 4px 8px 3px;
+  border: 0;
+  border-bottom: 2px solid #555;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  transform: translateY(-50%);
+}
+jmnode.root, jmnode.root:hover {
+  font-size: 22px;
+  padding: 8px 18px;
+  border: 2px solid #555;
+  border-radius: 999px;
+  background: #fff;
+  transform: none;
+}
+
+/* The selected node: a light tint of the shells' green, the text stays readable. */
+jmnode.selected, jmnode.selected:hover { background-color: #d9ebe6; color: #10352f; box-shadow: none; }
+
 /* The text editor: at least about fifteen characters wide, growing with the text where
    the browser can (field-sizing), within the screen; the node grows with it meanwhile. */
 .jsmind-editor { min-width: 15ch; max-width: 80vw; field-sizing: content; }
 jmnode:has(> .jsmind-editor) { max-width: none; }
 
-/* The selected node, in the green of the shells' toolbars rather than jsMind's blue. */
-jmnode.selected { background-color: #154d46; }
+/* While a text is edited: one line only, the node's own underline; no frame, no focus
+   ring, and a selection in the shells' green. */
+jmnode:has(> .jsmind-editor), jmnode.selected:has(> .jsmind-editor) { background-color: #fff; }
+.jsmind-editor {
+  font: inherit;
+  color: inherit;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  caret-color: #154d46;
+}
+.jsmind-editor::selection { background: #b5d8cf; }
 
 /* A node being added: placeholder text until validated. */
 jmnode.mapling-pending { font-style: italic; color: #888; }

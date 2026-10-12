@@ -21,7 +21,19 @@ interface JmNode {
   direction: number; // -1 left, 1 right (children of the root)
   expanded: boolean;
   data: Record<string, unknown>;
-  _data: { view: { element: HTMLElement | null } }; // the node as displayed
+  _data: {
+    view: { element: HTMLElement | null; width: number; height: number }; // the node as displayed
+    layout: { direction: number; offset_x: number; offset_y: number; outer_height: number };
+  };
+}
+
+/** jsMind's layout engine, the parts replaced by bottomAnchoredLayout (checked in its source). */
+interface JmLayout {
+  opts: { hspace: number; vspace: number; pspace: number; cousin_space: number };
+  set_visible(nodes: JmNode[], visible: boolean): void;
+  _should_reserve_cousin_space(node: JmNode): boolean;
+  _layout_offset_subnodes(nodes: JmNode[]): number;
+  _layout_offset_subnodes_height(nodes: JmNode[]): number;
 }
 
 interface JmEditEvent {
@@ -32,6 +44,7 @@ interface JmEditEvent {
 
 interface JsMindInstance extends TouchMap {
   mind: { root: JmNode; nodes: Record<string, JmNode> } | null;
+  layout: JmLayout;
   view: TouchMap['view'] & {
     e_panel: HTMLElement;
     e_editor: HTMLInputElement;
@@ -92,6 +105,7 @@ export class JsMindView implements View {
       },
     });
     this.guardEditing();
+    bottomAnchoredLayout(this.jm.layout);
     installTouchGestures(this.jm);
     this.jm.add_event_listener((type, event) => this.onJsMindEvent(type, event));
   }
@@ -287,6 +301,47 @@ export class JsMindView implements View {
     element.classList.toggle('mapling-pending', !!node.data.pending);
     return true;
   }
+}
+
+/**
+ * Links join a node's underline, as in Freeplane: jsMind joins them to the middle of the
+ * node, so the stylesheet moves each node (but the root) up by half its height. A node
+ * then stands entirely above the point its links join; jsMind's layout, which reserves half
+ * of it above and half below, would let a tall node cover the one above it. This is
+ * jsMind 0.9.1's own layout of children (_layout_offset_subnodes, checked in its source)
+ * with that one difference: each node gets its whole height above the joint, and below it
+ * half of its children's block. Nodes on one line keep the very same spacing.
+ */
+function bottomAnchoredLayout(layout: JmLayout): void {
+  const place = (nodes: JmNode[], hideFolded: boolean): number => {
+    const { hspace, vspace, pspace, cousin_space } = layout.opts;
+    let total = 0;
+    let bottom = 0; // nodes are placed from the last one up, as jsMind does
+    for (let n = nodes.length - 1; n >= 0; n--) {
+      const node = nodes[n];
+      const box = node._data.layout;
+      const parent = (node.parent as JmNode)._data;
+      let children = place(node.children, hideFolded);
+      if (!node.expanded) {
+        children = 0;
+        if (hideFolded) layout.set_visible(node.children, false);
+      }
+      const cousins = layout._should_reserve_cousin_space(node) ? cousin_space / 2 : 0;
+      const above = Math.max(node._data.view.height, children / 2) + cousins;
+      const below = children / 2 + cousins;
+      box.outer_height = above + below;
+      box.offset_y = bottom - below;
+      box.offset_x = hspace * box.direction + (parent.view.width * (parent.layout.direction + box.direction)) / 2;
+      if (!(node.parent as JmNode).isroot) box.offset_x += pspace * box.direction;
+      bottom -= box.outer_height + vspace;
+      total += box.outer_height;
+    }
+    if (nodes.length > 1) total += vspace * (nodes.length - 1);
+    for (const node of nodes) node._data.layout.offset_y += total / 2;
+    return total;
+  };
+  layout._layout_offset_subnodes = (nodes) => place(nodes, true);
+  layout._layout_offset_subnodes_height = (nodes) => place(nodes, false);
 }
 
 function side(node: JmNode): Side {
