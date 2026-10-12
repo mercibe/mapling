@@ -141,14 +141,15 @@ export class JsMindView implements View {
       case 'deleteNode': {
         const node = this.jm.get_node(key);
         if (!node || node.isroot) return;
-        const parent = node.parent as JmNode;
+        let next = key;
         const removed = this.apply((map) => {
+          next = map.nodeAfterRemoval(key);
           map.removeNode(key);
           return true;
         });
         if (!removed) return;
         this.jm.remove_node(key);
-        this.jm.select_node(parent.id);
+        this.jm.select_node(next);
       }
     }
   }

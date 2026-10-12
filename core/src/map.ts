@@ -231,6 +231,24 @@ export class MindMap {
     return this.indexSubtree(el);
   }
 
+  /**
+   * The node to select once `key` is removed, as Freeplane does: its next sibling, else
+   * the previous one, else its parent. Among the root's children, only those on the same
+   * side count, so that the selection never jumps across the map. Removing the selected
+   * node again and again thus clears a branch, then goes up to its parent.
+   */
+  nodeAfterRemoval(key: string): string {
+    const parent = this.parentKey(key);
+    if (parent === null) return key; // the root, which is never removed
+    let siblings = this.childKeys(parent);
+    if (parent === this.rootKey) {
+      const side = this.side(this.element(key));
+      siblings = siblings.filter((sibling) => this.side(this.element(sibling)) === side);
+    }
+    const index = siblings.indexOf(key);
+    return siblings[index + 1] ?? siblings[index - 1] ?? parent;
+  }
+
   /** Removes a node and its whole subtree. */
   removeNode(key: string): void {
     this.checkMapEditable();

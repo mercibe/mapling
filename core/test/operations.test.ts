@@ -98,6 +98,42 @@ test('removeNode removes the element, its subtree and its line', () => {
   assert.equal(map.serialize(), replaceOnce(original, A_LINE + '\n', ''));
 });
 
+test('after a removal, the next sibling is selected, else the previous one, else the parent', () => {
+  const map = new MindMap(original);
+  const D = 'ID_1964929139';
+  assert.equal(map.nodeAfterRemoval(A), B, 'the next sibling');
+  assert.equal(map.nodeAfterRemoval(C), D);
+  assert.equal(map.nodeAfterRemoval(E), D, 'the last one: the previous sibling');
+  assert.equal(map.nodeAfterRemoval(E_MULTILINE_CHILD), E, 'an only child: the parent');
+  assert.equal(map.nodeAfterRemoval(ROOT), ROOT, 'the root is never removed');
+});
+
+test('removing the selected node again and again clears the branch, then reaches the parent', () => {
+  const map = new MindMap(original);
+  const removed = [];
+  for (let selected = B; selected !== ROOT; ) {
+    const next = map.nodeAfterRemoval(selected);
+    map.removeNode(selected);
+    removed.push(selected);
+    selected = next;
+  }
+  assert.deepEqual(removed, [B, C, 'ID_1964929139', E, A]);
+  assert.deepEqual(map.childKeys(ROOT), []);
+});
+
+test('among the root children, only those on the same side count', () => {
+  const map = new MindMap(
+    '<map version="freeplane 1.12.15">\n<node TEXT="Root" ID="ID_1">\n' +
+      '<node TEXT="Left 1" POSITION="top_or_left" ID="ID_2"/>\n' +
+      '<node TEXT="Right" POSITION="bottom_or_right" ID="ID_3"/>\n' +
+      '<node TEXT="Left 2" POSITION="top_or_left" ID="ID_4"/>\n' +
+      '</node>\n</map>\n',
+  );
+  assert.equal(map.nodeAfterRemoval('ID_2'), 'ID_4', 'the next one on the left, not the right node');
+  assert.equal(map.nodeAfterRemoval('ID_4'), 'ID_2', 'the previous one on the left');
+  assert.equal(map.nodeAfterRemoval('ID_3'), 'ID_1', 'alone on its side: the root');
+});
+
 test('removing the last child turns the parent back into an empty element', () => {
   const map = new MindMap(original);
   map.removeNode(E_MULTILINE_CHILD);
