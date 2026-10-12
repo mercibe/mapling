@@ -9,6 +9,7 @@ import { fixture } from './setup.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { MindMap } from '../src/index.ts';
+import { readFileSync } from 'node:fs';
 
 const ROOT = 'ID_452131666';
 const newMap = fixture('fixture05-newMapRoot.mm');
@@ -40,4 +41,19 @@ test('an apostrophe in an attribute is written as Freeplane does', () => {
   const map = new MindMap(newMap);
   map.updateText('ID_414691422', "l'été", 1);
   assert.match(map.serialize(), /TEXT="l&apos;été"/);
+});
+
+// The template a shell writes to create a new map: fixture05 without the nodes added
+// after its creation, so exactly what Freeplane writes for a new map.
+const template = readFileSync(new URL('../assets/new-map.mm', import.meta.url), 'utf8');
+
+test('the new-map template is a new Freeplane map: editable, its root alone, kept as is', () => {
+  const map = new MindMap(template);
+  assert.equal(map.readOnly, false);
+  const root = map.toView('fr');
+  assert.equal(root.topic, 'Nouvelle carte');
+  assert.deepEqual(root.children, []);
+  assert.equal(map.serialize(), template);
+  const added = newMap.split('\n').filter((line) => !template.split('\n').includes(line));
+  assert.ok(added.every((line) => /^<node TEXT=|^<font SIZE="18"\/>$|^<\/node>$/.test(line)), 'only fixture05\'s nodes are missing');
 });

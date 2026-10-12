@@ -34,7 +34,7 @@ Read `docs/BRIDGE.md` (core ↔ shell contract) before working on the core or a 
 ```
 core/              core: .mm model, operations, bridge, jsMind view; Node tests
   vendor/          jsMind 0.9.1, pinned (BSD-3-Clause, keeps its license)
-  assets/          stylesheet of the map view
+  assets/          stylesheet of the map view, template of a new map
 web/               reference web shell (open a local file, download a copy); drafts tested in Node
 android/           Kotlin shell (WebView + Storage Access Framework), see android/README.md
 ios/               not started, contributions welcome
