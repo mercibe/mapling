@@ -24,6 +24,7 @@ The shell never reads or parses the file's content.
 - **Everything is asynchronous.** A request from the shell carries a `requestId`; the core's response repeats the same `requestId`.
 - **Bytes in base64.** File content travels as base64 of the raw bytes, never as a decoded string. The core decodes and encodes them: it supports UTF-8, which Freeplane writes, and keeps a byte order mark if there is one. A file declaring another encoding, in UTF-16 or with invalid UTF-8 is refused with `UNSUPPORTED_ENCODING`.
 - Every message carries `"v": 1` (protocol version).
+- **Additions keep the version.** New messages and new fields may be added without changing `v`: a shell ignores the messages and fields it does not know (`titleChanged` and `title` were added this way). Changing or removing one changes `v`.
 
 ## 3. Entry points
 
@@ -142,12 +143,14 @@ The shell sends no message before `ready`.
 ```json
 { "v": 1, "type": "loaded", "requestId": "r1",
   "nodeCount": 412, "readOnlyNodes": 7, "readOnly": false,
-  "mapVersion": "freeplane 1.12.15", "hiddenContent": ["note", "icon"], "warnings": [] }
+  "mapVersion": "freeplane 1.12.15", "title": "Team meeting",
+  "hiddenContent": ["note", "icon"], "warnings": [] }
 ```
 
 - `readOnlyNodes`: number of nodes whose **text** cannot be edited (rich text, multi-line text). These nodes can still be moved, deleted, or given children.
 - `readOnly`: whether the **whole map** is read-only: nothing can be changed, either because the shell asked for it in `load` or because of its format version (see below).
 - `mapVersion`: the `version` attribute of `<map>`, as found in the file.
+- `title`: the root's text as displayed (plain text, possibly on several lines; a text Freeplane provides, such as a new map's root, in the user's language). Shells show it with the file's name, so that the user sees both what the map is about and which file holds it. Kept up to date by `titleChanged`.
 - `hiddenContent`: kinds of content present in the map but not displayed by Mapling, and kept intact. The shell tells the user once when opening the map (e.g. "This map contains notes and icons that are not shown. They are kept."). Kinds, always in this order: `note`, `details`, `attribute`, `link`, `icon`, `connector`, `image`. Images and link targets inside rich text count too, since rich text is shown as plain text. Formatting (fonts, colors, clouds, edge styles) is not reported.
 - `warnings`: non-blocking notices, each an object with a stable `code`. The shell displays them translated from the `code`.
 
@@ -161,7 +164,7 @@ Example:
 
 ```json
 { "v": 1, "type": "loaded", "requestId": "r1",
-  "nodeCount": 35, "readOnlyNodes": 0, "readOnly": true, "mapVersion": "0.9.0",
+  "nodeCount": 35, "readOnlyNodes": 0, "readOnly": true, "mapVersion": "0.9.0", "title": "Projects",
   "hiddenContent": [], "warnings": [ { "code": "FORMAT_TOO_OLD" } ] }
 ```
 
@@ -182,6 +185,14 @@ The core only modifies format versions it has been tested against, and only maps
 ```
 
 Emitted on every state change. The shell uses it to enable "Save" and to warn before quitting.
+
+### `titleChanged`
+
+```json
+{ "v": 1, "type": "titleChanged", "title": "Team meeting, Monday" }
+```
+
+Sent when the root's text changes after `loaded` (edited, undone, redone): the new value of `title`.
 
 ### `draftData`
 

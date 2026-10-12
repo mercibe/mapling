@@ -64,6 +64,7 @@ class MainActivity : Activity() {
     /** The open document: changes only when the core has accepted a new one. */
     private var document: Uri? = null
     private var documentName = ""
+    private var documentTitle = "" // the root's text (core's `title`)
 
     /**
      * Fingerprint of the content the open map is based on: the bytes read, then the bytes
@@ -99,7 +100,13 @@ class MainActivity : Activity() {
     private var reopen: Uri? = null
 
     /** What each pending `load` will open, by requestId: a refused load changes nothing. */
-    private class PendingLoad(val uri: Uri, val name: String, val base: String, val discardDraft: Boolean)
+    private class PendingLoad(
+        val uri: Uri,
+        val name: String,
+        val base: String,
+        val discardDraft: Boolean,
+        val restoredDraft: Boolean,
+    )
 
     private val pendingLoads = mutableMapOf<String, PendingLoad>()
 
@@ -258,7 +265,7 @@ class MainActivity : Activity() {
     private fun showMainMenu(anchor: View) {
         val popup = PopupMenu(this, anchor, Gravity.START)
         val menu = popup.menu
-        if (document != null) menu.add(mapTitle(documentName)).isEnabled = false // a heading, not a command
+        if (document != null) menu.add(mapLabel(documentTitle, documentName)).isEnabled = false // a heading, not a command
         val open = document != null
         menu.add(Menu.NONE, MENU_OPEN, Menu.NONE, R.string.open).setIcon(R.drawable.ic_folder_open).isEnabled = coreReady
         menu.add(Menu.NONE, MENU_NEW, Menu.NONE, R.string.new_map).setIcon(R.drawable.ic_note_add).isEnabled = coreReady
@@ -266,7 +273,7 @@ class MainActivity : Activity() {
         if (others.isNotEmpty()) {
             val recentMenu = menu.addSubMenu(R.string.recent_maps).setIcon(R.drawable.ic_history)
             others.forEachIndexed { index, entry ->
-                recentMenu.add(Menu.NONE, MENU_RECENT + index, Menu.NONE, mapTitle(entry.name)).isEnabled = coreReady
+                recentMenu.add(Menu.NONE, MENU_RECENT + index, Menu.NONE, mapLabel(entry.title, entry.name)).isEnabled = coreReady
             }
         }
         menu.add(Menu.NONE, MENU_RELOAD, Menu.NONE, R.string.reload).setIcon(R.drawable.ic_refresh).isEnabled = open
@@ -464,13 +471,18 @@ class MainActivity : Activity() {
                 setBackgroundResource(selectableBackground())
                 setOnClickListener { open(Uri.parse(entry.document)) }
             }
+            // The root's text, then the file's name and when it was opened.
+            val title = oneLine(entry.title)
+            val date = format.format(Date(entry.opened))
             row.addView(TextView(this).apply {
-                text = mapTitle(entry.name)
+                text = title.ifEmpty { entry.name }
                 textSize = 16f
+                maxLines = 2
+                ellipsize = android.text.TextUtils.TruncateAt.END
                 setTextColor(getColor(R.color.message_text))
             })
             row.addView(TextView(this).apply {
-                text = format.format(Date(entry.opened))
+                text = if (title.isEmpty()) date else "${entry.name} · $date"
                 textSize = 13f
             })
             list.addView(row)
@@ -612,9 +624,22 @@ class MainActivity : Activity() {
     }
 
     /** The document now open goes first in the recent maps; those that no longer fit give back their access. */
-    private fun putFirstInRecent(uri: Uri, name: String) {
-        recent.opened(uri.toString(), name, System.currentTimeMillis()).forEach { releaseAccess(Uri.parse(it)) }
+    private fun putFirstInRecent(uri: Uri, name: String, title: String) {
+        recent.opened(uri.toString(), name, title, System.currentTimeMillis()).forEach { releaseAccess(Uri.parse(it)) }
     }
+
+    /**
+     * The recent maps show the title of what the file holds: the current title only once
+     * the map is unmodified (opened, saved, or changes undone). A title changed and then
+     * discarded never reaches them.
+     */
+    private fun recentTitleIsSaved() {
+        val uri = document ?: return
+        recent.retitle(uri.toString(), documentTitle)
+        storeRecent()
+    }
+
+    private fun recentTitle(uri: Uri) = recent.entries.find { it.document == uri.toString() }?.title.orEmpty()
 
     /** Keeps the recent maps, and the document open now as the one to reopen at start. */
     private fun storeRecent() {
@@ -719,7 +744,7 @@ class MainActivity : Activity() {
         discardDraft: Boolean = false,
     ) {
         val requestId = "r${++requestCount}"
-        pendingLoads[requestId] = PendingLoad(uri, name, base, discardDraft)
+        pendingLoads[requestId] = PendingLoad(uri, name, base, discardDraft, restoredDraft)
         sendToCore(
             JSONObject()
                 .put("type", "load")
@@ -735,11 +760,14 @@ class MainActivity : Activity() {
     private fun loaded(load: PendingLoad, message: JSONObject) {
         document = load.uri
         documentName = load.name
+        documentTitle = message.optString("title")
         base = load.base
         mapReadOnly = message.getBoolean("readOnly")
         val warnings = message.getJSONArray("warnings")
         readOnlyReasons = List(warnings.length()) { warnings.getJSONObject(it).getString("code") }
-        putFirstInRecent(load.uri, load.name)
+        // A restored draft is not saved yet: the recent maps keep the title of the file.
+        val fileTitle = if (load.restoredDraft) recentTitle(load.uri) else documentTitle
+        putFirstInRecent(load.uri, load.name, fileTitle)
         hiddenNotice = hiddenNotice(load.uri, message.getJSONArray("hiddenContent"))
         storeRecent()
         Log.i(TAG, "Loaded ${load.name}, based on ${load.base.take(8)}")
@@ -751,6 +779,7 @@ class MainActivity : Activity() {
     private fun close() {
         document = null
         documentName = ""
+        documentTitle = ""
         selection = null
         readOnlyReasons = listOf()
         hiddenNotice = null
@@ -881,7 +910,7 @@ class MainActivity : Activity() {
                 documentName = name
                 drafts.submit(copy.document.toString(), null)
                 // The copy is now the map worked on: listed first, and reopened at start.
-                putFirstInRecent(uri, name)
+                putFirstInRecent(uri, name, documentTitle)
                 if (recent.hiddenContentTold(copy.document.toString())) recent.tellHiddenContent(uri.toString())
                 storeRecent()
                 render()
@@ -962,8 +991,13 @@ class MainActivity : Activity() {
             "loaded" -> pendingLoads.remove(message.getString("requestId"))?.let { loaded(it, message) }
             "draftData" -> keepDraft(message)
             "saveData" -> write(message)
+            "titleChanged" -> {
+                documentTitle = message.getString("title")
+                if (!dirty) recentTitleIsSaved()
+            }
             "dirtyChanged" -> {
                 dirty = message.getBoolean("dirty")
+                if (!dirty) recentTitleIsSaved()
                 render()
             }
             "historyChanged" -> {

@@ -53,10 +53,26 @@ test('ready, then load reports the map and shows it', () => {
   send({ type: 'load', requestId: 'r1', name: 'fixture01.mm', data: base64(original) });
   assert.deepEqual(take(), [{
     v: 1, type: 'loaded', requestId: 'r1', nodeCount: 8, readOnlyNodes: 2, readOnly: false,
-    mapVersion: 'freeplane 1.12.15', hiddenContent: ['note'], warnings: [],
+    mapVersion: 'freeplane 1.12.15', title: 'Root node', hiddenContent: ['note'], warnings: [],
   }]);
   assert.equal(view.shown.length, 1);
   assert.equal(view.shown[0].topic, 'Root node');
+});
+
+test("the root's text is told when it changes, and only then", () => {
+  const { bridge, send, take } = setup();
+  bridge.start();
+  send({ type: 'load', requestId: 'r1', name: 'fixture01.mm', data: base64(original) });
+  take();
+  const titles = () => take().filter((m) => m.type === 'titleChanged').map((m) => (m as { title: string }).title);
+  bridge.edit((map) => map.updateText('ID_27769489', 'Another child text'));
+  assert.deepEqual(titles(), [], 'another node changed');
+  bridge.edit((map) => map.updateText('ID_452131666', 'Team meeting'));
+  assert.deepEqual(titles(), ['Team meeting']);
+  send({ type: 'undo' });
+  assert.deepEqual(titles(), ['Root node'], 'undone');
+  send({ type: 'redo' });
+  assert.deepEqual(titles(), ['Team meeting'], 'redone');
 });
 
 test('save returns the exact bytes, and saved makes the map unmodified', () => {

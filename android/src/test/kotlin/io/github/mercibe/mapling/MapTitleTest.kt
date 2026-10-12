@@ -24,4 +24,27 @@ class MapTitleTest {
     fun aNameIsNeverEmpty() {
         assertEquals(".mm", mapTitle(".mm"))
     }
+
+    @Test
+    fun aMapIsNamedByItsRootAndItsFile() {
+        assertEquals("Team meeting (Réunion.mm)", mapLabel("Team meeting", "Réunion.mm"))
+        assertEquals("Same name (Same name.mm)", mapLabel("Same name", "Same name.mm"))
+    }
+
+    @Test
+    fun aRootOnSeveralLinesIsShownOnOne() {
+        assertEquals("Budget 2027 draft (b.mm)", mapLabel("Budget\n2027   draft ", "b.mm"))
+    }
+
+    @Test
+    fun aLongRootIsShortenedSoThatTheFileStillShows() {
+        val label = mapLabel("A".repeat(60), "File.mm", maxTitle = 40)
+        assertEquals("A".repeat(39) + "… (File.mm)", label)
+    }
+
+    @Test
+    fun withoutARootTextTheFileNameAlone() {
+        assertEquals("File.mm", mapLabel("", "File.mm"))
+        assertEquals("File.mm", mapLabel("  \n ", "File.mm"))
+    }
 }

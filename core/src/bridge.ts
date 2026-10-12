@@ -66,9 +66,11 @@ export type CoreMessage =
       readOnlyNodes: number;
       readOnly: boolean;
       mapVersion: string;
+      title: string;
       hiddenContent: HiddenKind[];
       warnings: { code: WarningCode }[];
     }
+  | { type: 'titleChanged'; title: string }
   | { type: 'saveData'; requestId?: string; saveId: number; data: string }
   | { type: 'dirtyChanged'; dirty: boolean }
   | { type: 'draftData'; revision: number; data: string | null }
@@ -111,6 +113,7 @@ export class Bridge {
   /** Save identities come from the core, never reused, even across maps. */
   private lastSaveId = 0;
   private reported = { dirty: false, canUndo: false, canRedo: false };
+  private reportedTitle: string | null = null; // the root's text, last told to the shell
   /** Revision of the last draft sent (not necessarily written: the shell owns that); null when none. */
   private draftRevision: number | null = null;
   private draftTimer: ReturnType<typeof setTimeout> | null = null;
@@ -146,6 +149,11 @@ export class Bridge {
   /** The whole map is read-only, because of the file or at the shell's request. */
   get readOnly(): boolean {
     return !!this.session && (this.session.map.readOnly || this.shellReadOnly);
+  }
+
+  /** The root's text, as displayed: shells show it with the file's name. */
+  private title(): string | null {
+    return this.session ? this.session.map.text(this.session.map.rootKey, this.locale) : null;
   }
 
   /** What the view displays for the open map, in the user's language. */
@@ -240,6 +248,7 @@ export class Bridge {
     // the view reports its own selection, if any, while showing the map.
     this.selectedKey = null;
     this.view.show(map.toView(this.locale), this.readOnly, false);
+    this.reportedTitle = map.text(map.rootKey, this.locale);
     this.post({
       type: 'loaded',
       requestId,
@@ -247,6 +256,7 @@ export class Bridge {
       readOnlyNodes: map.readOnlyNodeCount,
       readOnly: this.readOnly,
       mapVersion: map.mapVersion,
+      title: this.reportedTitle,
       hiddenContent: map.hiddenContent(),
       warnings,
     });
@@ -307,6 +317,11 @@ export class Bridge {
       this.post({ type: 'historyChanged', canUndo: now.canUndo, canRedo: now.canRedo });
     }
     this.reported = now;
+    const title = this.title();
+    if (title !== null && title !== this.reportedTitle) {
+      this.reportedTitle = title;
+      this.post({ type: 'titleChanged', title });
+    }
     this.updateDraft();
     this.reportSelection();
   }
