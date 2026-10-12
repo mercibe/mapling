@@ -56,7 +56,7 @@ interface JsMindInstance extends TouchMap {
 
 declare const jsMind: {
   new (options: object): JsMindInstance;
-  event_type: { edit: number; select: number };
+  event_type: { show: number; edit: number; select: number };
 };
 
 // ---------- the view ----------
@@ -107,10 +107,9 @@ export class JsMindView implements View {
     const panel = this.jm.view.e_panel;
     const scroll = { left: panel.scrollLeft, top: panel.scrollTop };
     const selected = this.jm.get_selected_node()?.id;
-    const expanded = keepViewState ? this.expandedStates() : new Map<string, boolean>();
     // Another map starts at the normal size: jsMind would keep the previous map's zoom.
     if (!keepViewState && this.jm.mind && this.jm.view.zoom_current !== 1) this.jm.view.set_zoom(1);
-    this.jm.show({ meta: { name: 'mapling' }, format: 'node_tree', data: withExpanded(root, expanded) }, keepViewState);
+    this.jm.show({ meta: { name: 'mapling' }, format: 'node_tree', data: root }, keepViewState);
     this.setReadOnly(readOnly);
     if (keepViewState) {
       panel.scrollLeft = scroll.left;
@@ -179,6 +178,15 @@ export class JsMindView implements View {
   private onJsMindEvent(type: number, event: JmEditEvent): void {
     if (type === jsMind.event_type.select && event.node) {
       this.bridge?.select(event.node === PENDING_ID ? null : event.node);
+      return;
+    }
+    if (type === jsMind.event_type.show && (event.evt === 'expand_node' || event.evt === 'collapse_node')) {
+      // Folding is a change of the map, as in Freeplane (saved, undone); in a read-only
+      // map it only changes what is shown.
+      const key = event.node;
+      if (key && key !== PENDING_ID && !this.bridge?.readOnly) {
+        this.apply((map) => map.setFolded(key, event.evt === 'collapse_node'));
+      }
       return;
     }
     if (type !== jsMind.event_type.edit || event.node === PENDING_ID) return;
@@ -271,13 +279,6 @@ export class JsMindView implements View {
     }
   }
 
-  /** The expanded state of every node shown, to keep folding when the map is redrawn. */
-  private expandedStates(): Map<string, boolean> {
-    const states = new Map<string, boolean>();
-    for (const node of Object.values(this.jm.mind?.nodes ?? {})) states.set(node.id, node.expanded);
-    return states;
-  }
-
   /** Text, plus marks for CSS: lock (text not editable), dot (hidden content), new node. */
   private render(element: HTMLElement, node: JmNode): boolean {
     element.textContent = node.topic;
@@ -292,11 +293,3 @@ function side(node: JmNode): Side {
   return node.direction === -1 ? 'left' : 'right';
 }
 
-/** Applies remembered expanded states (folding lives in the view only, never in the file). */
-function withExpanded(node: ViewNode, expanded: Map<string, boolean>): ViewNode {
-  return {
-    ...node,
-    expanded: expanded.get(node.id) ?? node.expanded,
-    children: node.children.map((child) => withExpanded(child, expanded)),
-  };
-}

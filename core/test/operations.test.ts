@@ -98,6 +98,33 @@ test('removeNode removes the element, its subtree and its line', () => {
   assert.equal(map.serialize(), replaceOnce(original, A_LINE + '\n', ''));
 });
 
+// fixture07 holds a node folded in Freeplane, fixture08 one unfolded: they show what
+// Freeplane writes. Folding is not an edit of the node: MODIFIED stays.
+test('folding writes FOLDED="true" right after the text, as Freeplane does', () => {
+  const unfolded = fixture('fixture08-unfoldedNode.mm');
+  const line = '<node TEXT="unfolded node" POSITION="bottom_or_right" ID="ID_174053484" CREATED="1791821586051" MODIFIED="1791821895603">';
+  const map = new MindMap(unfolded);
+  map.setFolded('ID_174053484', true);
+  assert.equal(map.serialize(), replaceOnce(unfolded, line, line.replace('TEXT="unfolded node" ', 'TEXT="unfolded node" FOLDED="true" ')));
+  assert.equal(map.toView().children[0].expanded, false);
+});
+
+test('unfolding removes FOLDED, as Freeplane does', () => {
+  const folded = fixture('fixture07-foldedNode.mm');
+  const map = new MindMap(folded);
+  map.setFolded('ID_1168838461', false);
+  assert.equal(map.serialize(), replaceOnce(folded, ' FOLDED="true" POSITION', ' POSITION'));
+  map.setFolded('ID_1168838461', false);
+  assert.equal(map.serialize(), replaceOnce(folded, ' FOLDED="true" POSITION', ' POSITION'), 'unfolding twice changes nothing more');
+});
+
+test('folding a node without a text attribute puts FOLDED first; the root is never folded', () => {
+  const map = new MindMap(original);
+  map.setFolded(B_RICH_CHILD, true);
+  assert.match(map.serialize(), /<node FOLDED="true" ID="ID_1500080539"/);
+  assert.throws(() => map.setFolded(ROOT, true), (e) => code(e) === 'INVALID_OPERATION');
+});
+
 test('after a removal, the next sibling is selected, else the previous one, else the parent', () => {
   const map = new MindMap(original);
   const D = 'ID_1964929139';

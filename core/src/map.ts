@@ -153,7 +153,7 @@ export class MindMap {
     return childElements(this.element(key), 'node').map((el) => this.key(el));
   }
 
-  /** Projection for the view. FOLDED is read here and never written (folding is in memory only). */
+  /** Projection for the view; FOLDED gives the folding (written by setFolded). */
   toView(locale = 'en', key: string = this.rootKey): ViewNode {
     const el = this.element(key);
     const view: ViewNode = {
@@ -229,6 +229,21 @@ export class MindMap {
     el.setAttribute('MODIFIED', String(now));
     this.insertChild(parent, el, index);
     return this.indexSubtree(el);
+  }
+
+  /**
+   * Folds or unfolds a node, written as Freeplane writes it: `FOLDED="true"` right after
+   * the node's text attribute, removed once unfolded. Folding is not an edit of the node:
+   * MODIFIED stays. The root is never folded.
+   */
+  setFolded(key: string, folded: boolean): void {
+    this.checkMapEditable();
+    const el = this.element(key);
+    if (el === this.rootEl) throw new MapError('INVALID_OPERATION', 'The root cannot be folded');
+    if (!folded) return el.removeAttribute('FOLDED');
+    const after = Array.from(el.attributes).find((a) => a.name !== 'TEXT' && a.name !== 'LOCALIZED_TEXT');
+    if (after) this.setAttributeBefore(el, 'FOLDED', 'true', after.name);
+    else el.setAttribute('FOLDED', 'true');
   }
 
   /**
