@@ -260,18 +260,20 @@ class MainActivity : Activity() {
         val menu = popup.menu
         if (document != null) menu.add(documentName).isEnabled = false // a heading, not a command
         val open = document != null
-        menu.add(Menu.NONE, MENU_OPEN, Menu.NONE, R.string.open).isEnabled = coreReady
-        menu.add(Menu.NONE, MENU_NEW, Menu.NONE, R.string.new_map).isEnabled = coreReady
+        menu.add(Menu.NONE, MENU_OPEN, Menu.NONE, R.string.open).setIcon(R.drawable.ic_folder_open).isEnabled = coreReady
+        menu.add(Menu.NONE, MENU_NEW, Menu.NONE, R.string.new_map).setIcon(R.drawable.ic_note_add).isEnabled = coreReady
         val others = recent.entries.filter { it.document != document?.toString() }
         if (others.isNotEmpty()) {
-            val recentMenu = menu.addSubMenu(R.string.recent_maps)
+            val recentMenu = menu.addSubMenu(R.string.recent_maps).setIcon(R.drawable.ic_history)
             others.forEachIndexed { index, entry ->
                 recentMenu.add(Menu.NONE, MENU_RECENT + index, Menu.NONE, entry.name).isEnabled = coreReady
             }
         }
-        menu.add(Menu.NONE, MENU_RELOAD, Menu.NONE, R.string.reload).isEnabled = open
-        menu.add(Menu.NONE, MENU_CENTER, Menu.NONE, R.string.center).isEnabled = open
-        menu.add(Menu.NONE, MENU_CLOSE, Menu.NONE, R.string.close).isEnabled = open
+        menu.add(Menu.NONE, MENU_RELOAD, Menu.NONE, R.string.reload).setIcon(R.drawable.ic_refresh).isEnabled = open
+        menu.add(Menu.NONE, MENU_CENTER, Menu.NONE, R.string.center).setIcon(R.drawable.ic_filter_center_focus).isEnabled = open
+        menu.add(Menu.NONE, MENU_CLOSE, Menu.NONE, R.string.close).setIcon(R.drawable.ic_close).isEnabled = open
+        // Icons read faster than words; the platform shows them in this menu from Android 10.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) popup.setForceShowIcon(true)
         popup.setOnMenuItemClickListener { item ->
             when (item.itemId) {
                 MENU_OPEN -> leaveMap(::pickDocument)
