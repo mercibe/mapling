@@ -12,3 +12,7 @@ AddDefaultCharset utf-8
 <Files "LICENSE">
   ForceType text/plain
 </Files>
+
+# The web shell stays public even when a parent folder asks for a password.
+Satisfy Any
+Require all granted
