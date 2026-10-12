@@ -223,6 +223,7 @@ const actions = {
   addSibling: () => send({ type: 'addSibling', id: state.selection.id }),
   deleteNode,
   center: () => send({ type: 'center' }),
+  about: () => document.getElementById('about').showModal(),
 };
 
 function confirmDownload() {
@@ -249,6 +250,7 @@ function enabled(action) {
   const node = state.selection;
   switch (action) {
     case 'open':
+    case 'about':
       return true;
     case 'center':
       return !!state.map;
@@ -329,6 +331,9 @@ function render() {
   for (const button of document.querySelectorAll('[data-action]')) {
     button.textContent = t(`action.${button.dataset.action}`);
     button.disabled = !enabled(button.dataset.action);
+  }
+  for (const element of document.querySelectorAll('[data-text]')) {
+    element.textContent = t(element.dataset.text);
   }
   const status = document.getElementById('status');
   status.textContent = state.map ? `${state.map.name} · ${t(state.dirty ? 'status.modified' : 'status.unmodified')}` : '';

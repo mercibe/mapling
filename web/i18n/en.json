@@ -53,5 +53,15 @@
   "draft.restoreOther": "Unsaved changes to a file named {name}, from {date}, were kept. They were made on another file with this name, or on an earlier version of this one. Restore them anyway? (Then download the copy under another name.) If you decline, they are kept.",
   "action.center": "Center",
   "hint.locked": "Text not editable here (rich or multi-line text): edit it in Freeplane. The node can still be moved or deleted.",
-  "hint.hidden": "This node holds items that are not shown here, and kept: {items}."
+  "hint.hidden": "This node holds items that are not shown here, and kept: {items}.",
+  "action.about": "About",
+  "about.description": "View and lightly edit Freeplane mind maps, without losing anything Freeplane wrote. Everything happens in your browser: the maps you open are sent nowhere.",
+  "about.copyright": "© 2026 Benoit Mercier and Mapling contributors",
+  "about.license": "Mapling is free software: you may redistribute and modify it under the GNU General Public License, version 3 or later, with an additional permission for app stores. It comes with no warranty.",
+  "about.uses": "Uses jsMind (BSD-3-Clause). Mapling is not affiliated with the Freeplane project.",
+  "about.licenseLink": "License (GPL-3.0-or-later)",
+  "about.exceptionLink": "Additional permission",
+  "about.jsmindLink": "jsMind license",
+  "about.privacyLink": "Privacy policy",
+  "about.close": "Close"
 }

@@ -4,7 +4,8 @@ SPDX-FileCopyrightText: 2026 Benoit Mercier and Mapling contributors
 SPDX-License-Identifier: GPL-3.0-or-later
 
 Reference web shell: implements docs/BRIDGE.md end to end. Run `npm run build`,
-serve the repository root over HTTP, and open /web/.
+serve the repository root over HTTP, and open /web/. To host it, `npm run build:web`
+assembles it in web/dist.
 -->
 <html>
 <head>
@@ -28,6 +29,9 @@ serve the repository root over HTTP, and open /web/.
   #messages .error { background: #fde2e2; }
   #messages .hint { background: #f4f4f4; color: #444; }
   #map-area { flex: 1; min-height: 0; position: relative; }
+  #about { max-width: 32em; font-size: 14px; line-height: 1.4; }
+  #about h2 { margin-top: 0; }
+  #about form { text-align: right; }
   #empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #777; }
 </style>
 </head>
@@ -47,7 +51,22 @@ serve the repository root over HTTP, and open /web/.
   <span class="separator"></span>
   <button data-action="center"></button>
   <span id="status"></span>
+  <button data-action="about"></button>
 </div>
+<dialog id="about">
+  <h2>Mapling</h2>
+  <p data-text="about.description"></p>
+  <p data-text="about.copyright"></p>
+  <p data-text="about.license"></p>
+  <p data-text="about.uses"></p>
+  <ul>
+    <li><a href="../LICENSE" target="_blank" data-text="about.licenseLink"></a></li>
+    <li><a href="../LICENSE-EXCEPTION.md" target="_blank" data-text="about.exceptionLink"></a></li>
+    <li><a href="../core/vendor/jsmind-0.9.1/LICENSE" target="_blank" data-text="about.jsmindLink"></a></li>
+    <li><a href="../PRIVACY.md" target="_blank" data-text="about.privacyLink"></a></li>
+  </ul>
+  <form method="dialog"><button data-text="about.close"></button></form>
+</dialog>
 <div id="messages"></div>
 <div id="map-area">
   <div id="mapling"></div>
