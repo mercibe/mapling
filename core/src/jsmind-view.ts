@@ -21,6 +21,7 @@ interface JmNode {
   direction: number; // -1 left, 1 right (children of the root)
   expanded: boolean;
   data: Record<string, unknown>;
+  _data: { view: { element: HTMLElement | null } }; // the node as displayed
 }
 
 interface JmEditEvent {
@@ -107,6 +108,8 @@ export class JsMindView implements View {
     const scroll = { left: panel.scrollLeft, top: panel.scrollTop };
     const selected = this.jm.get_selected_node()?.id;
     const expanded = keepViewState ? this.expandedStates() : new Map<string, boolean>();
+    // Another map starts at the normal size: jsMind would keep the previous map's zoom.
+    if (!keepViewState && this.jm.mind && this.jm.view.zoom_current !== 1) this.jm.view.set_zoom(1);
     this.jm.show({ meta: { name: 'mapling' }, format: 'node_tree', data: withExpanded(root, expanded) }, keepViewState);
     this.setReadOnly(readOnly);
     if (keepViewState) {
@@ -150,9 +153,19 @@ export class JsMindView implements View {
     }
   }
 
+  /**
+   * Scrolls so that the node (the root by default) is in the middle of the map, from where
+   * it is displayed: jsMind's own centering misplaces it once the map is zoomed.
+   */
   center(key: string | null): void {
     const root = this.jm.mind?.root;
-    if (root) this.jm.scroll_node_to_center(key ?? root.id);
+    const element = root && this.jm.get_node(key ?? root.id)?._data.view.element;
+    if (!element) return;
+    const panel = this.jm.view.e_panel;
+    const node = element.getBoundingClientRect();
+    const view = panel.getBoundingClientRect();
+    panel.scrollLeft += node.left + node.width / 2 - (view.left + view.width / 2);
+    panel.scrollTop += node.top + node.height / 2 - (view.top + view.height / 2);
   }
 
   // ---------- gestures in jsMind ----------

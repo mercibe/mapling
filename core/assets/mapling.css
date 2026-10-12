@@ -25,6 +25,9 @@ jmnode { white-space: pre-wrap; max-width: 20em; }
 .jsmind-editor { min-width: 15ch; max-width: 80vw; field-sizing: content; }
 jmnode:has(> .jsmind-editor) { max-width: none; }
 
+/* The selected node, in the green of the shells' toolbars rather than jsMind's blue. */
+jmnode.selected { background-color: #154d46; }
+
 /* A node being added: placeholder text until validated. */
 jmnode.mapling-pending { font-style: italic; color: #888; }
 
