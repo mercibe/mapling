@@ -5,6 +5,8 @@ The Android shell: a single activity around a WebView that runs the core (`core/
 - Opens and saves documents through the system's document picker (Storage Access Framework): Google Drive, local storage, or any other document provider. The app asks for **no permission**, not even network access.
 - Serves the core to the WebView from the app's assets; the page cannot load anything else.
 - Keeps unsaved changes as drafts in the app's private storage, so that they survive the app being killed.
+- Before saving, checks that the document was not changed elsewhere (another device, Freeplane on a computer); if it was, offers to save a copy, overwrite, or cancel.
+- Lists the last ten maps opened, reopens at start the map left open (unless it was closed), and creates new maps.
 - Uses the platform's views only: no AndroidX, AppCompat or Compose. Its only other dependency is JUnit, for tests.
 
 ## Requirements
@@ -35,7 +37,7 @@ The build stops with a clear message if the core has not been built. Rebuild the
 ## Tests
 
 ```
-./gradlew testDebugUnitTest   # JUnit tests (drafts, WebView version check), on the computer
+./gradlew testDebugUnitTest   # JUnit tests (drafts, write check, recent maps, WebView version), on the computer
 ./gradlew lint                # Android Lint, including calls to APIs newer than Android 8
 ```
 
@@ -52,6 +54,8 @@ Debug builds let Chrome inspect the WebView: with the device connected, open `ch
 | `src/main/kotlin/.../MainActivity.kt` | The activity: toolbar and menus, document picker, bridge messages, saving, drafts, unsaved-changes guards |
 | `src/main/kotlin/.../AssetServer.kt` | Serves the page and the core from the app's assets, and nothing else |
 | `src/main/kotlin/.../DraftStore.kt` | Drafts of unsaved changes, one per document |
+| `src/main/kotlin/.../WriteCheck.kt` | Whether a document may be overwritten: not if it was changed elsewhere |
+| `src/main/kotlin/.../RecentMaps.kt` | The last maps opened, and whether their hidden content was told |
 | `src/main/kotlin/.../WebViewVersion.kt` | The oldest WebView the core runs on |
 | `src/main/assets/index.html` | The page: only the map |
 | `src/main/res/` | Layout, icons, colors and translated texts (English, French) |

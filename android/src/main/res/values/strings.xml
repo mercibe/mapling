@@ -95,4 +95,9 @@ SPDX-License-Identifier: GPL-3.0-or-later
     <string name="overwrite">Overwrite</string>
     <!-- %1$s: the map's name without its extension; the copy's suggested name -->
     <string name="copy_name">%1$s (copy)</string>
+    <string name="new_map">New map</string>
+    <string name="recent_maps">Recent maps</string>
+    <string name="map_unreadable">This map cannot be opened. It may have been moved or deleted, access to it may have been withdrawn, or its provider (Drive, for instance) may be offline.</string>
+    <string name="remove_from_list">Remove from the list</string>
+    <string name="keep">Keep</string>
 </resources>

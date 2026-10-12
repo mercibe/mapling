@@ -96,4 +96,9 @@ SPDX-License-Identifier: GPL-3.0-or-later
     <string name="save_copy">Enregistrer une copie…</string>
     <string name="overwrite">Écraser</string>
     <string name="copy_name">%1$s (copie)</string>
+    <string name="new_map">Nouvelle carte</string>
+    <string name="recent_maps">Cartes récentes</string>
+    <string name="map_unreadable">Impossible d’ouvrir cette carte. Elle a peut-être été déplacée ou supprimée, son accès a pu être retiré, ou son fournisseur (Drive, par exemple) est hors ligne.</string>
+    <string name="remove_from_list">Retirer de la liste</string>
+    <string name="keep">Garder</string>
 </resources>

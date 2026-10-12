@@ -54,7 +54,8 @@ import kotlin.concurrent.thread
 class MainActivity : Activity() {
 
     private lateinit var webView: WebView
-    private lateinit var openMapButton: View
+    private lateinit var home: View
+    private lateinit var recent: RecentMaps
     private lateinit var nodeBar: View
     private lateinit var drafts: DraftStore
     private var coreReady = false
@@ -128,8 +129,10 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.main)
         webView = findViewById(R.id.map)
-        openMapButton = findViewById(R.id.open_map)
-        openMapButton.setOnClickListener { pickDocument() }
+        home = findViewById(R.id.home)
+        findViewById<View>(R.id.open_map).setOnClickListener { pickDocument() }
+        findViewById<View>(R.id.new_map).setOnClickListener { pickNewMap() }
+        recent = RecentMaps.decode(preferences().getString(RECENT_MAPS, null))
         nodeBar = findViewById(R.id.node_bar)
         setUpToolbar()
         setUpNodeBar()
@@ -138,7 +141,10 @@ class MainActivity : Activity() {
 
         drafts = draftStore(applicationContext)
         drafts.watchProtection(protectionListener)
-        reopen = savedInstanceState?.getString(STATE_DOCUMENT)?.let(Uri::parse)
+        // After Android recreated the screen, its document; on a fresh start, the last map
+        // left open, unless it was closed (Close in the ☰ menu).
+        reopen = (savedInstanceState?.getString(STATE_DOCUMENT) ?: preferences().getString(LAST_OPEN, null))
+            ?.let(Uri::parse)
 
         webView.settings.apply {
             javaScriptEnabled = true
@@ -255,15 +261,29 @@ class MainActivity : Activity() {
         if (document != null) menu.add(documentName).isEnabled = false // a heading, not a command
         val open = document != null
         menu.add(Menu.NONE, MENU_OPEN, Menu.NONE, R.string.open).isEnabled = coreReady
+        menu.add(Menu.NONE, MENU_NEW, Menu.NONE, R.string.new_map).isEnabled = coreReady
+        val others = recent.entries.filter { it.document != document?.toString() }
+        if (others.isNotEmpty()) {
+            val recentMenu = menu.addSubMenu(R.string.recent_maps)
+            others.forEachIndexed { index, entry ->
+                recentMenu.add(Menu.NONE, MENU_RECENT + index, Menu.NONE, entry.name).isEnabled = coreReady
+            }
+        }
         menu.add(Menu.NONE, MENU_RELOAD, Menu.NONE, R.string.reload).isEnabled = open
         menu.add(Menu.NONE, MENU_CENTER, Menu.NONE, R.string.center).isEnabled = open
         menu.add(Menu.NONE, MENU_CLOSE, Menu.NONE, R.string.close).isEnabled = open
         popup.setOnMenuItemClickListener { item ->
             when (item.itemId) {
                 MENU_OPEN -> leaveMap(::pickDocument)
+                MENU_NEW -> leaveMap(::pickNewMap)
                 MENU_RELOAD -> document?.let { uri -> leaveMap { open(uri) } }
                 MENU_CENTER -> sendToCore(JSONObject().put("type", "center"))
-                MENU_CLOSE -> leaveMap(::close)
+                MENU_CLOSE -> leaveMap {
+                    close()
+                    preferences().edit().remove(LAST_OPEN).apply() // not reopened at the next start
+                }
+                in MENU_RECENT until MENU_RECENT + RecentMaps.MAX ->
+                    others.getOrNull(item.itemId - MENU_RECENT)?.let { entry -> leaveMap { open(Uri.parse(entry.document)) } }
             }
             true
         }
@@ -369,11 +389,12 @@ class MainActivity : Activity() {
         )
     }
 
-    /** Shows what can be done now: the map or the button to open one, and the enabled commands. */
+    /** Shows what can be done now: the map or the home screen, and the enabled commands. */
     private fun render() {
         val open = document != null
         webView.visibility = if (open) View.VISIBLE else View.INVISIBLE
-        openMapButton.visibility = if (open) View.GONE else View.VISIBLE
+        home.visibility = if (open) View.GONE else View.VISIBLE
+        if (!open) renderHome()
         // Shown whenever the map can be edited, so that the map does not jump at each selection.
         nodeBar.visibility = if (open && !mapReadOnly) View.VISIBLE else View.GONE
         val node = selection
@@ -386,6 +407,42 @@ class MainActivity : Activity() {
         renderHints()
         interceptBackWhileModified()
         invalidateOptionsMenu()
+    }
+
+    /** Open, new, and the recent maps: one gesture to go back to a map. */
+    private fun renderHome() {
+        findViewById<View>(R.id.open_map).isEnabled = coreReady
+        findViewById<View>(R.id.new_map).isEnabled = coreReady
+        val list = findViewById<LinearLayout>(R.id.recent_list)
+        list.removeAllViews()
+        findViewById<View>(R.id.recent_title).visibility = if (recent.entries.isEmpty()) View.GONE else View.VISIBLE
+        val format = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT)
+        for (entry in recent.entries) {
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(0, dp(10), 0, dp(10))
+                isEnabled = coreReady
+                isClickable = true
+                setBackgroundResource(selectableBackground())
+                setOnClickListener { open(Uri.parse(entry.document)) }
+            }
+            row.addView(TextView(this).apply {
+                text = entry.name
+                textSize = 16f
+                setTextColor(getColor(R.color.message_text))
+            })
+            row.addView(TextView(this).apply {
+                text = format.format(Date(entry.opened))
+                textSize = 13f
+            })
+            list.addView(row)
+        }
+    }
+
+    private fun selectableBackground(): Int {
+        val value = android.util.TypedValue()
+        theme.resolveAttribute(android.R.attr.selectableItemBackground, value, true)
+        return value.resourceId
     }
 
     private fun renderMessages() {
@@ -468,6 +525,10 @@ class MainActivity : Activity() {
                 keepAccess(uri, data!!.flags)
                 open(uri)
             }
+            REQUEST_NEW_MAP -> if (uri != null) {
+                keepAccess(uri, data!!.flags)
+                createMap(uri)
+            }
             REQUEST_SAVE_COPY -> {
                 val copy = pendingCopy ?: return
                 pendingCopy = null
@@ -485,6 +546,78 @@ class MainActivity : Activity() {
             contentResolver.takePersistableUriPermission(uri, modes)
         } catch (e: SecurityException) {
             Log.w(TAG, "No persistable access to $uri", e)
+        }
+    }
+
+    /** The number of documents an app may keep access to is limited: give back what is no longer listed. */
+    private fun releaseAccess(uri: Uri) {
+        try {
+            contentResolver.releasePersistableUriPermission(
+                uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+            )
+        } catch (e: SecurityException) {
+            Log.w(TAG, "No access to release for $uri", e)
+        }
+    }
+
+    /**
+     * A recent map that cannot be read may be gone (moved, deleted, access withdrawn) or only
+     * out of reach for now (a provider offline): providers do not tell which (Drive reports
+     * both as a missing file), so the user decides.
+     */
+    private fun offerToForget(uri: Uri) {
+        AlertDialog.Builder(this)
+            .setMessage(R.string.map_unreadable)
+            .setPositiveButton(R.string.remove_from_list) { _, _ -> forget(uri) }
+            .setNegativeButton(R.string.keep, null)
+            .show()
+    }
+
+    /** The document now open goes first in the recent maps; those that no longer fit give back their access. */
+    private fun putFirstInRecent(uri: Uri, name: String) {
+        recent.opened(uri.toString(), name, System.currentTimeMillis()).forEach { releaseAccess(Uri.parse(it)) }
+    }
+
+    /** Keeps the recent maps, and the document open now as the one to reopen at start. */
+    private fun storeRecent() {
+        preferences().edit().putString(RECENT_MAPS, recent.encode()).putString(LAST_OPEN, document?.toString()).apply()
+    }
+
+    /** A map removed from the recent maps is not reopened at start either. */
+    private fun forget(uri: Uri) {
+        recent.remove(uri.toString())
+        val preferences = preferences()
+        val editor = preferences.edit().putString(RECENT_MAPS, recent.encode())
+        if (preferences.getString(LAST_OPEN, null) == uri.toString()) editor.remove(LAST_OPEN)
+        editor.apply()
+        releaseAccess(uri)
+        render()
+    }
+
+    private fun preferences() = getSharedPreferences(PREFERENCES, MODE_PRIVATE)
+
+    // ---------- creating a map ----------
+
+    /** Where and under which name: the system's picker, as for any document. */
+    private fun pickNewMap() {
+        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
+            .addCategory(Intent.CATEGORY_OPENABLE)
+            .setType("application/octet-stream") // providers know no type for .mm files
+            .putExtra(Intent.EXTRA_TITLE, getString(R.string.new_map) + ".mm")
+        startActivityForResult(intent, REQUEST_NEW_MAP)
+    }
+
+    /** Writes a new map as Freeplane does (the core's template), then opens it like any other. */
+    private fun createMap(uri: Uri) {
+        thread {
+            try {
+                val template = assets.open(NEW_MAP_TEMPLATE).use { it.readBytes() }
+                contentResolver.openOutputStream(uri, "wt")!!.use { it.write(template) }
+                runOnUiThread { open(uri) }
+            } catch (e: Exception) {
+                Log.w(TAG, "Cannot create $uri", e)
+                runOnUiThread { alert(R.string.error_write) }
+            }
         }
     }
 
@@ -512,7 +645,10 @@ class MainActivity : Activity() {
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "Cannot read $uri", e)
-                runOnUiThread { alert(R.string.error_read) }
+                runOnUiThread {
+                    if (recent.entries.any { it.document == uri.toString() }) offerToForget(uri)
+                    else alert(R.string.error_read)
+                }
             }
         }
     }
@@ -565,7 +701,9 @@ class MainActivity : Activity() {
         mapReadOnly = message.getBoolean("readOnly")
         val warnings = message.getJSONArray("warnings")
         readOnlyReasons = List(warnings.length()) { warnings.getJSONObject(it).getString("code") }
+        putFirstInRecent(load.uri, load.name)
         hiddenNotice = hiddenNotice(load.uri, message.getJSONArray("hiddenContent"))
+        storeRecent()
         Log.i(TAG, "Loaded ${load.name}, based on ${load.base.take(8)}")
         if (load.discardDraft) drafts.submit(load.uri.toString(), null)
         render()
@@ -583,16 +721,12 @@ class MainActivity : Activity() {
 
     /**
      * "This map contains notes and icons that are not shown here. They are kept.":
-     * told once per document, the first time it is opened with such content. The list of
-     * documents told grows by about 200 bytes per document; it is to move into the list
-     * of recent maps, once there is one, which will bound and clean it.
+     * told once per document, the first time it is opened with such content. Remembered
+     * in the recent maps, so forgotten with the document when it leaves them.
      */
     private fun hiddenNotice(uri: Uri, kinds: org.json.JSONArray): String? {
-        if (kinds.length() == 0) return null
-        val preferences = getSharedPreferences(PREFERENCES, MODE_PRIVATE)
-        val told = preferences.getStringSet(HIDDEN_NOTICE_TOLD, emptySet()).orEmpty()
-        if (uri.toString() in told) return null
-        preferences.edit().putStringSet(HIDDEN_NOTICE_TOLD, told + uri.toString()).apply()
+        if (kinds.length() == 0 || recent.hiddenContentTold(uri.toString())) return null
+        recent.tellHiddenContent(uri.toString())
         val names = List(kinds.length()) { getString(KIND_NAMES.getValue(kinds.getString(it))) }
         return getString(R.string.hidden_notice, ListFormatter.getInstance().format(names))
     }
@@ -708,6 +842,10 @@ class MainActivity : Activity() {
                 document = uri
                 documentName = name
                 drafts.submit(copy.document.toString(), null)
+                // The copy is now the map worked on: listed first, and reopened at start.
+                putFirstInRecent(uri, name)
+                if (recent.hiddenContentTold(copy.document.toString())) recent.tellHiddenContent(uri.toString())
+                storeRecent()
                 render()
             }
             sendToCore(JSONObject().put("type", "saved").put("saveId", saveId)) {
@@ -857,6 +995,8 @@ class MainActivity : Activity() {
         const val MENU_REDO = 5
         const val MENU_CENTER = 6
         const val MENU_CLOSE = 7
+        const val MENU_NEW = 8
+        const val MENU_RECENT = 100 // and the next ones, one per recent map
 
         val TOOLBAR_ACTIONS = listOf(
             Triple(MENU_UNDO, R.string.undo, R.drawable.ic_undo),
@@ -865,7 +1005,9 @@ class MainActivity : Activity() {
         )
 
         const val PREFERENCES = "mapling"
-        const val HIDDEN_NOTICE_TOLD = "hiddenNoticeTold"
+        const val RECENT_MAPS = "recentMaps"
+        const val LAST_OPEN = "lastOpen" // the map to reopen at start; removed by Close
+        const val NEW_MAP_TEMPLATE = "core/assets/new-map.mm"
 
         /** Why a map opened read-only: warning codes of `loaded` (docs/BRIDGE.md, section 5). */
         val READ_ONLY_TEXTS = mapOf(
@@ -908,6 +1050,7 @@ class MainActivity : Activity() {
         )
         const val REQUEST_OPEN = 1
         const val REQUEST_SAVE_COPY = 2
+        const val REQUEST_NEW_MAP = 3
         const val STATE_DOCUMENT = "document"
 
         // One of each for the whole process, not per activity: when Android recreates

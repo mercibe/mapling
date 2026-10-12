@@ -3,8 +3,9 @@
 SPDX-FileCopyrightText: 2026 Benoit Mercier and Mapling contributors
 SPDX-License-Identifier: GPL-3.0-or-later
 -->
-<!-- The only screen: toolbar, messages, the map (or, with no map open, a button to
-     open one), what the marks of the selected node mean, and its commands. -->
+<!-- The only screen: toolbar, messages, the map (or, with no map open, the buttons to
+     open or create one and the recent maps), what the marks of the selected node mean,
+     and its commands. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/root"
     android:layout_width="match_parent"
@@ -37,12 +38,56 @@ SPDX-License-Identifier: GPL-3.0-or-later
             android:layout_height="match_parent"
             android:visibility="invisible" />
 
-        <Button
-            android:id="@+id/open_map"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:text="@string/open_map" />
+        <!-- With no map open: open one, create one, or pick a recent one. -->
+        <ScrollView
+            android:id="@+id/home"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:orientation="vertical">
+
+                    <Button
+                        android:id="@+id/open_map"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/open_map" />
+
+                    <Button
+                        android:id="@+id/new_map"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/new_map" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/recent_title"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="24dp"
+                    android:paddingBottom="8dp"
+                    android:text="@string/recent_maps"
+                    android:textColor="@color/forest"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+
+                <LinearLayout
+                    android:id="@+id/recent_list"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical" />
+            </LinearLayout>
+        </ScrollView>
     </FrameLayout>
 
     <!-- What the lock and the dot of the selected node mean. -->
