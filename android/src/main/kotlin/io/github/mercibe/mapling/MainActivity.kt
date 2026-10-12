@@ -258,7 +258,7 @@ class MainActivity : Activity() {
     private fun showMainMenu(anchor: View) {
         val popup = PopupMenu(this, anchor, Gravity.START)
         val menu = popup.menu
-        if (document != null) menu.add(documentName).isEnabled = false // a heading, not a command
+        if (document != null) menu.add(mapTitle(documentName)).isEnabled = false // a heading, not a command
         val open = document != null
         menu.add(Menu.NONE, MENU_OPEN, Menu.NONE, R.string.open).setIcon(R.drawable.ic_folder_open).isEnabled = coreReady
         menu.add(Menu.NONE, MENU_NEW, Menu.NONE, R.string.new_map).setIcon(R.drawable.ic_note_add).isEnabled = coreReady
@@ -266,7 +266,7 @@ class MainActivity : Activity() {
         if (others.isNotEmpty()) {
             val recentMenu = menu.addSubMenu(R.string.recent_maps).setIcon(R.drawable.ic_history)
             others.forEachIndexed { index, entry ->
-                recentMenu.add(Menu.NONE, MENU_RECENT + index, Menu.NONE, entry.name).isEnabled = coreReady
+                recentMenu.add(Menu.NONE, MENU_RECENT + index, Menu.NONE, mapTitle(entry.name)).isEnabled = coreReady
             }
         }
         menu.add(Menu.NONE, MENU_RELOAD, Menu.NONE, R.string.reload).setIcon(R.drawable.ic_refresh).isEnabled = open
@@ -429,7 +429,7 @@ class MainActivity : Activity() {
                 setOnClickListener { open(Uri.parse(entry.document)) }
             }
             row.addView(TextView(this).apply {
-                text = entry.name
+                text = mapTitle(entry.name)
                 textSize = 16f
                 setTextColor(getColor(R.color.message_text))
             })
@@ -801,7 +801,7 @@ class MainActivity : Activity() {
     }
 
     private fun pickCopy(uri: Uri, saveId: Long, bytes: ByteArray) {
-        val name = getString(R.string.copy_name, documentName.removeSuffix(".mm")) + ".mm"
+        val name = getString(R.string.copy_name, mapTitle(documentName)) + ".mm"
         pendingCopy = PendingCopy(uri, name, saveId, bytes)
         val intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
             .addCategory(Intent.CATEGORY_OPENABLE)
