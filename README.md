@@ -65,6 +65,7 @@ npm install     # dev dependencies only: typescript, @xmldom/xmldom
 npm test        # tests: core (round trips on every test map in fixtures/) and web shell drafts
 npm run check   # type check
 npm run build   # compile the core to core/dist
+npm run build:web  # build, then assemble the web shell in web/dist, ready to host anywhere
 ```
 
 ## License

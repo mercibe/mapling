@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: 2026 Benoit Mercier and Mapling contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Media types for Apache (or LiteSpeed), which serves the assembled web shell
+# (web/dist) as is. Browsers refuse ES modules served with any other type than
+# JavaScript; the licenses and the privacy policy are shown as plain text, all in
+# UTF-8.
+
+AddType text/javascript .js .mjs
+AddType text/plain .md
+AddDefaultCharset utf-8
+<Files "LICENSE">
+  ForceType text/plain
+</Files>

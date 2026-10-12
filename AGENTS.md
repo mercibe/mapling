@@ -52,6 +52,7 @@ npm install     # dev dependencies only: typescript, @xmldom/xmldom
 npm test        # tests (node:test): core, with round trips on every fixture, and web shell drafts
 npm run check   # type check (tsc --noEmit)
 npm run build   # compile core/src to core/dist (ES modules for the WebView)
+npm run build:web  # build, then assemble the web shell in web/dist (static, relative links)
 ```
 
 Core code uses only DOM Level 2 APIs (`childNodes`, `getAttribute`, `insertBefore`…), so that it runs both in browsers and on xmldom in tests: no `querySelector`, no `Element.remove()`.

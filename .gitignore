@@ -13,6 +13,7 @@ fixtures-private/
 # Dependencies
 node_modules/
 core/dist/
+web/dist/
 
 # Android build outputs and local settings
 android/.gradle/
