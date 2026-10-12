@@ -4,8 +4,6 @@
 package io.github.mercibe.mapling
 
 import android.annotation.SuppressLint
-import android.app.Activity
-import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
@@ -16,14 +14,19 @@ import android.os.Bundle
 import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import android.util.Base64
+import android.text.SpannableStringBuilder
+import android.text.Spanned
+import android.text.method.LinkMovementMethod
+import android.text.style.ForegroundColorSpan
+import android.text.style.RelativeSizeSpan
+import android.text.util.Linkify
 import android.util.Log
 import android.view.Gravity
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
+import android.view.ViewGroup
 import android.view.WindowInsets
-import android.window.OnBackInvokedCallback
-import android.window.OnBackInvokedDispatcher
 import android.webkit.ConsoleMessage
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
@@ -32,10 +35,17 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.ImageButton
 import android.widget.LinearLayout
-import android.widget.PopupMenu
 import android.widget.TextView
 import android.widget.Toast
-import android.widget.Toolbar
+import androidx.activity.OnBackPressedCallback
+import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.Toolbar
+import androidx.core.content.edit
+import androidx.core.net.toUri
+import androidx.core.view.GravityCompat
+import androidx.drawerlayout.widget.DrawerLayout
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.navigation.NavigationView
 import io.github.mercibe.mapling.DraftStore.Draft
 import io.github.mercibe.mapling.DraftStore.Found
 import org.json.JSONObject
@@ -51,7 +61,7 @@ import kotlin.concurrent.thread
  * The core runs in the WebView and talks to this shell through JSON messages
  * (docs/BRIDGE.md). The shell opens documents and passes their bytes untouched.
  */
-class MainActivity : Activity() {
+class MainActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
     private lateinit var home: View
@@ -88,8 +98,17 @@ class MainActivity : Activity() {
 
     private var leaveAfterSave: LeaveAfterSave? = null
 
-    /** The interception of "back" (Android 13+), declared only while the map is modified. */
-    private var backCallback: Any? = null
+    private lateinit var drawer: DrawerLayout
+
+    /** "Back" with unsaved changes asks first (AndroidX, predictive back included). */
+    private val backWhileModified = object : OnBackPressedCallback(false) {
+        override fun handleOnBackPressed() = leaveMap(::finish)
+    }
+
+    /** "Back" closes the drawer first, when it is open. */
+    private val backClosesDrawer = object : OnBackPressedCallback(false) {
+        override fun handleOnBackPressed() = drawer.closeDrawer(GravityCompat.START)
+    }
 
     /** Messages shown in banners while they apply. */
     private var readOnlyReasons = listOf<String>() // warning codes of `loaded`
@@ -151,7 +170,7 @@ class MainActivity : Activity() {
         // After Android recreated the screen, its document; on a fresh start, the last map
         // left open, unless it was closed (Close in the ☰ menu).
         reopen = (savedInstanceState?.getString(STATE_DOCUMENT) ?: preferences().getString(LAST_OPEN, null))
-            ?.let(Uri::parse)
+            ?.toUri()
 
         webView.settings.apply {
             javaScriptEnabled = true
@@ -187,7 +206,7 @@ class MainActivity : Activity() {
         val webViewPackage = WebView.getCurrentWebViewPackage()
         if (runsCore(webViewPackage?.versionName)) return true
         val name = webViewPackage?.applicationInfo?.loadLabel(packageManager) ?: ""
-        AlertDialog.Builder(this)
+        MaterialAlertDialogBuilder(this)
             .setMessage(getString(R.string.webview_too_old, name, webViewPackage?.versionName, MIN_CHROMIUM))
             .setCancelable(false)
             .setPositiveButton(android.R.string.ok) { _, _ -> finish() }
@@ -222,11 +241,30 @@ class MainActivity : Activity() {
 
     private fun setUpToolbar() {
         val toolbar = findViewById<Toolbar>(R.id.toolbar)
-        setActionBar(toolbar)
-        actionBar?.setDisplayShowTitleEnabled(false)
+        setSupportActionBar(toolbar)
+        supportActionBar?.setDisplayShowTitleEnabled(false)
         toolbar.setNavigationIcon(R.drawable.ic_menu)
         toolbar.setNavigationContentDescription(R.string.menu)
-        toolbar.setNavigationOnClickListener { showMainMenu(toolbar) }
+        toolbar.setNavigationOnClickListener { openDrawer() }
+        drawer = findViewById(R.id.drawer)
+        // The drawer opens from ☰ only, which fills it: a swipe from the edge would show it
+        // empty or out of date (with button navigation; with gestures, that swipe is "back").
+        // Once open, it can be swiped closed.
+        drawer.setDrawerLockMode(DrawerLayout.LOCK_MODE_LOCKED_CLOSED)
+        drawer.addDrawerListener(object : DrawerLayout.SimpleDrawerListener() {
+            override fun onDrawerOpened(drawerView: View) {
+                backClosesDrawer.isEnabled = true
+                drawer.setDrawerLockMode(DrawerLayout.LOCK_MODE_UNLOCKED)
+            }
+
+            override fun onDrawerClosed(drawerView: View) {
+                backClosesDrawer.isEnabled = false
+                drawer.setDrawerLockMode(DrawerLayout.LOCK_MODE_LOCKED_CLOSED)
+            }
+        })
+        // The last added runs first: an open drawer closes before anything else.
+        onBackPressedDispatcher.addCallback(this, backWhileModified)
+        onBackPressedDispatcher.addCallback(this, backClosesDrawer)
     }
 
     /** Undo, redo and save, always at hand. */
@@ -261,44 +299,70 @@ class MainActivity : Activity() {
         return true
     }
 
-    /** The ☰ menu: the document, and what is needed less often. */
-    private fun showMainMenu(anchor: View) {
-        val popup = PopupMenu(this, anchor, Gravity.START)
-        val menu = popup.menu
-        if (document != null) menu.add(mapLabel(documentTitle, documentName)).isEnabled = false // a heading, not a command
+    /**
+     * A recent map in the drawer, on two lines: its root's text, then its file, smaller and
+     * grey. Each is shortened to fit its line, so that no line is cut.
+     */
+    private fun recentLabel(entry: RecentMaps.Entry): CharSequence {
+        val file = shortenMiddle(entry.name, DRAWER_FILE_CHARS)
+        val title = oneLine(entry.title)
+        if (title.isEmpty()) return file
+        val label = SpannableStringBuilder(shortenEnd(title, DRAWER_TITLE_CHARS)).append('\n')
+        val start = label.length
+        label.append(file)
+        label.setSpan(RelativeSizeSpan(0.8f), start, label.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        label.setSpan(ForegroundColorSpan(getColor(R.color.menu_detail)), start, label.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        return label
+    }
+
+    /** The ☰ drawer, filled each time it opens: the open map, the commands, the recent maps, About. */
+    private fun openDrawer() {
+        val navigation = findViewById<NavigationView>(R.id.navigation)
         val open = document != null
-        menu.add(Menu.NONE, MENU_OPEN, Menu.NONE, R.string.open).setIcon(R.drawable.ic_folder_open).isEnabled = coreReady
-        menu.add(Menu.NONE, MENU_NEW, Menu.NONE, R.string.new_map).setIcon(R.drawable.ic_note_add).isEnabled = coreReady
+        val header = navigation.getHeaderView(0) ?: navigation.inflateHeaderView(R.layout.drawer_header)
+        header.visibility = if (open) View.VISIBLE else View.GONE
+        val title = oneLine(documentTitle)
+        header.findViewById<TextView>(R.id.drawer_title).text = title.ifEmpty { documentName }
+        header.findViewById<TextView>(R.id.drawer_file).text = if (title.isEmpty()) "" else documentName
+
+        val menu = navigation.menu
+        menu.clear()
+        val actions = mutableMapOf<Int, () -> Unit>()
+        // Entries of different groups are separated by a line in the drawer.
+        fun add(menu: Menu, label: CharSequence, icon: Int, enabled: Boolean, group: Int = COMMANDS, action: () -> Unit) {
+            val id = actions.size + 1
+            menu.add(group, id, Menu.NONE, label).setIcon(icon).isEnabled = enabled
+            actions[id] = action
+        }
+        add(menu, getString(R.string.open), R.drawable.ic_folder_open, coreReady) { leaveMap(::pickDocument) }
+        add(menu, getString(R.string.new_map), R.drawable.ic_note_add, coreReady) { leaveMap(::pickNewMap) }
+        add(menu, getString(R.string.reload), R.drawable.ic_refresh, open) { document?.let { uri -> leaveMap { open(uri) } } }
+        add(menu, getString(R.string.center), R.drawable.ic_filter_center_focus, open) {
+            sendToCore(JSONObject().put("type", "center"))
+        }
+        add(menu, getString(R.string.close), R.drawable.ic_close, open) {
+            leaveMap {
+                close()
+                preferences().edit { remove(LAST_OPEN) } // not reopened at the next start
+            }
+        }
         val others = recent.entries.filter { it.document != document?.toString() }
         if (others.isNotEmpty()) {
-            val recentMenu = menu.addSubMenu(R.string.recent_maps).setIcon(R.drawable.ic_history)
-            others.forEachIndexed { index, entry ->
-                recentMenu.add(Menu.NONE, MENU_RECENT + index, Menu.NONE, mapLabel(entry.title, entry.name)).isEnabled = coreReady
+            val section = menu.addSubMenu(R.string.recent_maps) // a titled section in the drawer
+            for (entry in others) {
+                add(section, recentLabel(entry), R.drawable.ic_history, coreReady) {
+                    leaveMap { open(entry.document.toUri()) }
+                }
             }
         }
-        menu.add(Menu.NONE, MENU_RELOAD, Menu.NONE, R.string.reload).setIcon(R.drawable.ic_refresh).isEnabled = open
-        menu.add(Menu.NONE, MENU_CENTER, Menu.NONE, R.string.center).setIcon(R.drawable.ic_filter_center_focus).isEnabled = open
-        menu.add(Menu.NONE, MENU_CLOSE, Menu.NONE, R.string.close).setIcon(R.drawable.ic_close).isEnabled = open
-        menu.add(Menu.NONE, MENU_ABOUT, Menu.NONE, R.string.about).setIcon(R.drawable.ic_info)
-        // Icons read faster than words; the platform shows them in this menu from Android 10.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) popup.setForceShowIcon(true)
-        popup.setOnMenuItemClickListener { item ->
-            when (item.itemId) {
-                MENU_OPEN -> leaveMap(::pickDocument)
-                MENU_NEW -> leaveMap(::pickNewMap)
-                MENU_RELOAD -> document?.let { uri -> leaveMap { open(uri) } }
-                MENU_CENTER -> sendToCore(JSONObject().put("type", "center"))
-                MENU_CLOSE -> leaveMap {
-                    close()
-                    preferences().edit().remove(LAST_OPEN).apply() // not reopened at the next start
-                }
-                MENU_ABOUT -> showAbout()
-                in MENU_RECENT until MENU_RECENT + RecentMaps.MAX ->
-                    others.getOrNull(item.itemId - MENU_RECENT)?.let { entry -> leaveMap { open(Uri.parse(entry.document)) } }
-            }
+        add(menu, getString(R.string.about), R.drawable.ic_info, true, group = ABOUT) { showAbout() }
+
+        navigation.setNavigationItemSelectedListener { item ->
+            drawer.closeDrawer(GravityCompat.START)
+            actions[item.itemId]?.invoke()
             true
         }
-        popup.show()
+        drawer.openDrawer(GravityCompat.START)
     }
 
     // ---------- about ----------
@@ -306,34 +370,31 @@ class MainActivity : Activity() {
     /** Version, copyright, license and no warranty (GPL section 5), with the licenses' texts. */
     private fun showAbout() {
         val version = packageManager.getPackageInfo(packageName, 0).versionName
-        AlertDialog.Builder(this)
+        // Two buttons fit on one line; the source code is a link in the text.
+        val text = getString(R.string.about_text, version) + "\n\n" + getString(R.string.source_code_link, SOURCE_URL)
+        val dialog = MaterialAlertDialogBuilder(this)
             .setTitle(R.string.app_name)
-            .setMessage(getString(R.string.about_text, version))
+            .setMessage(text)
             .setPositiveButton(android.R.string.ok, null)
             .setNeutralButton(R.string.licenses) { _, _ -> showLicenses() }
-            .setNegativeButton(R.string.source_code) { _, _ -> openSource() }
             .show()
+        dialog.findViewById<TextView>(android.R.id.message)?.let { message ->
+            Linkify.addLinks(message, Linkify.WEB_URLS) // opened in the browser: the app itself never uses the network
+            message.movementMethod = LinkMovementMethod.getInstance()
+        }
     }
 
     private fun showLicenses() {
-        AlertDialog.Builder(this)
+        MaterialAlertDialogBuilder(this)
             .setTitle(R.string.licenses)
             .setItems(LICENSES.map { getString(it.first) }.toTypedArray()) { _, which ->
                 val (title, files) = LICENSES[which]
                 val text = files.joinToString("\n\n") { file -> assets.open(file).bufferedReader().use { it.readText() } }
-                AlertDialog.Builder(this).setTitle(title).setMessage(text).setPositiveButton(android.R.string.ok, null).show()
+                MaterialAlertDialogBuilder(this).setTitle(title).setMessage(text).setPositiveButton(android.R.string.ok, null).show()
             }
             .show()
     }
 
-    /** In the browser: the app itself never uses the network. */
-    private fun openSource() {
-        try {
-            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(SOURCE_URL)))
-        } catch (e: android.content.ActivityNotFoundException) {
-            toast(SOURCE_URL)
-        }
-    }
 
     // ---------- leaving a modified map ----------
 
@@ -344,7 +405,7 @@ class MainActivity : Activity() {
     private fun leaveMap(then: () -> Unit) {
         val uri = document
         if (!dirty || uri == null) return then()
-        AlertDialog.Builder(this)
+        MaterialAlertDialogBuilder(this)
             .setMessage(R.string.unsaved_changes)
             .setPositiveButton(R.string.save) { _, _ ->
                 save()?.let { requestId -> leaveAfterSave = LeaveAfterSave(requestId, uri, then) }
@@ -358,34 +419,6 @@ class MainActivity : Activity() {
             }
             .setNeutralButton(android.R.string.cancel, null)
             .show()
-    }
-
-    /**
-     * Since Android 13, the system shows where "back" leads while the gesture is under
-     * way, so an app declares beforehand that it intercepts it, rather than being asked
-     * at the last moment (onBackPressed, used up to Android 12). Declared only while the
-     * map is modified: otherwise, "back" leaves as usual, with the system's animation.
-     */
-    private fun interceptBackWhileModified() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
-        val modified = dirty && document != null
-        val dispatcher = onBackInvokedDispatcher
-        val callback = backCallback as OnBackInvokedCallback?
-        if (modified && callback == null) {
-            val intercept = OnBackInvokedCallback { leaveMap(::finish) }
-            dispatcher.registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT, intercept)
-            backCallback = intercept
-        } else if (!modified && callback != null) {
-            dispatcher.unregisterOnBackInvokedCallback(callback)
-            backCallback = null
-        }
-    }
-
-    /** Up to Android 12 only: from Android 13, "back" goes through interceptBackWhileModified. */
-    @SuppressLint("GestureBackNavigation") // the Android 13+ path exists, without AndroidX
-    @Deprecated("Deprecated in Java")
-    override fun onBackPressed() {
-        if (dirty && document != null) leaveMap(::finish) else super.onBackPressed()
     }
 
     // ---------- commands on the selected node ----------
@@ -416,7 +449,7 @@ class MainActivity : Activity() {
             val count = hidden.optInt(kind)
             if (count > 0) items += resources.getQuantityString(plural, count, count)
         }
-        AlertDialog.Builder(this)
+        MaterialAlertDialogBuilder(this)
             .setMessage(getString(R.string.confirm_delete, ListFormatter.getInstance().format(items)))
             .setPositiveButton(R.string.delete_node) { _, _ -> sendDelete(node) }
             .setNegativeButton(android.R.string.cancel, null)
@@ -450,7 +483,7 @@ class MainActivity : Activity() {
         findViewById<View>(R.id.delete_node).isEnabled = !root
         renderMessages()
         renderHints()
-        interceptBackWhileModified()
+        backWhileModified.isEnabled = dirty && document != null
         invalidateOptionsMenu()
     }
 
@@ -469,7 +502,7 @@ class MainActivity : Activity() {
                 isEnabled = coreReady
                 isClickable = true
                 setBackgroundResource(selectableBackground())
-                setOnClickListener { open(Uri.parse(entry.document)) }
+                setOnClickListener { open(entry.document.toUri()) }
             }
             // The root's text, then the file's name and when it was opened.
             val title = oneLine(entry.title)
@@ -569,6 +602,7 @@ class MainActivity : Activity() {
 
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
         val uri = data?.data.takeIf { resultCode == RESULT_OK }
         when (requestCode) {
             REQUEST_OPEN -> if (uri != null) {
@@ -616,7 +650,7 @@ class MainActivity : Activity() {
      * both as a missing file), so the user decides.
      */
     private fun offerToForget(uri: Uri) {
-        AlertDialog.Builder(this)
+        MaterialAlertDialogBuilder(this)
             .setMessage(R.string.map_unreadable)
             .setPositiveButton(R.string.remove_from_list) { _, _ -> forget(uri) }
             .setNegativeButton(R.string.keep, null)
@@ -625,7 +659,7 @@ class MainActivity : Activity() {
 
     /** The document now open goes first in the recent maps; those that no longer fit give back their access. */
     private fun putFirstInRecent(uri: Uri, name: String, title: String) {
-        recent.opened(uri.toString(), name, title, System.currentTimeMillis()).forEach { releaseAccess(Uri.parse(it)) }
+        recent.opened(uri.toString(), name, title, System.currentTimeMillis()).forEach { releaseAccess(it.toUri()) }
     }
 
     /**
@@ -643,16 +677,20 @@ class MainActivity : Activity() {
 
     /** Keeps the recent maps, and the document open now as the one to reopen at start. */
     private fun storeRecent() {
-        preferences().edit().putString(RECENT_MAPS, recent.encode()).putString(LAST_OPEN, document?.toString()).apply()
+        preferences().edit {
+            putString(RECENT_MAPS, recent.encode())
+            putString(LAST_OPEN, document?.toString())
+        }
     }
 
     /** A map removed from the recent maps is not reopened at start either. */
     private fun forget(uri: Uri) {
         recent.remove(uri.toString())
         val preferences = preferences()
-        val editor = preferences.edit().putString(RECENT_MAPS, recent.encode())
-        if (preferences.getString(LAST_OPEN, null) == uri.toString()) editor.remove(LAST_OPEN)
-        editor.apply()
+        preferences.edit {
+            putString(RECENT_MAPS, recent.encode())
+            if (preferences.getString(LAST_OPEN, null) == uri.toString()) remove(LAST_OPEN)
+        }
         releaseAccess(uri)
         render()
     }
@@ -721,7 +759,7 @@ class MainActivity : Activity() {
         val time = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(draft.time))
         var message = getString(R.string.draft_message, time)
         if (base != draft.base) message += "\n\n" + getString(R.string.draft_document_changed)
-        AlertDialog.Builder(this)
+        MaterialAlertDialogBuilder(this)
             .setTitle(R.string.draft_title)
             .setMessage(message)
             .setCancelable(false)
@@ -855,7 +893,7 @@ class MainActivity : Activity() {
 
     /** Save a copy (recommended: nothing is lost), overwrite, or cancel. */
     private fun offerConflict(uri: Uri, saveId: Long, bytes: ByteArray) {
-        AlertDialog.Builder(this)
+        MaterialAlertDialogBuilder(this)
             .setTitle(R.string.conflict_title)
             .setMessage(R.string.conflict_message)
             .setCancelable(false)
@@ -1033,11 +1071,19 @@ class MainActivity : Activity() {
     private fun keepClearOfSystemBars() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.VANILLA_ICE_CREAM) return
         val toolbar = findViewById<View>(R.id.toolbar)
+        val navigation = findViewById<View>(R.id.navigation)
+        val types = WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout() or WindowInsets.Type.ime()
         findViewById<View>(R.id.root).setOnApplyWindowInsetsListener { root, insets ->
-            val types = WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout() or WindowInsets.Type.ime()
             val bars = insets.getInsets(types)
             toolbar.setPadding(0, bars.top, 0, 0)
             root.setPadding(bars.left, 0, bars.right, bars.bottom)
+            WindowInsets.CONSUMED
+        }
+        // The ☰ drawer stays between the system bars: the time and the camera remain visible.
+        navigation.setOnApplyWindowInsetsListener { view, insets ->
+            val bars = insets.getInsets(types)
+            (view.layoutParams as ViewGroup.MarginLayoutParams).setMargins(0, bars.top, 0, bars.bottom)
+            view.requestLayout()
             WindowInsets.CONSUMED
         }
     }
@@ -1048,7 +1094,7 @@ class MainActivity : Activity() {
     /** Errors are rare and matter: shown until dismissed on purpose, not by a stray touch. */
     private fun alert(text: Int) {
         if (isFinishing) return
-        AlertDialog.Builder(this).setMessage(text).setPositiveButton(android.R.string.ok, null).create().apply {
+        MaterialAlertDialogBuilder(this).setMessage(text).setPositiveButton(android.R.string.ok, null).create().apply {
             setCanceledOnTouchOutside(false)
             show()
         }
@@ -1060,16 +1106,17 @@ class MainActivity : Activity() {
 
     private companion object {
         const val TAG = "mapling"
-        const val MENU_OPEN = 1
         const val MENU_SAVE = 2
-        const val MENU_RELOAD = 3
+
+        // What fits on one line of the ☰ drawer (at most 360 dp wide): a root's text, a file's name.
+        const val DRAWER_TITLE_CHARS = 30
+        const val DRAWER_FILE_CHARS = 36
+
+        // Groups of entries in the ☰ drawer.
+        const val COMMANDS = 1
+        const val ABOUT = 2
         const val MENU_UNDO = 4
         const val MENU_REDO = 5
-        const val MENU_CENTER = 6
-        const val MENU_CLOSE = 7
-        const val MENU_NEW = 8
-        const val MENU_ABOUT = 9
-        const val MENU_RECENT = 100 // and the next ones, one per recent map
 
         val TOOLBAR_ACTIONS = listOf(
             Triple(MENU_UNDO, R.string.undo, R.drawable.ic_undo),

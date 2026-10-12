@@ -47,4 +47,13 @@ class MapTitleTest {
         assertEquals("File.mm", mapLabel("", "File.mm"))
         assertEquals("File.mm", mapLabel("  \n ", "File.mm"))
     }
+
+    @Test
+    fun aLongTextLosesItsEndAndAFileNameItsMiddle() {
+        assertEquals("Short", shortenEnd("Short", 10))
+        assertEquals("Long text…", shortenEnd("Long text that goes on", 10))
+        assertEquals("Réunion.mm", shortenMiddle("Réunion.mm", 10))
+        assertEquals("Réuni…e.mm", shortenMiddle("Réunion d'équipe.mm", 10))
+        assertEquals(10, shortenMiddle("Réunion d'équipe.mm", 10).length)
+    }
 }

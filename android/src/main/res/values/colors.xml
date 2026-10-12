@@ -13,4 +13,9 @@ SPDX-License-Identifier: GPL-3.0-or-later
     <color name="message_info">#E8F0FE</color>
     <color name="message_hint">#F4F4F4</color>
     <color name="message_text">#333333</color>
+    <!-- The selected node's tint in the map (core/assets/mapling.css), for the shell too. -->
+    <color name="selection">#D9EBE6</color>
+    <!-- The ☰ drawer: grey icons, and a grey second line for the file's name. -->
+    <color name="menu_icon">#444746</color>
+    <color name="menu_detail">#5F6368</color>
 </resources>

@@ -7,7 +7,7 @@ The Android shell: a single activity around a WebView that runs the core (`core/
 - Keeps unsaved changes as drafts in the app's private storage, so that they survive the app being killed.
 - Before saving, checks that the document was not changed elsewhere (another device, Freeplane on a computer); if it was, offers to save a copy, overwrite, or cancel.
 - Lists the last ten maps opened, reopens at start the map left open (unless it was closed), and creates new maps.
-- Uses the platform's views only: no AndroidX, AppCompat or Compose. Its only other dependency is JUnit, for tests.
+- Its interface uses AndroidX and Material Components (Material 3), Google's standard libraries; JUnit for tests. Release builds leave out what the libraries bring but the app does not use (R8).
 
 ## Requirements
 

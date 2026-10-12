@@ -4,18 +4,25 @@ SPDX-FileCopyrightText: 2026 Benoit Mercier and Mapling contributors
 SPDX-License-Identifier: GPL-3.0-or-later
 -->
 <resources>
-    <!-- The toolbar is part of the layout (res/layout/main.xml), not of the theme.
-         Before Android 15, the status bar takes the toolbar's color; from Android 15,
-         the toolbar itself extends under it (see MainActivity.keepClearOfSystemBars). -->
-    <style name="Mapling" parent="@android:style/Theme.DeviceDefault.Light.NoActionBar">
+    <!-- Material 3 (Material Components), in Mapling's colors. The toolbar is part of the
+         layout (res/layout/main.xml), not of the theme. Before Android 15, the status bar
+         takes the toolbar's color; from Android 15, the toolbar itself extends under it
+         (see MainActivity.keepClearOfSystemBars). -->
+    <style name="Mapling" parent="Theme.Material3.Light.NoActionBar">
+        <item name="colorPrimary">@color/forest</item>
+        <item name="colorOnPrimary">@color/ivory</item>
+        <item name="colorPrimaryContainer">@color/selection</item>
+        <item name="colorOnPrimaryContainer">@color/forest</item>
+        <item name="colorSecondaryContainer">@color/selection</item>
+        <item name="colorOnSecondaryContainer">@color/forest</item>
         <item name="android:windowBackground">@android:color/white</item>
         <item name="android:statusBarColor">@color/forest</item>
         <item name="android:windowLightStatusBar">false</item>
     </style>
 
     <!-- Light texts and icons on the forest-green toolbar. -->
-    <style name="Mapling.Toolbar" parent="@android:style/ThemeOverlay.Material.Dark.ActionBar">
-        <item name="android:colorControlNormal">@color/ivory</item>
+    <style name="Mapling.Toolbar" parent="ThemeOverlay.Material3.Dark.ActionBar">
+        <item name="colorControlNormal">@color/ivory</item>
         <item name="android:textColorPrimary">@color/ivory</item>
     </style>
 </resources>

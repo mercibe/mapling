@@ -6,13 +6,20 @@ SPDX-License-Identifier: GPL-3.0-or-later
 <!-- The only screen: toolbar, messages, the map (or, with no map open, the buttons to
      open or create one and the recent maps), what the marks of the selected node mean,
      and its commands. -->
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!-- The ☰ drawer (navigation) slides over the screen's content. -->
+<androidx.drawerlayout.widget.DrawerLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/drawer"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+<LinearLayout
     android:id="@+id/root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical">
 
-    <Toolbar
+    <com.google.android.material.appbar.MaterialToolbar
         android:id="@+id/toolbar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -113,7 +120,7 @@ SPDX-License-Identifier: GPL-3.0-or-later
             android:layout_height="48dp"
             android:contentDescription="@string/edit_text"
             android:src="@drawable/ic_edit"
-            android:tint="@color/node_icon"
+            app:tint="@color/node_icon"
             android:tooltipText="@string/edit_text" />
 
         <ImageButton
@@ -123,7 +130,7 @@ SPDX-License-Identifier: GPL-3.0-or-later
             android:layout_height="48dp"
             android:contentDescription="@string/add_child"
             android:src="@drawable/ic_subdirectory_arrow_right"
-            android:tint="@color/node_icon"
+            app:tint="@color/node_icon"
             android:tooltipText="@string/add_child" />
 
         <ImageButton
@@ -133,7 +140,7 @@ SPDX-License-Identifier: GPL-3.0-or-later
             android:layout_height="48dp"
             android:contentDescription="@string/add_sibling"
             android:src="@drawable/ic_add_row_below"
-            android:tint="@color/node_icon"
+            app:tint="@color/node_icon"
             android:tooltipText="@string/add_sibling" />
 
         <ImageButton
@@ -143,7 +150,17 @@ SPDX-License-Identifier: GPL-3.0-or-later
             android:layout_height="48dp"
             android:contentDescription="@string/delete_node"
             android:src="@drawable/ic_delete"
-            android:tint="@color/node_icon"
+            app:tint="@color/node_icon"
             android:tooltipText="@string/delete_node" />
     </LinearLayout>
 </LinearLayout>
+
+    <!-- The ☰ drawer: the open map (header), the commands, the recent maps, About. -->
+    <com.google.android.material.navigation.NavigationView
+        android:id="@+id/navigation"
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:layout_gravity="start"
+        app:itemIconTint="@color/menu_icon"
+        app:itemMaxLines="2" />
+</androidx.drawerlayout.widget.DrawerLayout>

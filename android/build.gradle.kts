@@ -1,8 +1,9 @@
 // SPDX-FileCopyrightText: 2026 Benoit Mercier and Mapling contributors
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-// The Android shell: a single module, no library dependency (Kotlin is built into
-// the Android Gradle plugin since 9.0); JUnit for the tests only.
+// The Android shell: a single module (Kotlin is built into the Android Gradle plugin since
+// 9.0). Its interface uses AndroidX and Material Components, Google's standard libraries
+// (Apache-2.0); JUnit for the tests only.
 
 plugins {
     id("com.android.application") version "9.4.1"
@@ -44,11 +45,19 @@ android {
     buildTypes {
         release {
             if (uploadStoreFile != null) signingConfig = signingConfigs.getByName("upload")
+            // Leaves out what the libraries bring but the app does not use. The default rules
+            // keep the methods the page calls (@JavascriptInterface).
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
         }
     }
 }
 
 dependencies {
+    implementation("androidx.appcompat:appcompat:1.8.0")
+    implementation("com.google.android.material:material:1.14.0")
+
     // Tests only: never part of the app.
     testImplementation("junit:junit:4.13.2")
 }
@@ -94,7 +103,8 @@ val copyCore = tasks.register<CopyCore>("copyCore") {
 
 /**
  * Copies the licenses the app shows in About into its assets, under `licenses/`: its own,
- * and that of the icons it bundles (jsMind's comes with the core).
+ * and Apache-2.0, that of AndroidX, Material Components and the icons (jsMind's comes with
+ * the core).
  */
 abstract class CopyLicenses : DefaultTask() {
     @get:InputFiles
