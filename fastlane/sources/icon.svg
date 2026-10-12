@@ -1,0 +1,15 @@
+<!--
+SPDX-FileCopyrightText: 2026 Benoit Mercier and Mapling contributors
+SPDX-License-Identifier: GPL-3.0-or-later
+
+Store icon, from the app's icon (android/src/main/res/drawable/mapling_icon_foreground.xml).
+Rendered with: inkscape icon.svg -w 512 -h 512 -o ../metadata/android/<lang>/images/icon.png
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="14 14 80 80">
+  <rect x="0" y="0" width="108" height="108" fill="#154D46"/>
+  <g transform="translate(20.5 20.5) scale(0.67)">
+    <path d="M 19,69 C 30,69 31,45 45,45 C 58,45 61,69 76,70 C 81,70 74,60 74,51" fill="none" stroke="#FFF9E9" stroke-width="7.2" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M 9.5,69 A 9.5,9.5 0 1,0 28.5,69 A 9.5,9.5 0 1,0 9.5,69 Z M 36.5,45 A 8.5,8.5 0 1,0 53.5,45 A 8.5,8.5 0 1,0 36.5,45 Z M 69.5,70 A 9.5,9.5 0 1,0 88.5,70 A 9.5,9.5 0 1,0 69.5,70 Z" fill="#FFF9E9"/>
+    <path d="M 70.4,51 C 63.5,34 78,25 91,24 C 92,39 84,44 77.6,51 Z" fill="#AADBA8"/>
+  </g>
+</svg>
