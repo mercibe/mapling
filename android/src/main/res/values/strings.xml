@@ -100,4 +100,12 @@ SPDX-License-Identifier: GPL-3.0-or-later
     <string name="map_unreadable">This map cannot be opened. It may have been moved or deleted, access to it may have been withdrawn, or its provider (Drive, for instance) may be offline.</string>
     <string name="remove_from_list">Remove from the list</string>
     <string name="keep">Keep</string>
+    <string name="about">About</string>
+    <!-- %1$s: the version, e.g. "1.0.0" -->
+    <string name="about_text">Version %1$s\n\nView and lightly edit Freeplane mind maps, without losing anything Freeplane wrote.\n\n© 2026 Benoit Mercier and Mapling contributors\n\nMapling is free software: you may redistribute and modify it under the GNU General Public License, version 3 or later, with an additional permission for app stores. It comes with no warranty.\n\nUses jsMind (BSD-3-Clause) and Material Symbols icons (Apache-2.0). Mapling is not affiliated with the Freeplane project.</string>
+    <string name="licenses">Licenses</string>
+    <string name="source_code">Source code</string>
+    <string name="license_mapling" translatable="false">Mapling: GPL-3.0-or-later + exception</string>
+    <string name="license_jsmind" translatable="false">jsMind: BSD-3-Clause</string>
+    <string name="license_material_symbols" translatable="false">Material Symbols: Apache-2.0</string>
 </resources>

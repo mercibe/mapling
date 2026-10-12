@@ -1,17 +1,33 @@
 # Mapling
 
-Your Freeplane mind maps on your Android phone or tablet. Open `.mm` files from Google Drive or any storage, view and lightly edit them, and save back without losing anything Freeplane wrote.
+Your Freeplane mind maps on your Android phone or tablet. Open a map (`.mm` file) from Google Drive or any storage, read it, make quick changes anywhere (in the bus before a meeting, away from your computer), and save it back without losing anything Freeplane wrote. Or start a new map in a few taps, and finish it later in Freeplane.
 
-## Status
+<p>
+<img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" alt="A meeting map, a node selected" width="240">
+<img src="fastlane/metadata/android/en-US/images/phoneScreenshots/2.png" alt="A simple map created in a few taps" width="240">
+<img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" alt="The main menu" width="240">
+</p>
 
-**Work in progress: the Android app works, but is not published yet.** Build it yourself: see [android/README.md](android/README.md).
+## What it does
 
-- Done: the platform-neutral core. It loads a map, applies edits (text, add, remove, move), undoes them, and writes the file back with no information loss: on our test maps, an unedited map is written back byte for byte.
-- Done: a reference web shell, to try Mapling in a desktop browser (see below).
-- Done: the Android app (Android 8 or later): open a map from Google Drive or any storage, view it, edit it with touch gestures, save it back; unsaved changes are kept as drafts.
-- Next: conflict detection (a map changed elsewhere since it was opened), then publication.
+- Open a map from Google Drive, the phone's storage or any document provider.
+- **Create a simple map in seconds**: New map, then add branches one tap at a time. It is an ordinary Freeplane map, ready to be enriched in Freeplane.
+- Edit the text of a node, add, delete and move nodes; undo and redo. Zoom with two fingers, move the selected node by holding it, fold and unfold branches.
+- Only what you edit changes: notes, icons, styles, links and everything else Freeplane wrote are kept exactly as they were. Mapling tells you when a map holds content it does not display, and asks before deleting a branch that holds some.
+- Unsaved changes are kept as a draft, even if Android closes the app.
+- Before saving, Mapling checks that the map was not changed elsewhere (on your computer, for instance); if it was, you can save a copy and keep both versions.
+- Recent maps in one gesture; the map you left open is opened again.
+- English and French.
 
 Supported format: maps written by Freeplane 1.12. Older (FreeMind included) and newer formats open read-only.
+
+## Install
+
+- **Google Play**: coming soon (Android 8 or later).
+- **APK**: download it from the [releases](https://github.com/mercibe/mapling/releases) page.
+- **Build it yourself**: see [android/README.md](android/README.md).
+
+No account, no ads, no tracking, and no network access: the app asks for no permission at all. See the [privacy policy](PRIVACY.md).
 
 ## Try it in a browser
 
@@ -30,7 +46,7 @@ Then open <http://localhost:8765/web/>, and open a `.mm` file (for instance from
 ## Principles
 
 - The `.mm` file is the only source of truth: only what you edit changes; notes, icons, styles and everything else are kept as they are.
-- No network access, no account, no tracking: the app opens and writes your documents through the system's document picker.
+- No network access, no account, no tracking: the app opens and writes your documents through the system's document picker ([privacy policy](PRIVACY.md)).
 - A small core shared by all platforms, with thin native shells around it.
 
 ## Documentation

@@ -132,7 +132,7 @@ Editing commands from the native menu. Each names its target node, `id`, taken f
 ### `ready` — core loaded, ready to receive
 
 ```json
-{ "v": 1, "type": "ready", "coreVersion": "0.1.0" }
+{ "v": 1, "type": "ready", "coreVersion": "1.0.0" }
 ```
 
 The shell sends no message before `ready`.

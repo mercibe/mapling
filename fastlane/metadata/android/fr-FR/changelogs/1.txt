@@ -1,0 +1,1 @@
+Première version : ouvrir, consulter et modifier des cartes mentales Freeplane, en créer, cartes récentes, brouillons, et vérification des modifications faites ailleurs avant d'enregistrer.

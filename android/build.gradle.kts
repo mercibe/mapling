@@ -8,6 +8,16 @@ plugins {
     id("com.android.application") version "9.4.1"
 }
 
+// Signing of the release build with the maintainer's upload key (Google Play signs the
+// app itself). Read from ~/.gradle/gradle.properties, never from the repository:
+// maplingUploadStoreFile, maplingUploadStorePassword, maplingUploadKeyAlias,
+// maplingUploadKeyPassword. Without them, the release build is unsigned.
+val uploadStoreFile: String? = providers.gradleProperty("maplingUploadStoreFile").orNull
+
+// One version for the whole repository: package.json's. The version code goes up by one
+// at each release sent to Google Play.
+val projectVersion = (groovy.json.JsonSlurper().parse(file("../package.json")) as Map<*, *>)["version"] as String
+
 android {
     namespace = "io.github.mercibe.mapling"
     compileSdk = 37
@@ -17,7 +27,24 @@ android {
         minSdk = 26
         targetSdk = 37
         versionCode = 1
-        versionName = "0.1.0"
+        versionName = projectVersion
+    }
+
+    signingConfigs {
+        if (uploadStoreFile != null) {
+            create("upload") {
+                storeFile = file(uploadStoreFile)
+                storePassword = providers.gradleProperty("maplingUploadStorePassword").get()
+                keyAlias = providers.gradleProperty("maplingUploadKeyAlias").get()
+                keyPassword = providers.gradleProperty("maplingUploadKeyPassword").get()
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            if (uploadStoreFile != null) signingConfig = signingConfigs.getByName("upload")
+        }
     }
 }
 
@@ -65,8 +92,37 @@ val copyCore = tasks.register<CopyCore>("copyCore") {
     coreDir = layout.projectDirectory.dir("../core")
 }
 
+/**
+ * Copies the licenses the app shows in About into its assets, under `licenses/`: its own,
+ * and that of the icons it bundles (jsMind's comes with the core).
+ */
+abstract class CopyLicenses : DefaultTask() {
+    @get:InputFiles
+    @get:PathSensitive(PathSensitivity.NAME_ONLY)
+    abstract val licenses: ConfigurableFileCollection
+
+    @get:OutputDirectory
+    abstract val outputDir: DirectoryProperty
+
+    @get:Inject
+    abstract val files: FileSystemOperations
+
+    @TaskAction
+    fun copy() {
+        files.sync {
+            from(licenses)
+            into(outputDir.dir("licenses"))
+        }
+    }
+}
+
+val copyLicenses = tasks.register<CopyLicenses>("copyLicenses") {
+    licenses.from("../LICENSE", "../LICENSE-EXCEPTION.md", "LICENSE-material-symbols.txt")
+}
+
 androidComponents {
     onVariants { variant ->
         variant.sources.assets?.addGeneratedSourceDirectory(copyCore, CopyCore::outputDir)
+        variant.sources.assets?.addGeneratedSourceDirectory(copyLicenses, CopyLicenses::outputDir)
     }
 }

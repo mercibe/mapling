@@ -7,6 +7,10 @@ import { fixture } from './setup.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Bridge, type ViewNode } from '../src/index.ts';
+import { readFileSync } from 'node:fs';
+
+// The core reports the project's version: one version for the whole repository.
+const projectVersion = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')).version;
 
 const A = 'ID_27769489';
 const original = fixture('fixture01.mm');
@@ -45,7 +49,7 @@ function loaded(text = original) {
 test('ready, then load reports the map and shows it', () => {
   const { bridge, send, take, view } = setup();
   bridge.start();
-  assert.deepEqual(take(), [{ v: 1, type: 'ready', coreVersion: '0.1.0' }]);
+  assert.deepEqual(take(), [{ v: 1, type: 'ready', coreVersion: projectVersion }]);
   send({ type: 'load', requestId: 'r1', name: 'fixture01.mm', data: base64(original) });
   assert.deepEqual(take(), [{
     v: 1, type: 'loaded', requestId: 'r1', nodeCount: 8, readOnlyNodes: 2, readOnly: false,

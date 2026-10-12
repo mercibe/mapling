@@ -8,7 +8,14 @@ SPDX-License-Identifier: GPL-3.0-or-later
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- No backup: drafts hold whole maps; nothing goes to the user's cloud backup
+         without their choice (PRIVACY.md). allowBackup up to Android 11,
+         dataExtractionRules from Android 12 (Lint asks for fullBackupContent too, which
+         allowBackup="false" makes useless). -->
     <application
+        tools:ignore="DataExtractionRules"
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:enableOnBackInvokedCallback="true"
         tools:targetApi="tiramisu"
         android:icon="@mipmap/mapling_icon"

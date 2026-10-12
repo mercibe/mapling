@@ -9,7 +9,7 @@ import type { BranchSummary, HiddenKind, MindMap, ViewNode } from './map.ts';
 import { MapSession } from './session.ts';
 
 export const PROTOCOL_VERSION = 1;
-export const CORE_VERSION = '0.1.0';
+export const CORE_VERSION = '1.0.0';
 
 /**
  * A draft is sent this long after the first change not yet sent; later changes

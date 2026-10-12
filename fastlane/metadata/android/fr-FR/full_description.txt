@@ -1,0 +1,22 @@
+Mapling ouvre vos cartes mentales Freeplane (fichiers .mm) sur votre téléphone ou votre tablette : vous les consultez et y apportez des retouches n'importe où, dans l'autobus avant une réunion, loin de votre ordinateur.
+
+Besoin d'une nouvelle carte ? Créez-en une simple en quelques secondes : quelques touchers ajoutent ses branches, et elle s'ouvre dans Freeplane comme n'importe quelle autre.
+
+Ouvrez une carte depuis Google Drive ou tout autre stockage, modifiez-la, enregistrez-la dans le même fichier. Mapling ne change que ce que vous modifiez : notes, icônes, styles, liens et tout ce que Freeplane a écrit restent exactement tels quels, et la carte s'ouvre dans Freeplane comme avant.
+
+Ce que vous pouvez faire :
+• ouvrir une carte depuis Google Drive, le stockage du téléphone ou tout autre fournisseur de documents ;
+• créer une carte simple en quelques secondes ;
+• modifier le texte d'un nœud, ajouter, supprimer et déplacer des nœuds ;
+• annuler et rétablir ;
+• zoomer à deux doigts, déplacer le nœud sélectionné en le maintenant, plier et déplier les branches ;
+• rouvrir vos cartes récentes d'un geste ; Mapling rouvre la carte que vous aviez laissée ouverte.
+
+Votre travail est protégé :
+• les modifications non enregistrées sont gardées dans un brouillon, même si Android ferme l'application ;
+• avant d'enregistrer, Mapling vérifie que la carte n'a pas été modifiée ailleurs (sur votre ordinateur, par exemple) ; si c'est le cas, vous pouvez enregistrer une copie et garder les deux versions ;
+• ce que Mapling n'affiche pas (notes, icônes, attributs…) n'est jamais perdu, et vous êtes prévenu quand une carte en contient.
+
+Respect de votre vie privée : aucun compte, aucune publicité, aucun pistage, et aucun accès au réseau. Mapling ne demande aucune permission : il ne lit et n'écrit que les cartes que vous choisissez.
+
+Logiciel libre (GNU GPL 3.0 ou ultérieure). Mapling n'est pas affilié au projet Freeplane.

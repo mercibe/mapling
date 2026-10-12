@@ -272,6 +272,7 @@ class MainActivity : Activity() {
         menu.add(Menu.NONE, MENU_RELOAD, Menu.NONE, R.string.reload).setIcon(R.drawable.ic_refresh).isEnabled = open
         menu.add(Menu.NONE, MENU_CENTER, Menu.NONE, R.string.center).setIcon(R.drawable.ic_filter_center_focus).isEnabled = open
         menu.add(Menu.NONE, MENU_CLOSE, Menu.NONE, R.string.close).setIcon(R.drawable.ic_close).isEnabled = open
+        menu.add(Menu.NONE, MENU_ABOUT, Menu.NONE, R.string.about).setIcon(R.drawable.ic_info)
         // Icons read faster than words; the platform shows them in this menu from Android 10.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) popup.setForceShowIcon(true)
         popup.setOnMenuItemClickListener { item ->
@@ -284,12 +285,47 @@ class MainActivity : Activity() {
                     close()
                     preferences().edit().remove(LAST_OPEN).apply() // not reopened at the next start
                 }
+                MENU_ABOUT -> showAbout()
                 in MENU_RECENT until MENU_RECENT + RecentMaps.MAX ->
                     others.getOrNull(item.itemId - MENU_RECENT)?.let { entry -> leaveMap { open(Uri.parse(entry.document)) } }
             }
             true
         }
         popup.show()
+    }
+
+    // ---------- about ----------
+
+    /** Version, copyright, license and no warranty (GPL section 5), with the licenses' texts. */
+    private fun showAbout() {
+        val version = packageManager.getPackageInfo(packageName, 0).versionName
+        AlertDialog.Builder(this)
+            .setTitle(R.string.app_name)
+            .setMessage(getString(R.string.about_text, version))
+            .setPositiveButton(android.R.string.ok, null)
+            .setNeutralButton(R.string.licenses) { _, _ -> showLicenses() }
+            .setNegativeButton(R.string.source_code) { _, _ -> openSource() }
+            .show()
+    }
+
+    private fun showLicenses() {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.licenses)
+            .setItems(LICENSES.map { getString(it.first) }.toTypedArray()) { _, which ->
+                val (title, files) = LICENSES[which]
+                val text = files.joinToString("\n\n") { file -> assets.open(file).bufferedReader().use { it.readText() } }
+                AlertDialog.Builder(this).setTitle(title).setMessage(text).setPositiveButton(android.R.string.ok, null).show()
+            }
+            .show()
+    }
+
+    /** In the browser: the app itself never uses the network. */
+    private fun openSource() {
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(SOURCE_URL)))
+        } catch (e: android.content.ActivityNotFoundException) {
+            toast(SOURCE_URL)
+        }
     }
 
     // ---------- leaving a modified map ----------
@@ -604,7 +640,7 @@ class MainActivity : Activity() {
     private fun pickNewMap() {
         val intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
             .addCategory(Intent.CATEGORY_OPENABLE)
-            .setType("application/octet-stream") // providers know no type for .mm files
+            .setType(MAP_TYPE)
             .putExtra(Intent.EXTRA_TITLE, getString(R.string.new_map) + ".mm")
         startActivityForResult(intent, REQUEST_NEW_MAP)
     }
@@ -805,7 +841,7 @@ class MainActivity : Activity() {
         pendingCopy = PendingCopy(uri, name, saveId, bytes)
         val intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
             .addCategory(Intent.CATEGORY_OPENABLE)
-            .setType("application/octet-stream") // providers know no type for .mm files
+            .setType(MAP_TYPE)
             .putExtra(Intent.EXTRA_TITLE, name)
         startActivityForResult(intent, REQUEST_SAVE_COPY)
     }
@@ -998,6 +1034,7 @@ class MainActivity : Activity() {
         const val MENU_CENTER = 6
         const val MENU_CLOSE = 7
         const val MENU_NEW = 8
+        const val MENU_ABOUT = 9
         const val MENU_RECENT = 100 // and the next ones, one per recent map
 
         val TOOLBAR_ACTIONS = listOf(
@@ -1010,6 +1047,21 @@ class MainActivity : Activity() {
         const val RECENT_MAPS = "recentMaps"
         const val LAST_OPEN = "lastOpen" // the map to reopen at start; removed by Close
         const val NEW_MAP_TEMPLATE = "core/assets/new-map.mm"
+
+        /**
+         * The type of a map created here. Android knows it goes with ".mm" (from Debian's
+         * table): a provider making a name unique then numbers it "Map (1).mm", where an
+         * unknown type got "Map.mm (1)", a file Freeplane would not recognise.
+         */
+        const val MAP_TYPE = "application/x-freemind"
+        const val SOURCE_URL = "https://github.com/mercibe/mapling"
+
+        /** Shown in About: each license, from the app's assets (see build.gradle.kts). */
+        val LICENSES = listOf(
+            R.string.license_mapling to listOf("licenses/LICENSE", "licenses/LICENSE-EXCEPTION.md"),
+            R.string.license_jsmind to listOf("core/vendor/jsmind-0.9.1/LICENSE"),
+            R.string.license_material_symbols to listOf("licenses/LICENSE-material-symbols.txt"),
+        )
 
         /** Why a map opened read-only: warning codes of `loaded` (docs/BRIDGE.md, section 5). */
         val READ_ONLY_TEXTS = mapOf(

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+SPDX-FileCopyrightText: 2026 Benoit Mercier and Mapling contributors
+SPDX-License-Identifier: GPL-3.0-or-later
+-->
+<!-- Android 12 and later: nothing leaves the device, neither to the cloud backup nor to a
+     new device. Drafts hold whole maps (PRIVACY.md), and the recent maps would not open
+     on another device: access to a document is granted to one device only. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="sharedpref" path="." />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="sharedpref" path="." />
+    </device-transfer>
+</data-extraction-rules>

@@ -1,0 +1,1 @@
+First release: open, view and edit Freeplane mind maps, create new ones, recent maps, drafts, and a check for changes made elsewhere before saving.
