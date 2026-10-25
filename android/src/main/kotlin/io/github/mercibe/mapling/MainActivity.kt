@@ -143,6 +143,13 @@ class MainActivity : AppCompatActivity() {
      */
     private val lent = mutableMapOf<String, Boolean>()
 
+    /**
+     * Documents whose provider says they can be deleted (by URI), learned off the main thread
+     * when they are read or written: Delete the map is shown only for those. The flag holds
+     * where checked (Drive yes, OneDrive no, 2026-10-25), unlike the one for writing.
+     */
+    private val deletable = mutableSetOf<String>()
+
     /** What each pending `load` will open, by requestId: a refused load changes nothing. */
     private class PendingLoad(
         val uri: Uri,
@@ -399,7 +406,7 @@ class MainActivity : AppCompatActivity() {
         add(menu, getString(R.string.open), R.drawable.ic_folder_open, coreReady) { leaveMap(::pickDocument) }
         add(menu, getString(R.string.new_map), R.drawable.ic_note_add, coreReady) { leaveMap(::pickNewMap) }
         add(menu, getString(R.string.reload), R.drawable.ic_refresh, open) { document?.let { uri -> leaveMap { open(uri) } } }
-        if (open) { // only shown when it applies: red stays red, even disabled
+        if (document?.toString() in deletable) { // only shown when it applies: red stays red, even disabled
             add(menu, dangerous(getString(R.string.delete_map)), R.drawable.ic_delete, true, tint = R.color.danger) {
                 confirmDeleteMap()
             }
@@ -614,6 +621,18 @@ class MainActivity : AppCompatActivity() {
             }
             Log.i(TAG, "Modification dates of ${details.size} recent maps in ${System.currentTimeMillis() - start} ms")
         }
+    }
+
+    /** Off the main thread: records whether the provider says this document can be deleted. */
+    private fun learnDeletable(uri: Uri) {
+        val yes = try {
+            contentResolver.query(uri, arrayOf(DocumentsContract.Document.COLUMN_FLAGS), null, null, null)?.use {
+                it.moveToFirst() && !it.isNull(0) && it.getInt(0) and DocumentsContract.Document.FLAG_SUPPORTS_DELETE != 0
+            } ?: false
+        } catch (e: Exception) {
+            false // no flags: not offered
+        }
+        runOnUiThread { if (yes) deletable.add(uri.toString()) else deletable.remove(uri.toString()) }
     }
 
     private fun lastModified(uri: Uri): Long? = try {
@@ -911,6 +930,7 @@ class MainActivity : AppCompatActivity() {
                 // serves no content for a moment after a write (checked on a Pixel, 2026-10-25).
                 // No date: a map just created cannot have been changed elsewhere, nothing to watch.
                 val name = displayName(uri)
+                learnDeletable(uri)
                 runOnUiThread { load(uri, name, template, DraftStore.fingerprint(template), modified = null) }
             } catch (e: Exception) {
                 Log.w(TAG, "Cannot create $uri", e)
@@ -927,6 +947,7 @@ class MainActivity : AppCompatActivity() {
         thread {
             try {
                 val (bytes, modified) = readFile(uri)
+                learnDeletable(uri)
                 val name = displayName(uri)
                 val base = DraftStore.fingerprint(bytes)
                 val found = drafts.read(uri.toString())
@@ -1238,6 +1259,7 @@ class MainActivity : AppCompatActivity() {
                 val bytes = contentResolver.openInputStream(lentUri)!!.use { it.readBytes() }
                 contentResolver.openOutputStream(copy, "wt")!!.use { it.write(bytes) }
                 val name = displayName(copy)
+                learnDeletable(copy)
                 runOnUiThread { load(copy, name, bytes, DraftStore.fingerprint(bytes), modified = null) }
             } catch (e: Exception) {
                 Log.w(TAG, "Cannot copy $lentUri to $copy", e)
@@ -1276,6 +1298,7 @@ class MainActivity : AppCompatActivity() {
         val written = DraftStore.fingerprint(bytes)
         writeCheck.wrote(uri.toString(), written)
         // The copy is written: a provider failing to tell its name must not stop the save.
+        if (copy != null) learnDeletable(uri)
         val name = copy?.let {
             try {
                 displayName(uri)
@@ -1330,8 +1353,11 @@ class MainActivity : AppCompatActivity() {
         return try {
             contentResolver.query(uri, columns, null, null, null)?.use {
                 if (!it.moveToFirst()) return@use null
-                val writable = it.getInt(2) and DocumentsContract.Document.FLAG_SUPPORTS_WRITE != 0
-                "size=${it.getLong(0)}, lastModified=${it.getLong(1)}, writable=$writable"
+                if (it.isNull(2)) return@use "size=${it.getLong(0)}, lastModified=${it.getLong(1)}, no flags"
+                val flags = it.getInt(2)
+                val writable = flags and DocumentsContract.Document.FLAG_SUPPORTS_WRITE != 0
+                val deletable = flags and DocumentsContract.Document.FLAG_SUPPORTS_DELETE != 0
+                "size=${it.getLong(0)}, lastModified=${it.getLong(1)}, flags=$flags, writable=$writable, deletable=$deletable"
             } ?: "no metadata"
         } catch (e: Exception) {
             "no metadata ($e)"
