@@ -109,6 +109,13 @@ SPDX-License-Identifier: GPL-3.0-or-later
     <string name="remove">Remove</string>
     <string name="remove_recent">Remove from the recent maps</string>
     <string name="remove_recent_question">Remove “%1$s” from the recent maps?</string>
+    <string name="delete_map">Delete the map</string>
+    <string name="delete_map_question">Delete the file “%1$s”?</string>
+    <string name="delete_titled_map_question">Delete the map “%1$s” (%2$s)?</string>
+    <string name="delete_map_unsaved">Its unsaved changes will be lost too.</string>
+    <string name="delete">Delete</string>
+    <string name="map_deleted">Map deleted.</string>
+    <string name="error_delete">The map could not be deleted.</string>
     <string name="about">About</string>
     <!-- %1$s: the version, e.g. "1.0.0" -->
     <string name="about_text">Version %1$s\n\nView and lightly edit Freeplane mind maps, without losing anything Freeplane wrote.\n\n© 2026 Benoit Mercier and Mapling contributors\n\nMapling is free software: you may redistribute and modify it under the GNU General Public License, version 3 or later, with an additional permission for app stores. It comes with no warranty.\n\nUses jsMind (BSD-3-Clause), AndroidX and Material Components (Apache-2.0), and Material Symbols icons (Apache-2.0). Mapling is not affiliated with the Freeplane project.</string>

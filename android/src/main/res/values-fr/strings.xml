@@ -110,6 +110,13 @@ SPDX-License-Identifier: GPL-3.0-or-later
     <string name="remove">Retirer</string>
     <string name="remove_recent">Retirer des cartes récentes</string>
     <string name="remove_recent_question">Retirer la carte « %1$s » de la liste des cartes récentes ?</string>
+    <string name="delete_map">Supprimer la carte</string>
+    <string name="delete_map_question">Supprimer le fichier « %1$s » ?</string>
+    <string name="delete_titled_map_question">Supprimer la carte « %1$s » (%2$s) ?</string>
+    <string name="delete_map_unsaved">Ses modifications non enregistrées seront perdues aussi.</string>
+    <string name="delete">Supprimer</string>
+    <string name="map_deleted">Carte supprimée.</string>
+    <string name="error_delete">La carte n’a pas pu être supprimée.</string>
     <string name="about">À propos</string>
     <string name="about_text">Version %1$s\n\nConsulter et modifier simplement des cartes mentales Freeplane, sans rien perdre de ce que Freeplane a écrit.\n\n© 2026 Benoit Mercier et les contributeurs de Mapling\n\nMapling est un logiciel libre : vous pouvez le redistribuer et le modifier selon les termes de la Licence publique générale GNU, version 3 ou ultérieure, avec une permission supplémentaire pour les magasins d’applications. Il est fourni sans aucune garantie.\n\nUtilise jsMind (BSD-3-Clause), AndroidX et Material Components (Apache-2.0), et les icônes Material Symbols (Apache-2.0). Mapling n’est pas affilié au projet Freeplane.</string>
     <string name="licenses">Licences</string>

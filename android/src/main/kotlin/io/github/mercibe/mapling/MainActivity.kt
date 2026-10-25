@@ -354,18 +354,30 @@ class MainActivity : AppCompatActivity() {
         header.findViewById<TextView>(R.id.drawer_title).text = title.ifEmpty { documentName }
         header.findViewById<TextView>(R.id.drawer_file).text = if (title.isEmpty()) "" else documentName
 
+        // Each icon has its own tint (grey, red for deleting): the drawer's single tint would override it.
+        navigation.itemIconTintList = null
         val menu = navigation.menu
         menu.clear()
         val actions = mutableMapOf<Int, () -> Unit>()
         // Entries of different groups are separated by a line in the drawer.
-        fun add(menu: Menu, label: CharSequence, icon: Int, enabled: Boolean, group: Int = COMMANDS, action: () -> Unit): MenuItem {
+        fun add(
+            menu: Menu, label: CharSequence, icon: Int, enabled: Boolean, group: Int = COMMANDS,
+            tint: Int = R.color.menu_icon, action: () -> Unit,
+        ): MenuItem {
             val id = actions.size + 1
             actions[id] = action
-            return menu.add(group, id, Menu.NONE, label).setIcon(icon).setEnabled(enabled)
+            val item = menu.add(group, id, Menu.NONE, label).setIcon(icon).setEnabled(enabled)
+            item.icon?.mutate()?.setTint(getColor(tint))
+            return item
         }
         add(menu, getString(R.string.open), R.drawable.ic_folder_open, coreReady) { leaveMap(::pickDocument) }
         add(menu, getString(R.string.new_map), R.drawable.ic_note_add, coreReady) { leaveMap(::pickNewMap) }
         add(menu, getString(R.string.reload), R.drawable.ic_refresh, open) { document?.let { uri -> leaveMap { open(uri) } } }
+        if (open) { // only shown when it applies: red stays red, even disabled
+            add(menu, dangerous(getString(R.string.delete_map)), R.drawable.ic_delete, true, tint = R.color.danger) {
+                confirmDeleteMap()
+            }
+        }
         add(menu, getString(R.string.center), R.drawable.ic_filter_center_focus, open) {
             sendToCore(JSONObject().put("type", "center"))
         }
@@ -775,6 +787,46 @@ class MainActivity : AppCompatActivity() {
                 .show()
         }
         return button
+    }
+
+    /** In red: an action that cannot be undone. */
+    private fun dangerous(label: String): CharSequence = SpannableStringBuilder(label).apply {
+        setSpan(ForegroundColorSpan(getColor(R.color.danger)), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+    }
+
+    /** Deletes the open map's file, once confirmed; unsaved changes go with it. */
+    private fun confirmDeleteMap() {
+        val uri = document ?: return
+        // As in the recent maps: the root's text, then the file's name.
+        val title = oneLine(documentTitle)
+        var message = if (title.isEmpty()) getString(R.string.delete_map_question, documentName)
+        else getString(R.string.delete_titled_map_question, title, documentName)
+        if (dirty) message += "\n\n" + getString(R.string.delete_map_unsaved)
+        MaterialAlertDialogBuilder(this)
+            .setMessage(message)
+            .setPositiveButton(R.string.delete) { _, _ -> deleteMap(uri) }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    /** Off the main thread (Drive may ask its server); then the map is closed and forgotten. */
+    private fun deleteMap(uri: Uri) {
+        thread {
+            val deleted = try {
+                DocumentsContract.deleteDocument(contentResolver, uri)
+            } catch (e: Exception) {
+                Log.w(TAG, "Cannot delete $uri", e)
+                false
+            }
+            Log.i(TAG, "Deleted: $deleted, $uri")
+            runOnUiThread {
+                if (!deleted) return@runOnUiThread alert(R.string.error_delete)
+                if (document == uri) close()
+                drafts.submit(uri.toString(), null)
+                forget(uri)
+                toast(getString(R.string.map_deleted))
+            }
+        }
     }
 
     /** A map removed from the recent maps is not reopened at start either. */
