@@ -89,6 +89,9 @@ export class JsMindView implements View {
       support_html: false, // topics are plain text, never HTML
       log_level: 'warn',
       view: {
+        // Lines as SVG: jsMind's default canvas is drawn at CSS pixels, so lines look blurred
+        // on dense screens, and more so once zoomed.
+        engine: 'svg',
         draggable: true, // pan the map with the mouse
         node_overflow: 'wrap',
         custom_node_render: (_jm: unknown, element: HTMLElement, node: JmNode) => this.render(element, node),
