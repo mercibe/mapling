@@ -34,6 +34,7 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.ImageButton
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
@@ -357,10 +358,10 @@ class MainActivity : AppCompatActivity() {
         menu.clear()
         val actions = mutableMapOf<Int, () -> Unit>()
         // Entries of different groups are separated by a line in the drawer.
-        fun add(menu: Menu, label: CharSequence, icon: Int, enabled: Boolean, group: Int = COMMANDS, action: () -> Unit) {
+        fun add(menu: Menu, label: CharSequence, icon: Int, enabled: Boolean, group: Int = COMMANDS, action: () -> Unit): MenuItem {
             val id = actions.size + 1
-            menu.add(group, id, Menu.NONE, label).setIcon(icon).isEnabled = enabled
             actions[id] = action
+            return menu.add(group, id, Menu.NONE, label).setIcon(icon).setEnabled(enabled)
         }
         add(menu, getString(R.string.open), R.drawable.ic_folder_open, coreReady) { leaveMap(::pickDocument) }
         add(menu, getString(R.string.new_map), R.drawable.ic_note_add, coreReady) { leaveMap(::pickNewMap) }
@@ -378,9 +379,10 @@ class MainActivity : AppCompatActivity() {
         if (others.isNotEmpty()) {
             val section = menu.addSubMenu(R.string.recent_maps) // a titled section in the drawer
             for (entry in others) {
-                add(section, recentLabel(entry), R.drawable.ic_history, coreReady) {
+                val item = add(section, recentLabel(entry), R.drawable.ic_history, coreReady) {
                     leaveMap { open(entry.document.toUri()) }
                 }
+                item.actionView = removeButton(entry, ::openDrawer) // then the list, updated
             }
         }
         add(menu, getString(R.string.about), R.drawable.ic_info, true, group = ABOUT) { showAbout() }
@@ -525,16 +527,19 @@ class MainActivity : AppCompatActivity() {
         val details = mutableListOf<Pair<RecentMaps.Entry, TextView>>()
         for (entry in recent.entries) {
             val row = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                setPadding(0, dp(10), 0, dp(10))
+                gravity = Gravity.CENTER_VERTICAL
                 isEnabled = coreReady
                 isClickable = true
                 setBackgroundResource(selectableBackground())
                 setOnClickListener { open(entry.document.toUri()) }
             }
             // The root's text, then the file's name and, once known, when it was last saved.
+            val texts = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(0, dp(10), 0, dp(10))
+            }
             val title = oneLine(entry.title)
-            row.addView(TextView(this).apply {
+            texts.addView(TextView(this).apply {
                 text = title.ifEmpty { entry.name }
                 textSize = 16f
                 maxLines = 2
@@ -545,7 +550,9 @@ class MainActivity : AppCompatActivity() {
                 text = if (title.isEmpty()) "" else entry.name
                 textSize = 13f
             }
-            row.addView(detail)
+            texts.addView(detail)
+            row.addView(texts, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            row.addView(removeButton(entry) {})
             details.add(entry to detail)
             list.addView(row)
         }
@@ -738,6 +745,36 @@ class MainActivity : AppCompatActivity() {
             putString(RECENT_MAPS, recent.encode())
             putString(LAST_OPEN, document?.toString())
         }
+    }
+
+    /**
+     * At the end of a recent map's entry: removes it from the list, once confirmed (the file
+     * itself is left as it is), then `removed`.
+     */
+    private fun removeButton(entry: RecentMaps.Entry, removed: () -> Unit): ImageButton {
+        val button = ImageButton(this, null, android.R.attr.borderlessButtonStyle)
+        button.setImageResource(R.drawable.ic_delete)
+        // Smaller and grey: a secondary action, beside the entry's own icon and text.
+        button.scaleType = ImageView.ScaleType.FIT_CENTER
+        button.setPadding(dp(15), dp(15), dp(15), dp(15))
+        button.imageTintList = getColorStateList(R.color.menu_detail)
+        // 48 dp square: the style's minimum width (88 dp) would take room from the text.
+        button.minimumWidth = dp(48)
+        button.layoutParams = ViewGroup.LayoutParams(dp(48), dp(48))
+        button.contentDescription = getString(R.string.remove_recent)
+        button.tooltipText = getString(R.string.remove_recent)
+        button.setOnClickListener {
+            val name = oneLine(entry.title).ifEmpty { entry.name }
+            MaterialAlertDialogBuilder(this)
+                .setMessage(getString(R.string.remove_recent_question, name))
+                .setPositiveButton(R.string.remove) { _, _ ->
+                    forget(entry.document.toUri())
+                    removed()
+                }
+                .setNegativeButton(android.R.string.cancel, null)
+                .show()
+        }
+        return button
     }
 
     /** A map removed from the recent maps is not reopened at start either. */
@@ -1292,9 +1329,10 @@ class MainActivity : AppCompatActivity() {
         const val NEWER_VERSION_INTERVAL_MS = 2000L
         const val MENU_SAVE = 2
 
-        // What fits on one line of the ☰ drawer (at most 360 dp wide): a root's text, a file's name.
-        const val DRAWER_TITLE_CHARS = 30
-        const val DRAWER_FILE_CHARS = 36
+        // What fits on one line of the ☰ drawer (at most 360 dp wide), beside the button that
+        // removes the entry: a root's text, a file's name (smaller).
+        const val DRAWER_TITLE_CHARS = 22
+        const val DRAWER_FILE_CHARS = 28
 
         // Groups of entries in the ☰ drawer.
         const val COMMANDS = 1
