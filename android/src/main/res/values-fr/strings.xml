@@ -121,4 +121,5 @@ SPDX-License-Identifier: GPL-3.0-or-later
     <string name="about_text">Version %1$s\n\nConsulter et modifier simplement des cartes mentales Freeplane, sans rien perdre de ce que Freeplane a écrit.\n\n© 2026 Benoit Mercier et les contributeurs de Mapling\n\nMapling est un logiciel libre : vous pouvez le redistribuer et le modifier selon les termes de la Licence publique générale GNU, version 3 ou ultérieure, avec une permission supplémentaire pour les magasins d’applications. Il est fourni sans aucune garantie.\n\nUtilise jsMind (BSD-3-Clause), AndroidX et Material Components (Apache-2.0), et les icônes Material Symbols (Apache-2.0). Mapling n’est pas affilié au projet Freeplane.</string>
     <string name="licenses">Licences</string>
     <string name="source_code_link">Code source : %1$s</string>
+    <string name="lent_read_only">Ouverte depuis une autre application, qui ne permet pas à Mapling de l’enregistrer.</string>
 </resources>

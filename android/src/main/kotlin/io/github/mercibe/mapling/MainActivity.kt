@@ -33,6 +33,7 @@ import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.Button
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -135,6 +136,13 @@ class MainActivity : AppCompatActivity() {
      */
     private var reopen: Uri? = null
 
+    /**
+     * Documents lent by another app ("Open with", by their URI): for this session only, so
+     * neither listed in the recent maps nor reopened at start. The value: whether writing
+     * was lent too; if not, the map is read-only and can be saved as a copy.
+     */
+    private val lent = mutableMapOf<String, Boolean>()
+
     /** What each pending `load` will open, by requestId: a refused load changes nothing. */
     private class PendingLoad(
         val uri: Uri,
@@ -190,6 +198,8 @@ class MainActivity : AppCompatActivity() {
         // left open, unless it was closed (Close in the ☰ menu).
         reopen = (savedInstanceState?.getString(STATE_DOCUMENT) ?: preferences().getString(LAST_OPEN, null))
             ?.toUri()
+        val viewed = lentDocument(intent) // also when Android recreates the activity: still lent
+        if (savedInstanceState == null && viewed != null) reopen = viewed
         render() // the home screen stays hidden from the start while a map is to be reopened
 
         webView.settings.apply {
@@ -232,6 +242,22 @@ class MainActivity : AppCompatActivity() {
             .setPositiveButton(android.R.string.ok) { _, _ -> finish() }
             .show()
         return false
+    }
+
+    /** "Open with Mapling" while Mapling runs (a single instance: singleTask). */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        val viewed = lentDocument(intent) ?: return
+        if (coreReady) leaveMap { open(viewed) } else reopen = viewed
+    }
+
+    /** The document another app asks Mapling to open, if any, recorded as lent. */
+    private fun lentDocument(intent: Intent?): Uri? {
+        if (intent?.action != Intent.ACTION_VIEW) return null
+        val uri = intent.data ?: return null
+        lent[uri.toString()] = intent.flags and Intent.FLAG_GRANT_WRITE_URI_PERMISSION != 0
+        return uri
     }
 
     /**
@@ -383,8 +409,9 @@ class MainActivity : AppCompatActivity() {
         }
         add(menu, getString(R.string.close), R.drawable.ic_close, open) {
             leaveMap {
+                // Not reopened at the next start; a lent map never was, the one before it still is.
+                if (document?.toString() !in lent) preferences().edit { remove(LAST_OPEN) }
                 close()
-                preferences().edit { remove(LAST_OPEN) } // not reopened at the next start
             }
         }
         val others = recent.entries.filter { it.document != document?.toString() }
@@ -610,6 +637,10 @@ class MainActivity : AppCompatActivity() {
         for (code in readOnlyReasons) {
             READ_ONLY_TEXTS[code]?.let { messages.addView(banner(getString(it), R.color.message_warning)) }
         }
+        if (lent[document?.toString()] == false) {
+            val copy = R.string.save_copy to ::pickLentCopy
+            messages.addView(banner(getString(R.string.lent_read_only), R.color.message_warning, action = copy))
+        }
         hiddenNotice?.let {
             messages.addView(banner(it, R.color.message_info) { hiddenNotice = null; render() })
         }
@@ -633,12 +664,21 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** A message across the screen; with `dismiss`, a button closes it. */
-    private fun banner(text: String, color: Int, dismiss: (() -> Unit)? = null): View {
+    /** A message across the screen; with `action`, a text button does it; with `dismiss`, a button closes it. */
+    private fun banner(
+        text: String, color: Int, action: Pair<Int, () -> Unit>? = null, dismiss: (() -> Unit)? = null,
+    ): View {
         val row = LinearLayout(this)
         row.setBackgroundColor(getColor(color))
         row.gravity = Gravity.CENTER_VERTICAL
         row.addView(messageText(text), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        if (action != null) {
+            val button = Button(this, null, android.R.attr.borderlessButtonStyle)
+            button.setText(action.first)
+            button.setTextColor(getColor(R.color.forest))
+            button.setOnClickListener { action.second() }
+            row.addView(button)
+        }
         if (dismiss != null) {
             val close = ImageButton(this, null, android.R.attr.borderlessButtonStyle)
             close.setImageResource(R.drawable.ic_close)
@@ -688,6 +728,12 @@ class MainActivity : AppCompatActivity() {
             REQUEST_NEW_MAP -> if (uri != null) {
                 keepAccess(uri, data!!.flags)
                 createMap(uri)
+            }
+            REQUEST_SAVE_LENT_COPY -> {
+                val lentUri = document?.takeIf { lent[it.toString()] == false } ?: return
+                if (uri == null) return
+                keepAccess(uri, data!!.flags)
+                writeLentCopy(lentUri, uri)
             }
             REQUEST_SAVE_COPY -> {
                 val copy = pendingCopy ?: return
@@ -755,7 +801,8 @@ class MainActivity : AppCompatActivity() {
     private fun storeRecent() {
         preferences().edit {
             putString(RECENT_MAPS, recent.encode())
-            putString(LAST_OPEN, document?.toString())
+            // A lent map is not reopened at start: its access ends with the session.
+            if (document?.toString() !in lent) putString(LAST_OPEN, document?.toString())
         }
     }
 
@@ -942,7 +989,7 @@ class MainActivity : AppCompatActivity() {
                 .put("requestId", requestId)
                 .put("name", name)
                 .put("data", Base64.encodeToString(bytes, Base64.NO_WRAP))
-                .put("readOnly", false)
+                .put("readOnly", lent[uri.toString()] == false) // lent without writing
                 .put("restoredDraft", restoredDraft)
                 .put("onlyIfUnmodified", ifRefused != null)
                 .put("locale", resources.configuration.locales[0].toLanguageTag()),
@@ -958,9 +1005,11 @@ class MainActivity : AppCompatActivity() {
         mapReadOnly = message.getBoolean("readOnly")
         val warnings = message.getJSONArray("warnings")
         readOnlyReasons = List(warnings.length()) { warnings.getJSONObject(it).getString("code") }
-        // A restored draft is not saved yet: the recent maps keep the title of the file.
-        val fileTitle = if (load.restoredDraft) recentTitle(load.uri) else documentTitle
-        putFirstInRecent(load.uri, load.name, fileTitle)
+        if (load.uri.toString() !in lent) {
+            // A restored draft is not saved yet: the recent maps keep the title of the file.
+            val fileTitle = if (load.restoredDraft) recentTitle(load.uri) else documentTitle
+            putFirstInRecent(load.uri, load.name, fileTitle)
+        }
         hiddenNotice = hiddenNotice(load.uri, message.getJSONArray("hiddenContent"))
         storeRecent()
         Log.i(TAG, "Loaded ${load.name}, based on ${load.base.take(8)}")
@@ -1168,6 +1217,33 @@ class MainActivity : AppCompatActivity() {
             .setNeutralButton(R.string.overwrite) { _, _ -> saveWriter.execute { writeTo(uri, saveId, bytes) } }
             .setNegativeButton(android.R.string.cancel, null) // the map stays modified
             .show()
+    }
+
+    /** A map lent without writing, kept as a copy where the user picks: then an ordinary map. */
+    private fun pickLentCopy() {
+        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
+            .addCategory(Intent.CATEGORY_OPENABLE)
+            .setType(MAP_TYPE)
+            .putExtra(Intent.EXTRA_TITLE, documentName)
+        startActivityForResult(intent, REQUEST_SAVE_LENT_COPY)
+    }
+
+    /**
+     * Read-only, the map is unmodified: the copy is the lent file's content, loaded as
+     * written rather than read back (see createMap).
+     */
+    private fun writeLentCopy(lentUri: Uri, copy: Uri) {
+        thread {
+            try {
+                val bytes = contentResolver.openInputStream(lentUri)!!.use { it.readBytes() }
+                contentResolver.openOutputStream(copy, "wt")!!.use { it.write(bytes) }
+                val name = displayName(copy)
+                runOnUiThread { load(copy, name, bytes, DraftStore.fingerprint(bytes), modified = null) }
+            } catch (e: Exception) {
+                Log.w(TAG, "Cannot copy $lentUri to $copy", e)
+                runOnUiThread { alert(R.string.error_write) }
+            }
+        }
     }
 
     private fun pickCopy(uri: Uri, saveId: Long, bytes: ByteArray) {
@@ -1464,6 +1540,7 @@ class MainActivity : AppCompatActivity() {
         const val REQUEST_OPEN = 1
         const val REQUEST_SAVE_COPY = 2
         const val REQUEST_NEW_MAP = 3
+        const val REQUEST_SAVE_LENT_COPY = 4
         const val STATE_DOCUMENT = "document"
 
         // One of each for the whole process, not per activity: when Android recreates
