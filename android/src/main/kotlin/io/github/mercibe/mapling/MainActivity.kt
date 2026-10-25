@@ -127,7 +127,11 @@ class MainActivity : AppCompatActivity() {
     private var hiddenNotice: String? = null // shown once per document, until dismissed
     private var draftsProtected = true
 
-    /** Document to reopen once the core is ready, after Android recreated the activity. */
+    /**
+     * Document to reopen once the core is ready (the last map left open, or the one shown
+     * before Android recreated the activity). Kept until it is loaded or cannot be: the
+     * home screen stays hidden meanwhile, so that it does not flash before the map.
+     */
     private var reopen: Uri? = null
 
     /** What each pending `load` will open, by requestId: a refused load changes nothing. */
@@ -185,6 +189,7 @@ class MainActivity : AppCompatActivity() {
         // left open, unless it was closed (Close in the ☰ menu).
         reopen = (savedInstanceState?.getString(STATE_DOCUMENT) ?: preferences().getString(LAST_OPEN, null))
             ?.toUri()
+        render() // the home screen stays hidden from the start while a map is to be reopened
 
         webView.settings.apply {
             javaScriptEnabled = true
@@ -494,7 +499,7 @@ class MainActivity : AppCompatActivity() {
     private fun render() {
         val open = document != null
         webView.visibility = if (open) View.VISIBLE else View.INVISIBLE
-        home.visibility = if (open) View.GONE else View.VISIBLE
+        home.visibility = if (open || reopen != null) View.GONE else View.VISIBLE
         if (!open) renderHome()
         // Shown whenever the map can be edited, so that the map does not jump at each selection.
         nodeBar.visibility = if (open && !mapReadOnly) View.VISIBLE else View.GONE
@@ -799,6 +804,7 @@ class MainActivity : AppCompatActivity() {
             } catch (e: Exception) {
                 Log.w(TAG, "Cannot read $uri", e)
                 runOnUiThread {
+                    if (reopen == uri) stopReopening()
                     if (recent.entries.any { it.document == uri.toString() }) offerToForget(uri)
                     else alert(R.string.error_read)
                 }
@@ -851,6 +857,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun loaded(load: PendingLoad, message: JSONObject) {
+        reopen = null
         document = load.uri
         documentName = load.name
         documentTitle = message.optString("title")
@@ -969,6 +976,12 @@ class MainActivity : AppCompatActivity() {
             .setNeutralButton(R.string.reload) { _, _ -> load(uri, documentName, bytes, version, modified, discardDraft = true) }
             .setNegativeButton(R.string.keep_editing, null) // saving will ask again
             .show()
+    }
+
+    /** The map to reopen cannot be read or loaded: the home screen is shown instead. */
+    private fun stopReopening() {
+        reopen = null
+        render()
     }
 
     /** Back to the screen with no map. The core keeps the map until the next load. */
@@ -1187,7 +1200,6 @@ class MainActivity : AppCompatActivity() {
                 coreReady = true
                 render()
                 reopen?.let(::open)
-                reopen = null
             }
             "loaded" -> pendingLoads.remove(message.getString("requestId"))?.let { loaded(it, message) }
             "draftData" -> keepDraft(message)
@@ -1220,6 +1232,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 saveTargets.remove(requestId)
                 giveUpLeaving(requestId)
+                if (load != null && load.uri == reopen) stopReopening()
                 showError(message.getString("code"))
             }
             else -> Log.d(TAG, "Core: ${message.toString().take(200)}")
