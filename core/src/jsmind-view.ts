@@ -133,6 +133,10 @@ export class JsMindView implements View {
     }
   }
 
+  editing(): boolean {
+    return this.jm.view.editing_node !== null;
+  }
+
   setReadOnly(readOnly: boolean): void {
     if (readOnly) this.jm.disable_edit();
     else this.jm.enable_edit();

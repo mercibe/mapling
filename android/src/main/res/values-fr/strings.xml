@@ -99,6 +99,12 @@ SPDX-License-Identifier: GPL-3.0-or-later
     <string name="new_map">Nouvelle carte</string>
     <string name="recent_maps">Cartes récentes</string>
     <string name="map_unreadable">Impossible d’ouvrir cette carte. Elle a peut-être été déplacée ou supprimée, son accès a pu être retiré, ou son fournisseur (Drive, par exemple) est hors ligne.</string>
+    <string name="map_updated">La carte a été modifiée ailleurs : affichage de sa dernière version.</string>
+    <string name="changed_elsewhere">Cette carte a été modifiée ailleurs (sur un autre appareil ou dans Freeplane, par exemple). Vos modifications ici ne sont pas enregistrées.\n\nEnregistrez-les dans une copie pour garder les deux versions, ou rechargez la carte pour les abandonner.</string>
+    <string name="keep_editing">Continuer</string>
+    <string name="file_unreadable_title">Fichier inaccessible</string>
+    <string name="file_unreadable">Le fichier de cette carte ne peut plus être lu. Il a peut-être été déplacé ou supprimé, ou son fournisseur (Drive, par exemple) est hors ligne.</string>
+    <string name="file_unreadable_changes">Vos modifications sont gardées ici. Enregistrez-les dans une copie pour ne pas risquer de les perdre.</string>
     <string name="remove_from_list">Retirer de la liste</string>
     <string name="keep">Garder</string>
     <string name="about">À propos</string>

@@ -65,6 +65,8 @@ Response: `loaded` or `error`.
 
 To restore a draft (see section 6), send the draft's bytes with `"restoredDraft": true`: the map is then considered modified from the start, since it differs from the file.
 
+To show a version of the file made elsewhere in place of the open map, send `"onlyIfUnmodified": true`: the map is replaced only if nothing would be lost, otherwise the core answers `MAP_MODIFIED` and keeps it. The core decides a moment later, once the edits already on their way are applied: a text just validated counts as a change, and so does a text being typed, not validated yet (the map does not hold it).
+
 ### `save` — get the content to write
 
 ```json
@@ -252,6 +254,7 @@ Emitted whenever the possibility to undo or redo changes. The shell uses it to e
 | `NO_MAP_LOADED` | `save` received with no map loaded |
 | `PROTOCOL_VERSION` | Unsupported `v` version |
 | `OUTDATED_COMMAND` | An editing command targets a node that no longer exists, or a deletion was confirmed before the map changed |
+| `MAP_MODIFIED` | `load` with `onlyIfUnmodified` refused: the open map is modified, or a text is being typed. The shell lets the user choose (keep a copy, reload, continue) |
 | `INTERNAL` | Unexpected core error |
 
 ## 6. Typical lifecycle

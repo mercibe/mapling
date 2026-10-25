@@ -21,12 +21,13 @@ function base64(text: string | Uint8Array): string {
 
 function setup() {
   const sent: any[] = [];
-  const view = { shown: [] as ViewNode[], readOnly: [] as boolean[], commands: [] as string[] };
+  const view = { shown: [] as ViewNode[], readOnly: [] as boolean[], commands: [] as string[], editing: false };
   const bridge = new Bridge((json) => sent.push(JSON.parse(json)), {
     show: (root) => view.shown.push(root),
     setReadOnly: (readOnly) => view.readOnly.push(readOnly),
     command: (name, key) => view.commands.push(`${name} ${key}`),
     center: (key) => view.commands.push(`center ${key}`),
+    editing: () => view.editing,
   });
   const send = (message: object) => bridge.receive(JSON.stringify({ v: 1, ...message }));
   /** Sends `save` and returns the saveId of the resulting saveData. */
@@ -392,4 +393,57 @@ test('the selection reports the hidden content of the node itself, apart from it
   bridge.select('ID_452131666'); // the root: nothing of its own; a note in its branch (D)
   const root = take()[0].node;
   assert.deepEqual([root.hidden, root.branch.hidden], [{}, { note: 1 }]);
+});
+
+// ---------- load only if unmodified (a version made elsewhere replaces an unmodified map) ----------
+
+const elsewhere = original.replace('Root node', 'Changed elsewhere');
+
+/** Lets the tasks already queued run, as the core's decision does. */
+const nextTask = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+function loadIfUnmodified(s: ReturnType<typeof setup>) {
+  s.send({ type: 'load', requestId: 'r2', name: 'map.mm', data: base64(elsewhere), onlyIfUnmodified: true });
+}
+
+test('load only if unmodified replaces an unmodified map', async () => {
+  const s = loaded();
+  loadIfUnmodified(s);
+  assert.deepEqual(s.take(), []); // decided in a later task
+  await nextTask();
+  const messages = s.take();
+  assert.equal(messages.find((m) => m.type === 'loaded').title, 'Changed elsewhere');
+});
+
+test('load only if unmodified is refused while a text is being typed, not validated', async () => {
+  const s = loaded();
+  s.view.editing = true; // the map does not hold the typed text yet
+  loadIfUnmodified(s);
+  await nextTask();
+  assert.deepEqual(s.take(), [{
+    v: 1, type: 'error', requestId: 'r2', code: 'MAP_MODIFIED',
+    message: 'The open map is modified or a text is being edited',
+  }]);
+  assert.equal(s.view.shown.length, 1); // the map shown is still the one being edited
+});
+
+test('load only if unmodified waits for a text validated just before, reported later by jsMind', async () => {
+  const s = loaded();
+  // jsMind closes the editor, then reports the new text in a later task (setTimeout 0).
+  setTimeout(() => s.bridge.edit((m) => m.updateText(A, 'typed on the phone')), 0);
+  loadIfUnmodified(s); // arrives between the validation and its report
+  await nextTask();
+  const messages = s.take();
+  assert.ok(messages.some((m) => m.type === 'dirtyChanged' && m.dirty));
+  assert.equal(messages.find((m) => m.type === 'error').code, 'MAP_MODIFIED');
+  assert.ok(!messages.some((m) => m.type === 'loaded'));
+});
+
+test('load only if unmodified is refused for a modified map', async () => {
+  const s = loaded();
+  s.bridge.edit((m) => m.updateText(A, 'changed here'));
+  s.take();
+  loadIfUnmodified(s);
+  await nextTask();
+  assert.equal(s.take().find((m) => m.type === 'error').code, 'MAP_MODIFIED');
 });

@@ -37,7 +37,7 @@ The build stops with a clear message if the core has not been built. Rebuild the
 ## Tests
 
 ```
-./gradlew testDebugUnitTest   # JUnit tests (drafts, write check, recent maps, WebView version), on the computer
+./gradlew testDebugUnitTest   # JUnit tests (drafts, write check, file reads, recent maps, WebView version), on the computer
 ./gradlew lint                # Android Lint, including calls to APIs newer than Android 8
 ```
 

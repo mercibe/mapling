@@ -24,6 +24,7 @@ export type BridgeErrorCode =
   | 'NO_MAP_LOADED'
   | 'PROTOCOL_VERSION'
   | 'OUTDATED_COMMAND'
+  | 'MAP_MODIFIED'
   | 'INTERNAL';
 
 export type WarningCode = 'FORMAT_TOO_OLD' | 'FORMAT_TOO_NEW' | 'DUPLICATE_IDS';
@@ -45,7 +46,15 @@ export interface SelectedNode {
 
 /** Messages from the shell. */
 export type ShellMessage = { v: number; requestId?: string } & (
-  | { type: 'load'; name: string; data: string; readOnly?: boolean; restoredDraft?: boolean; locale?: string }
+  | {
+      type: 'load';
+      name: string;
+      data: string;
+      readOnly?: boolean;
+      restoredDraft?: boolean;
+      locale?: string;
+      onlyIfUnmodified?: boolean;
+    }
   | { type: 'flushDraft' }
   | { type: 'save' }
   | { type: 'saved'; saveId: number }
@@ -90,6 +99,8 @@ export interface View {
   command(name: Command, key: string): void;
   /** Scrolls so that this node, or the root when null, is in the middle of the view. */
   center(key: string | null): void;
+  /** Whether a text is being typed, not validated yet: the map does not hold it. */
+  editing(): boolean;
 }
 
 class BridgeError extends Error {
@@ -185,6 +196,7 @@ export class Bridge {
   private handle(message: ShellMessage): void {
     switch (message.type) {
       case 'load':
+        if (message.onlyIfUnmodified) return this.loadIfUnmodified(message);
         return this.load(message.requestId, message.data, !!message.readOnly, !!message.restoredDraft, message.locale);
       case 'flushDraft':
         // Always answered: the core cannot know whether the last draft reached the disk.
@@ -213,6 +225,25 @@ export class Bridge {
       default:
         throw new BridgeError('INTERNAL', `Unknown message type: ${(message as { type: string }).type}`);
     }
+  }
+
+  /**
+   * Replaces the map only if nothing would be lost: not modified, and no text being typed.
+   * Decided in a later task: jsMind reports a validated text a moment later (setTimeout 0),
+   * and the map is modified only then; reports already on their way come first.
+   */
+  private loadIfUnmodified(message: ShellMessage & { type: 'load' }): void {
+    setTimeout(() => {
+      try {
+        if (this.session?.dirty || this.view.editing()) {
+          throw new BridgeError('MAP_MODIFIED', 'The open map is modified or a text is being edited');
+        }
+        this.load(message.requestId, message.data, !!message.readOnly, !!message.restoredDraft, message.locale);
+      } catch (error) {
+        this.post({ type: 'error', requestId: message.requestId, ...describe(error) });
+      }
+      this.reportState();
+    }, 0);
   }
 
   private load(

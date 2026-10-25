@@ -98,6 +98,12 @@ SPDX-License-Identifier: GPL-3.0-or-later
     <string name="new_map">New map</string>
     <string name="recent_maps">Recent maps</string>
     <string name="map_unreadable">This map cannot be opened. It may have been moved or deleted, access to it may have been withdrawn, or its provider (Drive, for instance) may be offline.</string>
+    <string name="map_updated">The map was changed elsewhere: showing its latest version.</string>
+    <string name="changed_elsewhere">This map was changed elsewhere (on another device or in Freeplane, for instance). Your changes here are not saved.\n\nSave them in a copy to keep both versions, or reload the map to drop them.</string>
+    <string name="keep_editing">Continue</string>
+    <string name="file_unreadable_title">File out of reach</string>
+    <string name="file_unreadable">The file of this map can no longer be read. It may have been moved or deleted, or its provider (Drive, for instance) may be offline.</string>
+    <string name="file_unreadable_changes">Your changes are kept here. Save them in a copy so as not to risk losing them.</string>
     <string name="remove_from_list">Remove from the list</string>
     <string name="keep">Keep</string>
     <string name="about">About</string>

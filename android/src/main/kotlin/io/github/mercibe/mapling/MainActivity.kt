@@ -84,6 +84,18 @@ class MainActivity : AppCompatActivity() {
     private var base = ""
     private var dirty = false
 
+    /** Reads of the open map's file in progress (checkFile): those started before a change are ignored. */
+    private val fileReads = FileReads()
+
+    /** The current watch for a newer version of the open map (see watchForNewerVersion). */
+    @Volatile private var newerVersionWatch: Any? = null
+
+    /** Fingerprint of the version made elsewhere the user was told about: not asked again. */
+    private var keptOver: String? = null
+
+    /** Whether the user was told that the open map's file can no longer be read: told once. */
+    private var unreadableTold = false
+
     /** What the core reports, to enable the commands (docs/BRIDGE.md, section 5). */
     private var mapReadOnly = false
     private var canUndo = false
@@ -125,6 +137,8 @@ class MainActivity : AppCompatActivity() {
         val base: String,
         val discardDraft: Boolean,
         val restoredDraft: Boolean,
+        val modified: Long?, // the provider's date when the file was read
+        val ifRefused: (() -> Unit)?, // set: a version made elsewhere, loaded only if nothing is lost
     )
 
     private val pendingLoads = mutableMapOf<String, PendingLoad>()
@@ -133,7 +147,7 @@ class MainActivity : AppCompatActivity() {
      * Document each pending `save` request belongs to, by requestId (docs/BRIDGE.md, section 7),
      * with the fingerprint of the content its map was based on when the save was requested.
      */
-    private class SaveTarget(val uri: Uri, val base: String)
+    private class SaveTarget(val uri: Uri, val base: String, val asCopy: Boolean)
 
     private val saveTargets = mutableMapOf<String, SaveTarget>()
 
@@ -224,10 +238,11 @@ class MainActivity : AppCompatActivity() {
         if (document != null) sendToCore(JSONObject().put("type", "flushDraft"))
     }
 
-    /** Back from another app, the recent maps may have been saved elsewhere: show their dates again. */
+    /** Back from another app, the open map or the recent maps may have been saved elsewhere meanwhile. */
     override fun onResume() {
         super.onResume()
-        if (document == null) renderHome()
+        val open = document
+        if (open != null) checkFile(open) else renderHome()
     }
 
     /** Only the document: the map itself is protected by its draft on disk. */
@@ -237,6 +252,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        newerVersionWatch = null
+        fileReads.invalidate()
         // Unless a newer activity has already taken over.
         if (drafts.onProtectionChanged === protectionListener) drafts.watchProtection(null)
         webView.destroy()
@@ -764,19 +781,19 @@ class MainActivity : AppCompatActivity() {
     private fun open(uri: Uri) {
         thread {
             try {
-                val bytes = contentResolver.openInputStream(uri)!!.use { it.readBytes() }
+                val (bytes, modified) = readFile(uri)
                 val name = displayName(uri)
                 val base = DraftStore.fingerprint(bytes)
                 val found = drafts.read(uri.toString())
                 Log.i(TAG, "Opened $name: ${bytes.size} bytes, ${describe(uri)}, draft: ${found.javaClass.simpleName}, $uri")
                 runOnUiThread {
                     when (found) {
-                        is Found.Present -> offerDraft(uri, name, bytes, base, found.draft)
+                        is Found.Present -> offerDraft(uri, name, bytes, base, modified, found.draft)
                         is Found.Unreadable -> {
                             toast(getString(R.string.draft_unreadable))
-                            load(uri, name, bytes, base)
+                            load(uri, name, bytes, base, modified)
                         }
-                        Found.None -> load(uri, name, bytes, base)
+                        Found.None -> load(uri, name, bytes, base, modified)
                     }
                 }
             } catch (e: Exception) {
@@ -790,7 +807,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** Restore or discard: either way, the draft is deleted only once a map is loaded. */
-    private fun offerDraft(uri: Uri, name: String, bytes: ByteArray, base: String, draft: Draft) {
+    private fun offerDraft(uri: Uri, name: String, bytes: ByteArray, base: String, modified: Long?, draft: Draft) {
         val time = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(draft.time))
         var message = getString(R.string.draft_message, time)
         if (base != draft.base) message += "\n\n" + getString(R.string.draft_document_changed)
@@ -798,8 +815,8 @@ class MainActivity : AppCompatActivity() {
             .setTitle(R.string.draft_title)
             .setMessage(message)
             .setCancelable(false)
-            .setPositiveButton(R.string.restore) { _, _ -> load(uri, name, draft.bytes, draft.base, restoredDraft = true) }
-            .setNegativeButton(R.string.discard) { _, _ -> load(uri, name, bytes, base, discardDraft = true) }
+            .setPositiveButton(R.string.restore) { _, _ -> load(uri, name, draft.bytes, draft.base, modified, restoredDraft = true) }
+            .setNegativeButton(R.string.discard) { _, _ -> load(uri, name, bytes, base, modified, discardDraft = true) }
             .show()
     }
 
@@ -813,11 +830,13 @@ class MainActivity : AppCompatActivity() {
         name: String,
         bytes: ByteArray,
         base: String,
+        modified: Long?,
         restoredDraft: Boolean = false,
         discardDraft: Boolean = false,
+        ifRefused: (() -> Unit)? = null,
     ) {
         val requestId = "r${++requestCount}"
-        pendingLoads[requestId] = PendingLoad(uri, name, base, discardDraft, restoredDraft)
+        pendingLoads[requestId] = PendingLoad(uri, name, base, discardDraft, restoredDraft, modified, ifRefused)
         sendToCore(
             JSONObject()
                 .put("type", "load")
@@ -826,6 +845,7 @@ class MainActivity : AppCompatActivity() {
                 .put("data", Base64.encodeToString(bytes, Base64.NO_WRAP))
                 .put("readOnly", false)
                 .put("restoredDraft", restoredDraft)
+                .put("onlyIfUnmodified", ifRefused != null)
                 .put("locale", resources.configuration.locales[0].toLanguageTag()),
         )
     }
@@ -845,11 +865,116 @@ class MainActivity : AppCompatActivity() {
         storeRecent()
         Log.i(TAG, "Loaded ${load.name}, based on ${load.base.take(8)}")
         if (load.discardDraft) drafts.submit(load.uri.toString(), null)
+        if (load.ifRefused != null) toast(getString(R.string.map_updated))
+        fileReads.invalidate()
+        keptOver = null
+        unreadableTold = false
+        watchForNewerVersion(load.uri, load.modified)
         render()
+    }
+
+    /**
+     * Drive serves the copy it has cached, and fetches a newer one only once the file is
+     * read; it then reports the newer date within seconds, but tells no one (checked on a
+     * Pixel, 2026-10-25). So, for a while after the file is read, its date is asked again:
+     * when it changes, the file is read again.
+     */
+    private fun watchForNewerVersion(uri: Uri, modified: Long?) {
+        val watch = Any()
+        newerVersionWatch = watch
+        if (modified == null) return
+        thread {
+            repeat(NEWER_VERSION_CHECKS) {
+                Thread.sleep(NEWER_VERSION_INTERVAL_MS)
+                if (newerVersionWatch !== watch) return@thread
+                val now = lastModified(uri)
+                if (now != null && now != modified) {
+                    runOnUiThread { if (newerVersionWatch === watch) checkFile(uri) }
+                    return@thread
+                }
+            }
+        }
+    }
+
+    /**
+     * Reads the open map's file again, off the main thread: if it no longer holds what the
+     * map is based on, it was changed elsewhere; otherwise, watch for a newer version.
+     */
+    private fun checkFile(uri: Uri) {
+        val ticket = fileReads.ticket(uri.toString())
+        thread {
+            val start = System.currentTimeMillis()
+            val (bytes, modified) = try {
+                readFile(uri)
+            } catch (e: Exception) {
+                Log.w(TAG, "Cannot read $uri again", e)
+                runOnUiThread { if (fileReads.applies(ticket, document?.toString()) && !isFinishing) fileUnreadable() }
+                return@thread
+            }
+            val version = DraftStore.fingerprint(bytes)
+            Log.i(TAG, "Read again in ${System.currentTimeMillis() - start} ms: ${version.take(8)}, based on ${base.take(8)}")
+            runOnUiThread {
+                when {
+                    !fileReads.applies(ticket, document?.toString()) || isFinishing -> {} // another map, or saved, loaded or closed since
+                    version == base || version == keptOver -> watchForNewerVersion(uri, modified)
+                    else -> changedElsewhere(uri, bytes, version, modified)
+                }
+            }
+        }
+    }
+
+    /** Off the main thread: the content, and the date its provider gave for it (see FileSnapshot). */
+    private fun readFile(uri: Uri): Pair<ByteArray, Long?> {
+        val file = FileSnapshot.take({ lastModified(uri) }, { contentResolver.openInputStream(uri)!!.use { it.readBytes() } })
+        return file.bytes to file.modified
+    }
+
+    /**
+     * Deleted, moved, or out of reach for now: Drive tells none of these apart (it serves a
+     * file put in its trash as any other). Told once per map opened, since being offline
+     * would otherwise tell it at each return to the app.
+     */
+    private fun fileUnreadable() {
+        if (unreadableTold) return
+        unreadableTold = true
+        val dialog = MaterialAlertDialogBuilder(this).setTitle(R.string.file_unreadable_title)
+        if (dirty) {
+            dialog.setMessage(getString(R.string.file_unreadable) + "\n\n" + getString(R.string.file_unreadable_changes))
+                .setPositiveButton(R.string.save_copy) { _, _ -> save(asCopy = true) }
+                .setNegativeButton(R.string.keep_editing, null)
+        } else {
+            dialog.setMessage(R.string.file_unreadable).setPositiveButton(android.R.string.ok, null)
+        }
+        dialog.show()
+    }
+
+    /**
+     * Unmodified, the map shows the version made elsewhere. Modified, the user chooses now,
+     * rather than when saving. Only the core can tell for sure: a text being typed, or just
+     * validated, is not in `dirty` yet (docs/BRIDGE.md, `onlyIfUnmodified`).
+     */
+    private fun changedElsewhere(uri: Uri, bytes: ByteArray, version: String, modified: Long?) {
+        val choose = { if (document == uri && !isFinishing) offerChangedElsewhere(uri, bytes, version, modified) }
+        if (dirty) choose() else load(uri, documentName, bytes, version, modified, ifRefused = choose)
+    }
+
+    /** A copy keeps both versions, reloading drops the changes. */
+    private fun offerChangedElsewhere(uri: Uri, bytes: ByteArray, version: String, modified: Long?) {
+        keptOver = version // coming back from picking a copy must not ask again
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.conflict_title)
+            .setMessage(R.string.changed_elsewhere)
+            .setCancelable(false)
+            .setPositiveButton(R.string.save_copy) { _, _ -> save(asCopy = true) }
+            .setNeutralButton(R.string.reload) { _, _ -> load(uri, documentName, bytes, version, modified, discardDraft = true) }
+            .setNegativeButton(R.string.keep_editing, null) // saving will ask again
+            .show()
     }
 
     /** Back to the screen with no map. The core keeps the map until the next load. */
     private fun close() {
+        newerVersionWatch = null
+        fileReads.invalidate()
         document = null
         documentName = ""
         documentTitle = ""
@@ -884,11 +1009,11 @@ class MainActivity : AppCompatActivity() {
 
     // ---------- saving (docs/BRIDGE.md, section 6) ----------
 
-    /** Returns the request's id, or null with no document open. */
-    private fun save(): String? {
+    /** Returns the request's id, or null with no document open. As a copy, the user picks where. */
+    private fun save(asCopy: Boolean = false): String? {
         val uri = document ?: return null
         val requestId = "r${++requestCount}"
-        saveTargets[requestId] = SaveTarget(uri, base)
+        saveTargets[requestId] = SaveTarget(uri, base, asCopy)
         sendToCore(JSONObject().put("type", "save").put("requestId", requestId))
         return requestId
     }
@@ -903,6 +1028,7 @@ class MainActivity : AppCompatActivity() {
         val target = saveTargets.remove(requestId) ?: return
         val saveId = message.getLong("saveId")
         val bytes = Base64.decode(message.getString("data"), Base64.NO_WRAP)
+        if (target.asCopy) return pickCopy(target.uri, saveId, bytes)
         saveWriter.execute {
             val current = try {
                 contentResolver.openInputStream(target.uri)!!.use { DraftStore.fingerprint(it.readBytes()) }
@@ -981,6 +1107,7 @@ class MainActivity : AppCompatActivity() {
             if (copy != null && name != null && document == copy.document) {
                 document = uri
                 documentName = name
+                newerVersionWatch = null // the original's
                 drafts.submit(copy.document.toString(), null)
                 // The copy is now the map worked on: listed first, and reopened at start.
                 putFirstInRecent(uri, name, documentTitle)
@@ -999,6 +1126,7 @@ class MainActivity : AppCompatActivity() {
                 // The document now holds these bytes. A draft left by later changes must
                 // be based on them, even if no change follows: ask for it again.
                 base = written
+                fileReads.invalidate()
                 Log.i(TAG, "Saved: now based on ${written.take(8)}")
                 sendToCore(JSONObject().put("type", "flushDraft"))
             }
@@ -1085,7 +1213,11 @@ class MainActivity : AppCompatActivity() {
             "error" -> {
                 // A refused load leaves the previous map, and so the previous document, open.
                 val requestId = message.optString("requestId")
-                pendingLoads.remove(requestId)
+                val load = pendingLoads.remove(requestId)
+                if (message.getString("code") == "MAP_MODIFIED" && load?.ifRefused != null) {
+                    load.ifRefused.invoke() // nothing replaced: the user chooses
+                    return
+                }
                 saveTargets.remove(requestId)
                 giveUpLeaving(requestId)
                 showError(message.getString("code"))
@@ -1141,6 +1273,10 @@ class MainActivity : AppCompatActivity() {
 
     private companion object {
         const val TAG = "mapling"
+
+        // How long a newer version of a map just read is watched for: 30 s.
+        const val NEWER_VERSION_CHECKS = 15
+        const val NEWER_VERSION_INTERVAL_MS = 2000L
         const val MENU_SAVE = 2
 
         // What fits on one line of the ☰ drawer (at most 360 dp wide): a root's text, a file's name.
