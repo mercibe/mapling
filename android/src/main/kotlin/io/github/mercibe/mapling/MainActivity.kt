@@ -224,6 +224,12 @@ class MainActivity : AppCompatActivity() {
         if (document != null) sendToCore(JSONObject().put("type", "flushDraft"))
     }
 
+    /** Back from another app, the recent maps may have been saved elsewhere: show their dates again. */
+    override fun onResume() {
+        super.onResume()
+        if (document == null) renderHome()
+    }
+
     /** Only the document: the map itself is protected by its draft on disk. */
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
@@ -494,7 +500,7 @@ class MainActivity : AppCompatActivity() {
         val list = findViewById<LinearLayout>(R.id.recent_list)
         list.removeAllViews()
         findViewById<View>(R.id.recent_title).visibility = if (recent.entries.isEmpty()) View.GONE else View.VISIBLE
-        val format = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT)
+        val details = mutableListOf<Pair<RecentMaps.Entry, TextView>>()
         for (entry in recent.entries) {
             val row = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
@@ -504,9 +510,8 @@ class MainActivity : AppCompatActivity() {
                 setBackgroundResource(selectableBackground())
                 setOnClickListener { open(entry.document.toUri()) }
             }
-            // The root's text, then the file's name and when it was opened.
+            // The root's text, then the file's name and, once known, when it was last saved.
             val title = oneLine(entry.title)
-            val date = format.format(Date(entry.opened))
             row.addView(TextView(this).apply {
                 text = title.ifEmpty { entry.name }
                 textSize = 16f
@@ -514,12 +519,42 @@ class MainActivity : AppCompatActivity() {
                 ellipsize = android.text.TextUtils.TruncateAt.END
                 setTextColor(getColor(R.color.message_text))
             })
-            row.addView(TextView(this).apply {
-                text = if (title.isEmpty()) date else "${entry.name} · $date"
+            val detail = TextView(this).apply {
+                text = if (title.isEmpty()) "" else entry.name
                 textSize = 13f
-            })
+            }
+            row.addView(detail)
+            details.add(entry to detail)
             list.addView(row)
         }
+        showModifiedDates(details)
+    }
+
+    /**
+     * The date each recent map was last saved, here or elsewhere, as its provider reports it
+     * (for Drive, once the file reached the server). Asked off the main thread, since a
+     * provider may be slow; a map whose provider gives no date shows none.
+     */
+    private fun showModifiedDates(details: List<Pair<RecentMaps.Entry, TextView>>) {
+        if (details.isEmpty()) return
+        val format = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT)
+        thread {
+            val start = System.currentTimeMillis()
+            for ((entry, detail) in details) {
+                val date = lastModified(entry.document.toUri())?.let { format.format(Date(it)) } ?: continue
+                runOnUiThread { detail.text = if (detail.text.isEmpty()) date else "${detail.text} · $date" }
+            }
+            Log.i(TAG, "Modification dates of ${details.size} recent maps in ${System.currentTimeMillis() - start} ms")
+        }
+    }
+
+    private fun lastModified(uri: Uri): Long? = try {
+        contentResolver.query(uri, arrayOf(DocumentsContract.Document.COLUMN_LAST_MODIFIED), null, null, null)?.use {
+            if (it.moveToFirst() && !it.isNull(0)) it.getLong(0).takeIf { time -> time > 0 } else null
+        }
+    } catch (e: Exception) {
+        Log.w(TAG, "No modification date for $uri", e)
+        null
     }
 
     private fun selectableBackground(): Int {
