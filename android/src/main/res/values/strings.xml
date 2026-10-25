@@ -126,4 +126,14 @@ SPDX-License-Identifier: GPL-3.0-or-later
     <!-- %1$s: the address of the source code -->
     <string name="source_code_link">Source code: %1$s</string>
     <string name="lent_read_only">Opened from another app, which does not let Mapling save it.</string>
+    <string name="map_info">About this map</string>
+    <string name="info_map">Map: %1$s</string>
+    <string name="info_file">File: %1$s</string>
+    <string name="info_source">Source: %1$s</string>
+    <string name="info_size">Size: %1$s</string>
+    <string name="info_modified">Last modified: %1$s</string>
+    <string name="info_format">Format: %1$s</string>
+    <string name="info_lent">Opened from another app: not kept in the recent maps.</string>
+    <string name="info_read_only">Read-only.</string>
+    <string name="info_not_deletable">Its source does not let Mapling delete it.</string>
 </resources>

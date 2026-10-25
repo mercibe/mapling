@@ -122,4 +122,14 @@ SPDX-License-Identifier: GPL-3.0-or-later
     <string name="licenses">Licences</string>
     <string name="source_code_link">Code source : %1$s</string>
     <string name="lent_read_only">Ouverte depuis une autre application, qui ne permet pas à Mapling de l’enregistrer.</string>
+    <string name="map_info">Infos sur la carte</string>
+    <string name="info_map">Carte : %1$s</string>
+    <string name="info_file">Fichier : %1$s</string>
+    <string name="info_source">Source : %1$s</string>
+    <string name="info_size">Taille : %1$s</string>
+    <string name="info_modified">Modifiée le : %1$s</string>
+    <string name="info_format">Format : %1$s</string>
+    <string name="info_lent">Ouverte depuis une autre application : non conservée dans les cartes récentes.</string>
+    <string name="info_read_only">Lecture seule.</string>
+    <string name="info_not_deletable">Sa source ne permet pas à Mapling de la supprimer.</string>
 </resources>

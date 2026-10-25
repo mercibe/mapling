@@ -100,6 +100,7 @@ class MainActivity : AppCompatActivity() {
 
     /** What the core reports, to enable the commands (docs/BRIDGE.md, section 5). */
     private var mapReadOnly = false
+    private var mapVersion = "" // as written in the file, e.g. "freeplane 1.12.15"
     private var canUndo = false
     private var canRedo = false
     private var selection: JSONObject? = null
@@ -386,6 +387,12 @@ class MainActivity : AppCompatActivity() {
         val title = oneLine(documentTitle)
         header.findViewById<TextView>(R.id.drawer_title).text = title.ifEmpty { documentName }
         header.findViewById<TextView>(R.id.drawer_file).text = if (title.isEmpty()) "" else documentName
+        // Touching the open map's name tells more about it.
+        header.setBackgroundResource(selectableBackground())
+        header.setOnClickListener {
+            drawer.closeDrawer(GravityCompat.START)
+            showMapInfo()
+        }
 
         // Each icon has its own tint (grey, red for deleting): the drawer's single tint would override it.
         navigation.itemIconTintList = null
@@ -439,6 +446,57 @@ class MainActivity : AppCompatActivity() {
             true
         }
         drawer.openDrawer(GravityCompat.START)
+    }
+
+    // ---------- information on the map ----------
+
+    /**
+     * What is known of the open map and its file. Not its folder: Android tells it only to
+     * the system's file picker (MANAGE_DOCUMENTS), never to an app (checked with Drive,
+     * OneDrive and Dropbox, 2026-10-25); the app that provides the file is shown instead.
+     */
+    private fun showMapInfo() {
+        val uri = document ?: return
+        thread {
+            val source = try {
+                packageManager.resolveContentProvider(uri.authority!!, 0)?.applicationInfo?.loadLabel(packageManager)?.toString()
+            } catch (e: Exception) {
+                null
+            }
+            val size = try {
+                contentResolver.query(uri, arrayOf(DocumentsContract.Document.COLUMN_SIZE), null, null, null)?.use {
+                    if (it.moveToFirst() && !it.isNull(0)) it.getLong(0) else null
+                }
+            } catch (e: Exception) {
+                null
+            }
+            val modified = lastModified(uri)
+            runOnUiThread { if (document == uri && !isFinishing) mapInfoDialog(uri, source, size, modified) }
+        }
+    }
+
+    /** One line per thing known; what is not known is left out. */
+    private fun mapInfoDialog(uri: Uri, source: String?, size: Long?, modified: Long?) {
+        val lines = mutableListOf<String>()
+        fun line(label: Int, value: String?) {
+            if (!value.isNullOrEmpty()) lines.add(getString(label, value))
+        }
+        line(R.string.info_map, oneLine(documentTitle))
+        line(R.string.info_file, documentName)
+        line(R.string.info_source, source)
+        line(R.string.info_size, size?.let { android.text.format.Formatter.formatShortFileSize(this, it) })
+        line(R.string.info_modified, modified?.let { DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(it)) })
+        line(R.string.info_format, mapVersion.replaceFirstChar { it.uppercase() })
+        val status = mutableListOf<String>()
+        if (uri.toString() in lent) status.add(getString(R.string.info_lent))
+        if (mapReadOnly) status.add(getString(R.string.info_read_only))
+        if (uri.toString() !in deletable) status.add(getString(R.string.info_not_deletable))
+        val message = (listOf(lines.joinToString("\n")) + status).joinToString("\n\n")
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.map_info)
+            .setMessage(message)
+            .setPositiveButton(android.R.string.ok, null)
+            .show()
     }
 
     // ---------- about ----------
@@ -1024,6 +1082,7 @@ class MainActivity : AppCompatActivity() {
         documentTitle = message.optString("title")
         base = load.base
         mapReadOnly = message.getBoolean("readOnly")
+        mapVersion = message.optString("mapVersion")
         val warnings = message.getJSONArray("warnings")
         readOnlyReasons = List(warnings.length()) { warnings.getJSONObject(it).getString("code") }
         if (load.uri.toString() !in lent) {
