@@ -12,11 +12,18 @@ export interface Envelope {
   tail: string; // whitespace after the root element
 }
 
+// `&nbsp;` is an HTML entity, unknown to XML: Freeplane up to 1.11 wrote it in rich text,
+// and reads it back, but browsers reject the whole document. It is read as the same
+// character, which Freeplane 1.12 writes `&#xa0;`; except in comments, CDATA sections and
+// processing instructions, where it is only text.
+const NBSP_ENTITY = /(<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>|<\?[\s\S]*?\?>)|&nbsp;/g;
+
 export function parseXml(text: string): { doc: Document; envelope: Envelope } {
   let doc: Document;
   try {
     // The byte order mark is kept in the envelope; parsers may reject it in the text.
-    doc = new DOMParser().parseFromString(text.replace(/^\uFEFF/, ''), 'text/xml');
+    const xml = text.replace(/^\uFEFF/, '').replace(NBSP_ENTITY, (_match, verbatim) => verbatim ?? '&#xa0;');
+    doc = new DOMParser().parseFromString(xml, 'text/xml');
   } catch (e) {
     // xmldom throws on malformed XML; browsers return a <parsererror> document instead.
     throw new MapError('PARSE_ERROR', String(e));
