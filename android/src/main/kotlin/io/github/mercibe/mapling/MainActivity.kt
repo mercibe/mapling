@@ -860,7 +860,11 @@ class MainActivity : AppCompatActivity() {
             try {
                 val template = assets.open(NEW_MAP_TEMPLATE).use { it.readBytes() }
                 contentResolver.openOutputStream(uri, "wt")!!.use { it.write(template) }
-                runOnUiThread { open(uri) }
+                // The file holds what was just written: loaded as is, not read back. Dropbox
+                // serves no content for a moment after a write (checked on a Pixel, 2026-10-25).
+                // No date: a map just created cannot have been changed elsewhere, nothing to watch.
+                val name = displayName(uri)
+                runOnUiThread { load(uri, name, template, DraftStore.fingerprint(template), modified = null) }
             } catch (e: Exception) {
                 Log.w(TAG, "Cannot create $uri", e)
                 runOnUiThread { alert(R.string.error_write) }
