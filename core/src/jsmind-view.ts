@@ -151,11 +151,11 @@ export class JsMindView implements View {
         this.jm.select_node(key);
         return this.jm.begin_edit(key);
       case 'addChild':
-        return this.startNewNode(this.jm.add_node(key, PENDING_ID, PLACEHOLDER, { pending: true }));
+        return this.startNewNode(this.jm.add_node(key, PENDING_ID, PLACEHOLDER, {}));
       case 'addSibling': {
         const sibling = this.jm.get_node(key);
         if (!sibling || sibling.isroot) return;
-        const node = this.jm.insert_node_after(key, PENDING_ID, PLACEHOLDER, { pending: true }, sibling.direction);
+        const node = this.jm.insert_node_after(key, PENDING_ID, PLACEHOLDER, {}, sibling.direction);
         return this.startNewNode(node);
       }
       case 'deleteNode': {
@@ -300,12 +300,11 @@ export class JsMindView implements View {
     }
   }
 
-  /** Text, plus marks for CSS: lock (text not editable), dot (hidden content), new node. */
+  /** Text, plus marks for CSS: lock (text not editable), dot (hidden content). */
   private render(element: HTMLElement, node: JmNode): boolean {
     element.textContent = node.topic;
     element.classList.toggle('mapling-locked', !!node.data.readOnly);
     element.classList.toggle('mapling-hidden-content', !!node.data.hidden);
-    element.classList.toggle('mapling-pending', !!node.data.pending);
     return true;
   }
 }

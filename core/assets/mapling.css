@@ -68,9 +68,6 @@ jmnode:has(> .jsmind-editor), jmnode.selected:has(> .jsmind-editor) { background
 }
 .jsmind-editor::selection { background: #b5d8cf; }
 
-/* A node being added: placeholder text until validated. */
-jmnode.mapling-pending { font-style: italic; color: #888; }
-
 /* Text cannot be edited (rich or multi-line text): greyed, with a small lock. */
 jmnode.mapling-locked { color: #666; }
 jmnode.mapling-locked::after,
