@@ -96,6 +96,9 @@ export class JsMindView implements View {
         node_overflow: 'wrap',
         custom_node_render: (_jm: unknown, element: HTMLElement, node: JmNode) => this.render(element, node),
       },
+      // Siblings closer together, as in Freeplane (jsMind's default gap: 20 px); groups of
+      // children set apart from the next ones (cousin_space, 0 by default).
+      layout: { vspace: 6, cousin_space: 12 },
       shortcut: {
         // Adding and deleting go through the shell's commands (placeholder rule,
         // confirmation of deletions); jsMind's own shortcuts would bypass them.
@@ -332,7 +335,8 @@ function bottomAnchoredLayout(layout: JmLayout): void {
         children = 0;
         if (hideFolded) layout.set_visible(node.children, false);
       }
-      const cousins = layout._should_reserve_cousin_space(node) ? cousin_space / 2 : 0;
+      // Around a group of children shown: none to set apart when they are folded.
+      const cousins = node.expanded && layout._should_reserve_cousin_space(node) ? cousin_space / 2 : 0;
       const above = Math.max(node._data.view.height, children / 2) + cousins;
       const below = children / 2 + cousins;
       box.outer_height = above + below;

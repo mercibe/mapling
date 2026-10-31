@@ -28,7 +28,7 @@ jmnode { white-space: pre-wrap; max-width: 20em; }
 jmnode, jmnode:hover {
   font: 16px/1.25 system-ui, Roboto, "Segoe UI", sans-serif;
   color: #222;
-  padding: 4px 8px 3px;
+  padding: 2px 6px 1px; /* close to the text, as in Freeplane */
   border: 0;
   border-bottom: 2px solid #555;
   border-radius: 0;
