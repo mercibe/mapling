@@ -22,6 +22,10 @@ jmnode { -webkit-touch-callout: none; }
 /* Keep line breaks of multi-line texts and let long texts wrap. */
 jmnode { white-space: pre-wrap; max-width: 20em; }
 
+/* A string longer than a line (an address…) is cut where needed, as in Freeplane; words still
+   go to the next line whole. */
+jmnode, .mapling-text { overflow-wrap: anywhere; }
+
 /* Nodes drawn as Freeplane draws them: no box, an underline in the links' color and width
    (jsMind's defaults: #555, 2px), and the links meeting that underline. jsMind joins a link
    to the middle of a node's side; moving each node up by half its height puts the joint on
@@ -97,7 +101,9 @@ jmnode.mapling-hidden-content::before,
 }
 
 /* Icons before the text: a web link today; touching them opens it (see JsMindView.icons). */
-.mapling-icons { display: inline-block; margin-right: 0.3em; vertical-align: -0.15em; }
+jmnode.mapling-with-icons { display: flex; align-items: flex-start; }
+.mapling-icons { flex: none; display: flex; margin-right: 0.3em; padding-top: 0.1em; }
+.mapling-text { min-width: 0; }
 .mapling-link-icon {
   display: inline-block;
   width: 1.1em;

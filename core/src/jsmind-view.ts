@@ -344,10 +344,18 @@ export class JsMindView implements View {
 
   /** Icons, then the text, plus marks for CSS: lock (text not editable), dot (hidden content). */
   private render(element: HTMLElement, node: JmNode): boolean {
-    element.textContent = '';
     const link = node.data.link as string | undefined;
-    if (link) element.append(this.icons(link));
-    element.append(node.topic);
+    element.classList.toggle('mapling-with-icons', !!link);
+    if (link) {
+      // Icons on the left, the text as a block beside them, as in Freeplane.
+      const text = document.createElement('span');
+      text.className = 'mapling-text';
+      text.textContent = node.topic;
+      element.textContent = ''; // not replaceChildren: Chromium 86, one past the minimum
+      element.append(this.icons(link), text);
+    } else {
+      element.textContent = node.topic;
+    }
     element.classList.toggle('mapling-locked', !!node.data.readOnly);
     element.classList.toggle('mapling-hidden-content', !!node.data.hidden);
     return true;
