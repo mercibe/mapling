@@ -171,7 +171,7 @@ class MainActivity : AppCompatActivity() {
      * Document each pending `save` request belongs to, by requestId (docs/BRIDGE.md, section 7),
      * with the fingerprint of the content its map was based on when the save was requested.
      */
-    private class SaveTarget(val uri: Uri, val base: String, val asCopy: Boolean)
+    private class SaveTarget(val uri: Uri, val base: String, val copyName: String?) // copyName: as a copy
 
     private val saveTargets = mutableMapOf<String, SaveTarget>()
 
@@ -546,6 +546,14 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
+     * The map, as it is now, in a new file the user picks (the current name offered); then
+     * the map worked on. A map lent read-only goes by its own way, so that the copy is editable.
+     */
+    private fun saveAs() {
+        if (lent[document?.toString()] == false) pickLentCopy() else save(copyName = documentName)
+    }
+
+    /**
      * The less frequent commands, in a panel from the bottom: on the selected node (only
      * with one), then on the map, deleting it last.
      */
@@ -588,6 +596,7 @@ class MainActivity : AppCompatActivity() {
         if (selection == null) entry(R.string.center, R.drawable.ic_filter_center_focus, center)
         entry(R.string.map_info, R.drawable.ic_info) { showMapInfo() }
         entry(R.string.reload, R.drawable.ic_refresh) { leaveMap { open(uri) } }
+        entry(R.string.save_as, R.drawable.ic_save) { saveAs() }
         entry(R.string.close, R.drawable.ic_close) {
             leaveMap {
                 // Not reopened at the next start; a lent map never was, the one before it still is.
@@ -1204,7 +1213,7 @@ class MainActivity : AppCompatActivity() {
         val dialog = MaterialAlertDialogBuilder(this).setTitle(R.string.file_unreadable_title)
         if (dirty) {
             dialog.setMessage(getString(R.string.file_unreadable) + "\n\n" + getString(R.string.file_unreadable_changes))
-                .setPositiveButton(R.string.save_copy) { _, _ -> save(asCopy = true) }
+                .setPositiveButton(R.string.save_copy) { _, _ -> save(copyName = copyName()) }
                 .setNegativeButton(R.string.keep_editing, null)
         } else {
             dialog.setMessage(R.string.file_unreadable).setPositiveButton(android.R.string.ok, null)
@@ -1229,7 +1238,7 @@ class MainActivity : AppCompatActivity() {
             .setTitle(R.string.conflict_title)
             .setMessage(R.string.changed_elsewhere)
             .setCancelable(false)
-            .setPositiveButton(R.string.save_copy) { _, _ -> save(asCopy = true) }
+            .setPositiveButton(R.string.save_copy) { _, _ -> save(copyName = copyName()) }
             .setNeutralButton(R.string.reload) { _, _ -> load(uri, documentName, bytes, version, modified, discardDraft = true) }
             .setNegativeButton(R.string.keep_editing, null) // saving will ask again
             .show()
@@ -1280,10 +1289,10 @@ class MainActivity : AppCompatActivity() {
     // ---------- saving (docs/BRIDGE.md, section 6) ----------
 
     /** Returns the request's id, or null with no document open. As a copy, the user picks where. */
-    private fun save(asCopy: Boolean = false): String? {
+    private fun save(copyName: String? = null): String? {
         val uri = document ?: return null
         val requestId = "r${++requestCount}"
-        saveTargets[requestId] = SaveTarget(uri, base, asCopy)
+        saveTargets[requestId] = SaveTarget(uri, base, copyName)
         sendToCore(JSONObject().put("type", "save").put("requestId", requestId))
         return requestId
     }
@@ -1298,7 +1307,7 @@ class MainActivity : AppCompatActivity() {
         val target = saveTargets.remove(requestId) ?: return
         val saveId = message.getLong("saveId")
         val bytes = Base64.decode(message.getString("data"), Base64.NO_WRAP)
-        if (target.asCopy) return pickCopy(target.uri, saveId, bytes)
+        if (target.copyName != null) return pickCopy(target.uri, saveId, bytes, target.copyName)
         saveWriter.execute {
             val current = try {
                 contentResolver.openInputStream(target.uri)!!.use { DraftStore.fingerprint(it.readBytes()) }
@@ -1328,7 +1337,7 @@ class MainActivity : AppCompatActivity() {
             .setTitle(R.string.conflict_title)
             .setMessage(R.string.conflict_message)
             .setCancelable(false)
-            .setPositiveButton(R.string.save_copy) { _, _ -> pickCopy(uri, saveId, bytes) }
+            .setPositiveButton(R.string.save_copy) { _, _ -> pickCopy(uri, saveId, bytes, copyName()) }
             .setNeutralButton(R.string.overwrite) { _, _ -> saveWriter.execute { writeTo(uri, saveId, bytes) } }
             .setNegativeButton(android.R.string.cancel, null) // the map stays modified
             .show()
@@ -1362,8 +1371,11 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun pickCopy(uri: Uri, saveId: Long, bytes: ByteArray) {
-        val name = getString(R.string.copy_name, mapTitle(documentName)) + ".mm"
+    /** The name offered for a copy kept beside a version made elsewhere: "Map (copy).mm". */
+    private fun copyName() = getString(R.string.copy_name, mapTitle(documentName)) + ".mm"
+
+    /** Where the user picks, with `name` offered; once written, the copy is the map worked on. */
+    private fun pickCopy(uri: Uri, saveId: Long, bytes: ByteArray, name: String) {
         pendingCopy = PendingCopy(uri, name, saveId, bytes)
         val intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
             .addCategory(Intent.CATEGORY_OPENABLE)
