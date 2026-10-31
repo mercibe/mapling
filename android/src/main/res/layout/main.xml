@@ -161,5 +161,6 @@ SPDX-License-Identifier: GPL-3.0-or-later
         android:layout_width="wrap_content"
         android:layout_height="match_parent"
         android:layout_gravity="start"
+        app:itemIconTint="@color/menu_icon"
         app:itemMaxLines="2" />
 </androidx.drawerlayout.widget.DrawerLayout>
