@@ -3,7 +3,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { type DragPlugin, type Point, STILL_PX, TouchGestures, isStill, mayDrag, pinchZoom, withFinger } from '../src/touch.ts';
+import { DoubleTap, type DragPlugin, type Point, STILL_PX, TouchGestures, isStill, mayDrag, pinchZoom, withFinger } from '../src/touch.ts';
 
 test('only the selected node can be moved, and never while a text is edited', () => {
   assert.equal(mayDrag('ID_1', 'ID_1', false), true);
@@ -192,4 +192,33 @@ test('a cancelled move leaves no target behind for the next one', () => {
   touchMove([{ x: 100, y: 120 }], null); // lifted before any target is looked up
   touchEnd(0);
   assert.deepEqual(plugin.applied, [], 'never moved under B');
+});
+
+test('a double tap edits a node only if both taps were on it', () => {
+  const taps = new DoubleTap();
+  taps.tap('A');
+  taps.tap('A');
+  assert.equal(taps.onSameNode('A'), true);
+});
+
+test('a quick tap on a node, then on its neighbour, edits neither', () => {
+  const taps = new DoubleTap();
+  taps.tap('A');
+  taps.tap('B');
+  assert.equal(taps.onSameNode('B'), false);
+});
+
+test('a tap in the void, then on a node, does not edit it', () => {
+  const taps = new DoubleTap();
+  taps.tap(null);
+  taps.tap('A');
+  assert.equal(taps.onSameNode('A'), false);
+});
+
+test('only the last two taps count', () => {
+  const taps = new DoubleTap();
+  taps.tap('B');
+  taps.tap('A');
+  taps.tap('A');
+  assert.equal(taps.onSameNode('A'), true);
 });

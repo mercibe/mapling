@@ -8,7 +8,7 @@
 
 import type { Bridge, Command, View } from './bridge.ts';
 import type { MindMap, Side, ViewNode } from './map.ts';
-import { installTouchGestures, type TouchMap } from './touch.ts';
+import { DoubleTap, installTouchGestures, type TouchMap } from './touch.ts';
 
 // ---------- the parts of jsMind 0.9.1 used here (checked in its source) ----------
 
@@ -48,6 +48,8 @@ interface JsMindInstance extends TouchMap {
   view: TouchMap['view'] & {
     e_panel: HTMLElement;
     e_editor: HTMLInputElement;
+    is_node(element: EventTarget | null): boolean;
+    get_binded_nodeid(element: EventTarget | null): string | null;
     editing_node: JmNode | null;
     edit_node_end(): void;
   };
@@ -57,6 +59,7 @@ interface JsMindInstance extends TouchMap {
   select_node(id: string): void;
   select_clear(): void;
   begin_edit(id: string): void;
+  get_editable(): boolean;
   add_node(parentId: string, id: string, topic: string, data?: object, direction?: number): JmNode | null;
   insert_node_after(afterId: string, id: string, topic: string, data?: object, direction?: number): JmNode | null;
   insert_node_before(beforeId: string, id: string, topic: string, data?: object, direction?: number): JmNode | null;
@@ -99,6 +102,8 @@ export class JsMindView implements View {
       // Siblings closer together, as in Freeplane (jsMind's default gap: 20 px); groups of
       // children set apart from the next ones (cousin_space, 0 by default).
       layout: { vspace: 6, cousin_space: 12 },
+      // Double taps are handled here, on a single node (see DoubleTap).
+      default_event_handle: { enable_dblclick_handle: false },
       shortcut: {
         // Adding and deleting go through the shell's commands (placeholder rule,
         // confirmation of deletions); jsMind's own shortcuts would bypass them.
@@ -111,6 +116,7 @@ export class JsMindView implements View {
       },
     });
     this.guardEditing();
+    this.editOnDoubleTap();
     bottomAnchoredLayout(this.jm.layout);
     installTouchGestures(this.jm);
     this.jm.add_event_listener((type, event) => this.onJsMindEvent(type, event));
@@ -226,6 +232,18 @@ export class JsMindView implements View {
       const index = parent.children.indexOf(node);
       this.apply((map) => map.moveNode(key, parent.id, index, side(node)));
     }
+  }
+
+  /** jsMind would edit the node of the second tap, wherever the first one was. */
+  private editOnDoubleTap(): void {
+    const view = this.jm.view;
+    const nodeOf = (target: EventTarget | null) => (view.is_node(target) ? view.get_binded_nodeid(target) : null);
+    const taps = new DoubleTap();
+    view.e_panel.addEventListener('click', (event) => taps.tap(nodeOf(event.target)));
+    view.e_panel.addEventListener('dblclick', (event) => {
+      const key = nodeOf(event.target);
+      if (key && this.jm.get_editable() && taps.onSameNode(key)) this.jm.begin_edit(key);
+    });
   }
 
   /** Read-only texts cannot be edited; the end of editing completes a new node. */

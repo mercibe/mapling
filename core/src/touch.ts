@@ -38,6 +38,25 @@ export function pinchZoom(startZoom: number, startDistance: number, distance: nu
 }
 
 /** The parts of jsMind 0.9.1 the gestures read (checked in its source). */
+/**
+ * A double tap edits a node only if both taps were on it. Browsers report a double click
+ * for two quick taps close enough, with a wide tolerance for fingers: on two neighbouring
+ * nodes, or in the void then on a node, the second one would be edited.
+ */
+export class DoubleTap {
+  private taps: (string | null)[] = [null, null];
+
+  /** Each tap (a click), with the node it touched, or null outside any node. */
+  tap(key: string | null): void {
+    this.taps = [this.taps[1], key];
+  }
+
+  /** On the browser's double click: whether its two taps were both on this node. */
+  onSameNode(key: string): boolean {
+    return this.taps[0] === key && this.taps[1] === key;
+  }
+}
+
 export interface GestureMap {
   get_selected_node(): { id: string } | null;
   view: {
