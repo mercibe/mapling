@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+SPDX-FileCopyrightText: 2026 Benoit Mercier and Mapling contributors
+SPDX-License-Identifier: GPL-3.0-or-later
+-->
+<resources>
+    <!-- Buttons of the bottom bar: 4 centered, plus ⋮ on each side's reserved room, must fit
+         320 dp, the narrowest screen (48 dp: the smallest comfortable touch target). -->
+    <dimen name="node_button_width">48dp</dimen>
+</resources>

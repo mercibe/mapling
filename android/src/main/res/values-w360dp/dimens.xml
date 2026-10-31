@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+SPDX-FileCopyrightText: 2026 Benoit Mercier and Mapling contributors
+SPDX-License-Identifier: GPL-3.0-or-later
+-->
+<resources>
+    <!-- From 360 dp wide, the buttons' usual width: 6 × 56 dp fit. -->
+    <dimen name="node_button_width">56dp</dimen>
+</resources>

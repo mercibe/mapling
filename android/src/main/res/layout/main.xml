@@ -104,19 +104,28 @@ SPDX-License-Identifier: GPL-3.0-or-later
         android:layout_height="wrap_content"
         android:orientation="vertical" />
 
-    <LinearLayout
+    <!-- With a map open: the commands on the selected node, centered, and at the end ⋮ for
+         the less frequent ones, on the node and on the map. -->
+    <FrameLayout
         android:id="@+id/node_bar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:background="@color/node_bar"
-        android:gravity="center"
-        android:orientation="horizontal"
         android:visibility="gone">
+
+    <!-- Room for ⋮ on both sides, so that the group stays centered and never overlaps it. -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:layout_marginStart="@dimen/node_button_width"
+        android:layout_marginEnd="@dimen/node_button_width"
+        android:orientation="horizontal">
 
         <ImageButton
             android:id="@+id/edit_text"
             style="?android:attr/borderlessButtonStyle"
-            android:layout_width="56dp"
+            android:layout_width="@dimen/node_button_width"
             android:layout_height="48dp"
             android:contentDescription="@string/edit_text"
             android:src="@drawable/ic_edit"
@@ -126,7 +135,7 @@ SPDX-License-Identifier: GPL-3.0-or-later
         <ImageButton
             android:id="@+id/add_child"
             style="?android:attr/borderlessButtonStyle"
-            android:layout_width="56dp"
+            android:layout_width="@dimen/node_button_width"
             android:layout_height="48dp"
             android:contentDescription="@string/add_child"
             android:src="@drawable/ic_subdirectory_arrow_right"
@@ -136,7 +145,7 @@ SPDX-License-Identifier: GPL-3.0-or-later
         <ImageButton
             android:id="@+id/add_sibling"
             style="?android:attr/borderlessButtonStyle"
-            android:layout_width="56dp"
+            android:layout_width="@dimen/node_button_width"
             android:layout_height="48dp"
             android:contentDescription="@string/add_sibling"
             android:src="@drawable/ic_add_row_below"
@@ -146,13 +155,25 @@ SPDX-License-Identifier: GPL-3.0-or-later
         <ImageButton
             android:id="@+id/delete_node"
             style="?android:attr/borderlessButtonStyle"
-            android:layout_width="56dp"
+            android:layout_width="@dimen/node_button_width"
             android:layout_height="48dp"
             android:contentDescription="@string/delete_node"
             android:src="@drawable/ic_delete"
             app:tint="@color/node_icon"
             android:tooltipText="@string/delete_node" />
     </LinearLayout>
+
+        <ImageButton
+            android:id="@+id/more"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="@dimen/node_button_width"
+            android:layout_height="48dp"
+            android:layout_gravity="end|center_vertical"
+            android:contentDescription="@string/more"
+            android:src="@drawable/ic_more_vert"
+            app:tint="@color/node_icon"
+            android:tooltipText="@string/more" />
+    </FrameLayout>
 </LinearLayout>
 
     <!-- The ☰ drawer: the open map (header), the commands, the recent maps, About. -->

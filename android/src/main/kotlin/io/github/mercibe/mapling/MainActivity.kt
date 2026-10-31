@@ -46,7 +46,9 @@ import androidx.appcompat.widget.Toolbar
 import androidx.core.content.edit
 import androidx.core.net.toUri
 import androidx.core.view.GravityCompat
+import androidx.core.widget.TextViewCompat
 import androidx.drawerlayout.widget.DrawerLayout
+import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.navigation.NavigationView
 import io.github.mercibe.mapling.DraftStore.Draft
@@ -406,21 +408,6 @@ class MainActivity : AppCompatActivity() {
         }
         add(menu, getString(R.string.open), R.drawable.ic_folder_open, coreReady) { leaveMap(::pickDocument) }
         add(menu, getString(R.string.new_map), R.drawable.ic_note_add, coreReady) { leaveMap(::pickNewMap) }
-        add(menu, getString(R.string.reload), R.drawable.ic_refresh, open) { document?.let { uri -> leaveMap { open(uri) } } }
-        add(menu, getString(R.string.center), R.drawable.ic_filter_center_focus, open) {
-            sendToCore(JSONObject().put("type", "center"))
-        }
-        add(menu, getString(R.string.close), R.drawable.ic_close, open) {
-            leaveMap {
-                // Not reopened at the next start; a lent map never was, the one before it still is.
-                if (document?.toString() !in lent) preferences().edit { remove(LAST_OPEN) }
-                close()
-            }
-        }
-        // Last of the map's commands, out of the way of the frequent ones; shown only where it applies.
-        if (document?.toString() in deletable) {
-            add(menu, getString(R.string.delete_map), R.drawable.ic_delete, true) { confirmDeleteMap() }
-        }
         val others = recent.entries.filter { it.document != document?.toString() }
         if (others.isNotEmpty()) {
             val section = menu.addSubMenu(R.string.recent_maps) // a titled section in the drawer
@@ -555,6 +542,63 @@ class MainActivity : AppCompatActivity() {
         findViewById<ImageButton>(R.id.add_child).setOnClickListener { nodeCommand("addChild") }
         findViewById<ImageButton>(R.id.add_sibling).setOnClickListener { nodeCommand("addSibling") }
         findViewById<ImageButton>(R.id.delete_node).setOnClickListener { deleteSelected() }
+        findViewById<ImageButton>(R.id.more).setOnClickListener { showMore() }
+    }
+
+    /**
+     * The less frequent commands, in a panel from the bottom: on the selected node (only
+     * with one), then on the map, deleting it last.
+     */
+    private fun showMore() {
+        val uri = document ?: return
+        val sheet = BottomSheetDialog(this)
+        val list = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, dp(8), 0, dp(16))
+        }
+        fun title(text: Int) = list.addView(TextView(this).apply {
+            setText(text)
+            setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_TitleSmall)
+            setTextColor(getColor(R.color.menu_detail))
+            setPadding(dp(24), dp(16), dp(24), dp(8))
+        })
+        fun entry(text: Int, icon: Int, action: () -> Unit) = list.addView(TextView(this).apply {
+            setText(text)
+            textSize = 16f
+            setTextColor(getColor(R.color.message_text))
+            setCompoundDrawablesRelativeWithIntrinsicBounds(icon, 0, 0, 0)
+            TextViewCompat.setCompoundDrawableTintList(this, getColorStateList(R.color.menu_icon))
+            compoundDrawablePadding = dp(20)
+            gravity = Gravity.CENTER_VERTICAL
+            minHeight = dp(48)
+            setPadding(dp(24), 0, dp(24), 0)
+            setBackgroundResource(selectableBackground())
+            setOnClickListener {
+                sheet.dismiss()
+                action()
+            }
+        })
+        // Centers the selected node, or the root: always at hand to find the map again.
+        val center = { sendToCore(JSONObject().put("type", "center")) }
+        if (selection != null) {
+            title(R.string.more_node)
+            entry(R.string.center, R.drawable.ic_filter_center_focus, center)
+        }
+        title(R.string.more_map)
+        if (selection == null) entry(R.string.center, R.drawable.ic_filter_center_focus, center)
+        entry(R.string.map_info, R.drawable.ic_info) { showMapInfo() }
+        entry(R.string.reload, R.drawable.ic_refresh) { leaveMap { open(uri) } }
+        entry(R.string.close, R.drawable.ic_close) {
+            leaveMap {
+                // Not reopened at the next start; a lent map never was, the one before it still is.
+                if (document?.toString() !in lent) preferences().edit { remove(LAST_OPEN) }
+                close()
+            }
+        }
+        // Last, out of the way of the frequent ones; shown only where it applies.
+        if (uri.toString() in deletable) entry(R.string.delete_map, R.drawable.ic_delete) { confirmDeleteMap() }
+        sheet.setContentView(list)
+        sheet.show()
     }
 
     /** Commands name their target, taken from the latest selectionChanged (docs/BRIDGE.md). */
@@ -600,9 +644,10 @@ class MainActivity : AppCompatActivity() {
         webView.visibility = if (open) View.VISIBLE else View.INVISIBLE
         home.visibility = if (open || reopen != null) View.GONE else View.VISIBLE
         if (!open) renderHome()
-        // Shown whenever the map can be edited, so that the map does not jump at each selection.
-        nodeBar.visibility = if (open && !mapReadOnly) View.VISIBLE else View.GONE
-        val node = selection
+        // Shown whenever a map is open (its ⋮ applies to read-only maps too), so that the map
+        // does not jump at each selection.
+        nodeBar.visibility = if (open) View.VISIBLE else View.GONE
+        val node = selection.takeIf { !mapReadOnly }
         val root = node?.getBoolean("root") ?: true
         findViewById<View>(R.id.edit_text).isEnabled = node?.getBoolean("textEditable") ?: false
         findViewById<View>(R.id.add_child).isEnabled = node != null
