@@ -154,6 +154,9 @@ class MainActivity : AppCompatActivity() {
      */
     private val deletable = mutableSetOf<String>()
 
+    /** Likewise, documents whose provider says they can be renamed (Drive and Dropbox yes, OneDrive no). */
+    private val renamable = mutableSetOf<String>()
+
     /** What each pending `load` will open, by requestId: a refused load changes nothing. */
     private class PendingLoad(
         val uri: Uri,
@@ -554,6 +557,103 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
+     * Renames the map's file where it is (no file picker), once the map is saved: a draft
+     * would otherwise have to follow the document to its new address.
+     */
+    private fun renameMap() {
+        val uri = document ?: return
+        if (!dirty) return askNewName(uri)
+        MaterialAlertDialogBuilder(this)
+            .setMessage(R.string.rename_save_first)
+            .setPositiveButton(R.string.save_and_rename) { _, _ ->
+                save()?.let { requestId -> leaveAfterSave = LeaveAfterSave(requestId, uri) { askNewName(uri) } }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    /** The file's name without ".mm", ready to edit; ".mm" is added back. */
+    private fun askNewName(uri: Uri) {
+        val field = android.widget.EditText(this).apply {
+            setText(documentName.removeSuffix(".mm"))
+            setSingleLine()
+            selectAll()
+        }
+        val frame = android.widget.FrameLayout(this).apply {
+            setPadding(dp(24), dp(8), dp(24), 0)
+            addView(field)
+        }
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.rename_title)
+            .setView(frame)
+            .setPositiveButton(R.string.rename_button) { _, _ ->
+                val name = field.text.toString().trim().replace("/", "-")
+                if (name.isNotEmpty() && "$name.mm" != documentName) rename(uri, "$name.mm")
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+        field.requestFocus()
+        dialog.window?.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE)
+    }
+
+    /**
+     * Off the main thread. The provider may give the document a new address: the recent
+     * maps, the map reopened at start and what is known of the document then follow it.
+     */
+    private fun rename(uri: Uri, name: String) {
+        // Modal while the provider answers (a second or two): the map stays as saved until the
+        // end, so that closing it if its new address is out of reach loses nothing.
+        val wait = MaterialAlertDialogBuilder(this).setMessage(R.string.renaming).setCancelable(false).show()
+        thread {
+            val renamed = try {
+                DocumentsContract.renameDocument(contentResolver, uri, name)
+            } catch (e: Exception) {
+                Log.w(TAG, "Cannot rename $uri", e)
+                null
+            }
+            // Dropbox gives the renamed file a new address, and Android does not pass Mapling's
+            // access on to it (checked on a Pixel, 2026-10-30): then it cannot even be read.
+            val shown = renamed?.let {
+                try {
+                    displayName(it)
+                } catch (e: Exception) {
+                    Log.w(TAG, "No access to the renamed $it", e)
+                    null
+                }
+            }
+            Log.i(TAG, "Renamed to $shown: same address ${renamed == uri}, $renamed")
+            if (shown != null) learnFlags(renamed)
+            runOnUiThread {
+                wait.dismiss()
+                if (renamed == null) return@runOnUiThread alert(R.string.error_rename)
+                if (shown == null) return@runOnUiThread renamedOutOfReach(uri)
+                if (document == uri) {
+                    document = renamed
+                    documentName = shown
+                    newerVersionWatch = null // the old address
+                }
+                if (recent.entries.any { it.document == uri.toString() }) {
+                    val told = recent.hiddenContentTold(uri.toString())
+                    recent.remove(uri.toString())
+                    putFirstInRecent(renamed, shown, documentTitle)
+                    if (told) recent.tellHiddenContent(renamed.toString())
+                }
+                storeRecent()
+                if (renamed != uri) releaseAccess(uri) // the old address no longer leads anywhere
+                render()
+                toast(getString(R.string.map_renamed))
+            }
+        }
+    }
+
+    /** Renamed, but no longer reachable under its new address: closed, forgotten, and said so. */
+    private fun renamedOutOfReach(uri: Uri) {
+        if (document == uri) close()
+        forget(uri)
+        alert(R.string.renamed_out_of_reach)
+    }
+
+    /**
      * The less frequent commands, in a panel from the bottom: on the selected node (only
      * with one), then on the map, deleting it last.
      */
@@ -597,6 +697,7 @@ class MainActivity : AppCompatActivity() {
         entry(R.string.map_info, R.drawable.ic_info) { showMapInfo() }
         entry(R.string.reload, R.drawable.ic_refresh) { leaveMap { open(uri) } }
         entry(R.string.save_as, R.drawable.ic_save) { saveAs() }
+        if (uri.toString() in renamable) entry(R.string.rename, R.drawable.ic_edit) { renameMap() }
         entry(R.string.close, R.drawable.ic_close) {
             leaveMap {
                 // Not reopened at the next start; a lent map never was, the one before it still is.
@@ -728,16 +829,20 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** Off the main thread: records whether the provider says this document can be deleted. */
-    private fun learnDeletable(uri: Uri) {
-        val yes = try {
+    /** Off the main thread: records whether the provider says this document can be deleted, renamed. */
+    private fun learnFlags(uri: Uri) {
+        val flags = try {
             contentResolver.query(uri, arrayOf(DocumentsContract.Document.COLUMN_FLAGS), null, null, null)?.use {
-                it.moveToFirst() && !it.isNull(0) && it.getInt(0) and DocumentsContract.Document.FLAG_SUPPORTS_DELETE != 0
-            } ?: false
+                if (it.moveToFirst() && !it.isNull(0)) it.getInt(0) else 0
+            } ?: 0
         } catch (e: Exception) {
-            false // no flags: not offered
+            0 // no flags: nothing offered
         }
-        runOnUiThread { if (yes) deletable.add(uri.toString()) else deletable.remove(uri.toString()) }
+        fun record(set: MutableSet<String>, flag: Int) = if (flags and flag != 0) set.add(uri.toString()) else set.remove(uri.toString())
+        runOnUiThread {
+            record(deletable, DocumentsContract.Document.FLAG_SUPPORTS_DELETE)
+            record(renamable, DocumentsContract.Document.FLAG_SUPPORTS_RENAME)
+        }
     }
 
     private fun lastModified(uri: Uri): Long? = try {
@@ -1032,7 +1137,7 @@ class MainActivity : AppCompatActivity() {
                 // serves no content for a moment after a write (checked on a Pixel, 2026-10-25).
                 // No date: a map just created cannot have been changed elsewhere, nothing to watch.
                 val name = displayName(uri)
-                learnDeletable(uri)
+                learnFlags(uri)
                 runOnUiThread { load(uri, name, template, DraftStore.fingerprint(template), modified = null) }
             } catch (e: Exception) {
                 Log.w(TAG, "Cannot create $uri", e)
@@ -1049,7 +1154,7 @@ class MainActivity : AppCompatActivity() {
         thread {
             try {
                 val (bytes, modified) = readFile(uri)
-                learnDeletable(uri)
+                learnFlags(uri)
                 val name = displayName(uri)
                 val base = DraftStore.fingerprint(bytes)
                 val found = drafts.read(uri.toString())
@@ -1362,7 +1467,7 @@ class MainActivity : AppCompatActivity() {
                 val bytes = contentResolver.openInputStream(lentUri)!!.use { it.readBytes() }
                 contentResolver.openOutputStream(copy, "wt")!!.use { it.write(bytes) }
                 val name = displayName(copy)
-                learnDeletable(copy)
+                learnFlags(copy)
                 runOnUiThread { load(copy, name, bytes, DraftStore.fingerprint(bytes), modified = null) }
             } catch (e: Exception) {
                 Log.w(TAG, "Cannot copy $lentUri to $copy", e)
@@ -1404,7 +1509,7 @@ class MainActivity : AppCompatActivity() {
         val written = DraftStore.fingerprint(bytes)
         writeCheck.wrote(uri.toString(), written)
         // The copy is written: a provider failing to tell its name must not stop the save.
-        if (copy != null) learnDeletable(uri)
+        if (copy != null) learnFlags(uri)
         val name = copy?.let {
             try {
                 displayName(uri)

@@ -140,4 +140,13 @@ SPDX-License-Identifier: GPL-3.0-or-later
     <string name="more_node">Selected node</string>
     <string name="more_map">Map</string>
     <string name="save_as">Save as…</string>
+    <string name="rename">Rename…</string>
+    <string name="rename_title">Rename the map</string>
+    <string name="rename_button">Rename</string>
+    <string name="rename_save_first">This map has unsaved changes: it is saved first.</string>
+    <string name="save_and_rename">Save and rename</string>
+    <string name="map_renamed">Map renamed.</string>
+    <string name="error_rename">The map could not be renamed.</string>
+    <string name="renamed_out_of_reach">The map was renamed, but its source does not let Mapling keep it open under its new name. Open it again with Open.</string>
+    <string name="renaming">Renaming…</string>
 </resources>
