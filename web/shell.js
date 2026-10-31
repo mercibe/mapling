@@ -90,6 +90,10 @@ function receive(message) {
       if (map) state.draftFailed = !writeDraft(storage, map.draftKey, map.name, message.data);
       break;
     }
+    case 'openLink':
+      // Checked by the core (http or https only); opened apart, without access to this page.
+      window.open(message.url, '_blank', 'noopener,noreferrer');
+      break;
     case 'error':
       state.opening = null;
       showMessage('error', t(`error.${message.code}`));

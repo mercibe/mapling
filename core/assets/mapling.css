@@ -8,6 +8,8 @@
 :root {
   --mapling-lock: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 16'%3E%3Cpath d='M3 7V5a4 4 0 0 1 8 0v2' fill='none' stroke='%23777' stroke-width='2'/%3E%3Crect x='1' y='7' width='12' height='9' rx='1.5' fill='%23777'/%3E%3C/svg%3E");
   --mapling-dot-color: #4a7fd4;
+  /* An arrow out of a box: "opens elsewhere" (drawn for Mapling). */
+  --mapling-link: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23154d46' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 2.5H3.5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V9'/%3E%3Cpath d='M9.5 2.5h4v4M13.5 2.5 7 9'/%3E%3C/svg%3E");
 }
 
 #mapling { width: 100%; height: 100%; }
@@ -92,4 +94,14 @@ jmnode.mapling-hidden-content::before,
   vertical-align: 0.15em;
   border-radius: 50%;
   background: var(--mapling-dot-color);
+}
+
+/* Icons before the text: a web link today; touching them opens it (see JsMindView.icons). */
+.mapling-icons { display: inline-block; margin-right: 0.3em; vertical-align: -0.15em; }
+.mapling-link-icon {
+  display: inline-block;
+  width: 1.1em;
+  height: 1.1em;
+  cursor: pointer;
+  background: no-repeat center / contain var(--mapling-link);
 }

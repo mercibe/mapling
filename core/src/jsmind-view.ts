@@ -234,6 +234,27 @@ export class JsMindView implements View {
     }
   }
 
+  /**
+   * The icons before a node's text: today the link's only, room for more (task icons…).
+   * As in Freeplane, touching them opens the link; it neither selects the node nor starts
+   * a gesture on it.
+   */
+  private icons(link: string): HTMLElement {
+    const icons = document.createElement('span');
+    icons.className = 'mapling-icons';
+    const icon = document.createElement('span');
+    icon.className = 'mapling-link-icon';
+    icon.title = link;
+    icons.append(icon);
+    const keep = (event: Event) => event.stopPropagation();
+    for (const type of ['mousedown', 'touchstart', 'dblclick']) icons.addEventListener(type, keep);
+    icons.addEventListener('click', (event) => {
+      event.stopPropagation();
+      this.bridge?.openLink(link);
+    });
+    return icons;
+  }
+
   /** jsMind would edit the node of the second tap, wherever the first one was. */
   private editOnDoubleTap(): void {
     const view = this.jm.view;
@@ -321,9 +342,12 @@ export class JsMindView implements View {
     }
   }
 
-  /** Text, plus marks for CSS: lock (text not editable), dot (hidden content). */
+  /** Icons, then the text, plus marks for CSS: lock (text not editable), dot (hidden content). */
   private render(element: HTMLElement, node: JmNode): boolean {
-    element.textContent = node.topic;
+    element.textContent = '';
+    const link = node.data.link as string | undefined;
+    if (link) element.append(this.icons(link));
+    element.append(node.topic);
     element.classList.toggle('mapling-locked', !!node.data.readOnly);
     element.classList.toggle('mapling-hidden-content', !!node.data.hidden);
     return true;

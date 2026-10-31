@@ -43,7 +43,23 @@ export interface ViewNode {
   direction?: Side; // children of the root only
   readOnly?: boolean; // the text cannot be edited; the node can still be moved or deleted
   hidden?: HiddenKind[]; // content of this node that is not displayed
+  link?: string; // a web address (LINK), shown as an icon that opens it
   children: ViewNode[];
+}
+
+/**
+ * The web address a node links to, if any: only http and https are followed. Other links
+ * (inside the map, to another map, mail) are kept and counted as hidden content; Freeplane
+ * commands (execute:, menuitem:…) are never followed.
+ */
+export function webLink(value: string | null): string | null {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : null;
+  } catch {
+    return null; // not an absolute address (a relative path, #ID_…)
+  }
 }
 
 const ELEMENT_NODE = 1;
@@ -164,6 +180,8 @@ export class MindMap {
     };
     if (this.parentKey(key) === this.rootKey) view.direction = this.side(el);
     if (this.isReadOnly(key)) view.readOnly = true;
+    const link = webLink(el.getAttribute('LINK'));
+    if (link) view.link = link;
     const hidden = kinds(this.hiddenCounts([el]));
     if (hidden.length > 0) view.hidden = hidden;
     return view;
@@ -336,7 +354,7 @@ export class MindMap {
       add('note', rich('NOTE'));
       add('details', rich('DETAILS'));
       add('attribute', childElements(el, 'attribute').length);
-      add('link', el.hasAttribute('LINK') ? 1 : 0);
+      add('link', el.hasAttribute('LINK') && !webLink(el.getAttribute('LINK')) ? 1 : 0); // web links are shown
       add('icon', childElements(el, 'icon').length);
       add('connector', childElements(el, 'arrowlink').length);
       add('image', childElements(el, 'hook').filter((h) => h.getAttribute('NAME') === 'ExternalObject').length);

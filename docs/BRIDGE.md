@@ -153,7 +153,7 @@ The shell sends no message before `ready`.
 - `readOnly`: whether the **whole map** is read-only: nothing can be changed, either because the shell asked for it in `load` or because of its format version (see below).
 - `mapVersion`: the `version` attribute of `<map>`, as found in the file.
 - `title`: the root's text as displayed (plain text, possibly on several lines; a text Freeplane provides, such as a new map's root, in the user's language). Shells show it with the file's name, so that the user sees both what the map is about and which file holds it. Kept up to date by `titleChanged`.
-- `hiddenContent`: kinds of content present in the map but not displayed by Mapling, and kept intact. The shell tells the user once when opening the map (e.g. "This map contains notes and icons that are not shown. They are kept."). Kinds, always in this order: `note`, `details`, `attribute`, `link`, `icon`, `connector`, `image`. Images and link targets inside rich text count too, since rich text is shown as plain text. Formatting (fonts, colors, clouds, edge styles) is not reported.
+- `hiddenContent`: kinds of content present in the map but not displayed by Mapling, and kept intact. The shell tells the user once when opening the map (e.g. "This map contains notes and icons that are not shown. They are kept."). Kinds, always in this order: `note`, `details`, `attribute`, `link`, `icon`, `connector`, `image`. A node's web link (http or https) is displayed (see `openLink`), so it is not counted; its other links are (inside the map, to another map, mail). Images and link targets inside rich text count too, since rich text is shown as plain text. Formatting (fonts, colors, clouds, edge styles) is not reported.
 - `warnings`: non-blocking notices, each an object with a stable `code`. The shell displays them translated from the `code`.
 
 | Warning code | Meaning | Effect |
@@ -234,6 +234,14 @@ Sent whenever what the shell knows about the selected node changes: another node
 ```
 
 Emitted whenever the possibility to undo or redo changes. The shell uses it to enable its Undo and Redo commands. The history is cleared on every `load`.
+
+### `openLink`
+
+```json
+{ "v": 1, "type": "openLink", "url": "https://www.freeplane.org/" }
+```
+
+The user touched the icon of a node's web link. The shell opens the address apart from the map: the system's browser on a phone, a new tab on the web. The core sends only `http` and `https` addresses; Freeplane commands (`execute:`, `menuitem:`…) are never sent. The shell may check the scheme again.
 
 ### `error`
 

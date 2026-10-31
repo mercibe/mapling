@@ -10,7 +10,7 @@ const MAP =
   '<map version="freeplane 1.12.15">\n' +
   '<node TEXT="root" ID="ID_0">\n' +
   '<font SIZE="18"/>\n<hook NAME="MapStyle"/>\n' + // formatting and map properties: not reported
-  '<node TEXT="branch" ID="ID_1" LINK="https://example.org">\n' +
+  '<node TEXT="branch" ID="ID_1" LINK="#ID_3">\n' + // a link inside the map: not displayed
   '<icon BUILTIN="yes"/>\n<icon BUILTIN="idea"/>\n<cloud COLOR="#f0f0f0"/>\n' +
   '<node TEXT="child" ID="ID_2">\n' +
   '<richcontent TYPE="NOTE"><html><body><p>note</p></body></html></richcontent>\n' +

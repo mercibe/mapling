@@ -145,4 +145,5 @@ SPDX-License-Identifier: GPL-3.0-or-later
     <string name="error_rename">La carte n’a pas pu être renommée.</string>
     <string name="renamed_out_of_reach">La carte a été renommée, mais sa source ne permet pas à Mapling de la garder ouverte sous son nouveau nom. Rouvrez-la avec Ouvrir.</string>
     <string name="renaming">Renommage…</string>
+    <string name="error_no_browser">Aucune application de ce téléphone ne peut ouvrir ce lien.</string>
 </resources>

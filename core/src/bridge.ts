@@ -85,6 +85,7 @@ export type CoreMessage =
   | { type: 'draftData'; revision: number; data: string | null }
   | { type: 'historyChanged'; canUndo: boolean; canRedo: boolean }
   | { type: 'selectionChanged'; node: SelectedNode | null }
+  | { type: 'openLink'; url: string }
   | { type: 'error'; requestId?: string; code: BridgeErrorCode; message: string };
 
 /** What the bridge needs from the display (the jsMind adapter, or a fake in tests). */
@@ -175,6 +176,11 @@ export class Bridge {
   /** The open map, for the view adapter; null before the first successful load. */
   get current(): MapSession | null {
     return this.session;
+  }
+
+  /** A web link touched in the view (http or https, see webLink): the shell opens it. */
+  openLink(url: string): void {
+    this.post({ type: 'openLink', url });
   }
 
   /** Records the node selected in the view (null: none); the shell is told what it can do with it. */

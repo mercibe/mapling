@@ -648,6 +648,20 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * A web link touched on a node: opened by the phone's browser, not by Mapling, which has
+     * no network access. Checked by the core already (http or https only); checked again here.
+     */
+    private fun openLink(url: String) {
+        val uri = url.toUri()
+        if (uri.scheme != "http" && uri.scheme != "https") return
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW, uri).addCategory(Intent.CATEGORY_BROWSABLE))
+        } catch (e: android.content.ActivityNotFoundException) {
+            alert(R.string.error_no_browser)
+        }
+    }
+
     /** Close, asking first if unsaved: the map is no longer reopened at start. */
     private fun closeMap() {
         leaveMap {
@@ -1615,6 +1629,7 @@ class MainActivity : AppCompatActivity() {
             "loaded" -> pendingLoads.remove(message.getString("requestId"))?.let { loaded(it, message) }
             "draftData" -> keepDraft(message)
             "saveData" -> write(message)
+            "openLink" -> openLink(message.getString("url"))
             "titleChanged" -> {
                 documentTitle = message.getString("title")
                 if (!dirty) recentTitleIsSaved()
