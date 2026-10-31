@@ -290,7 +290,7 @@ test('selectionChanged tells the shell what it can do with the selected node', (
   const { bridge, take } = loaded();
   bridge.select('ID_1964929139'); // D, which has a note
   assert.deepEqual(take(), [{ v: 1, type: 'selectionChanged', node: {
-    id: 'ID_1964929139', revision: 0, root: false, textEditable: true,
+    id: 'ID_1964929139', revision: 0, root: false, textEditable: true, link: null, textLink: null,
     hidden: { note: 1 }, branch: { descendants: 0, hidden: { note: 1 } },
   } }]);
   bridge.select('ID_1500080539'); // rich text: its text cannot be edited

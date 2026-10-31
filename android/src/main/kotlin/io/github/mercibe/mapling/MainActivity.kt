@@ -47,6 +47,7 @@ import androidx.core.content.edit
 import androidx.core.net.toUri
 import androidx.core.view.GravityCompat
 import androidx.core.widget.TextViewCompat
+import androidx.core.widget.doAfterTextChanged
 import androidx.drawerlayout.widget.DrawerLayout
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -653,13 +654,74 @@ class MainActivity : AppCompatActivity() {
      * no network access. Checked by the core already (http or https only); checked again here.
      */
     private fun openLink(url: String) {
+        if (!isWebLink(url)) return
         val uri = url.toUri()
-        if (uri.scheme != "http" && uri.scheme != "https") return
         try {
             startActivity(Intent(Intent.ACTION_VIEW, uri).addCategory(Intent.CATEGORY_BROWSABLE))
         } catch (e: android.content.ActivityNotFoundException) {
             alert(R.string.error_no_browser)
         }
+    }
+
+    /** At opening only, a last check of what the core sends (an http or https address). */
+    private fun isWebLink(text: String): Boolean {
+        val uri = text.toUri()
+        return (uri.scheme == "http" || uri.scheme == "https") && !uri.host.isNullOrEmpty()
+    }
+
+    /**
+     * The selected node's link, as the user types it: offered from its current link, or else
+     * from the first web address in its text. Kept as typed; a text that is not a web address
+     * is said so, as it will not be shown as a link: the core tells, by the rule it shows links
+     * with (MindCore.webLink), so that the note says exactly that. Removing it is offered when
+     * there is one.
+     */
+    private fun editLink(node: JSONObject) {
+        val id = node.getString("id")
+        val current = if (node.isNull("link")) null else node.getString("link")
+        val offered = current ?: if (node.isNull("textLink")) "" else node.getString("textLink")
+        val field = android.widget.EditText(this).apply {
+            setText(offered)
+            setSingleLine()
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_URI
+            hint = "https://"
+            selectAll()
+        }
+        val note = TextView(this).apply {
+            setText(R.string.link_not_web)
+            textSize = 13f
+            setTextColor(getColor(R.color.menu_detail))
+            visibility = View.GONE
+        }
+        var asked = "" // the text last asked about: an older answer is ignored
+        fun check() {
+            val text = field.text.toString().trim()
+            asked = text
+            if (text.isEmpty()) {
+                note.visibility = View.GONE
+                return
+            }
+            webView.evaluateJavascript("MindCore.webLink(${JSONObject.quote(text)})") { shown ->
+                if (text == asked) note.visibility = if (shown == "null") View.VISIBLE else View.GONE
+            }
+        }
+        check()
+        field.doAfterTextChanged { check() }
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(24), dp(8), dp(24), 0)
+            addView(field)
+            addView(note)
+        }
+        fun send(link: Any) = sendToCore(JSONObject().put("type", "setLink").put("id", id).put("link", link))
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle(if (current == null) R.string.add_link_title else R.string.edit_link_title)
+            .setView(content)
+            .setPositiveButton(android.R.string.ok) { _, _ -> send(field.text.toString()) }
+            .setNegativeButton(android.R.string.cancel, null)
+        if (current != null) dialog.setNeutralButton(R.string.remove_link) { _, _ -> send(JSONObject.NULL) }
+        dialog.show().window?.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE)
+        field.requestFocus()
     }
 
     /** Close, asking first if unsaved: the map is no longer reopened at start. */
@@ -713,9 +775,13 @@ class MainActivity : AppCompatActivity() {
         })
         // Centers the selected node, or the root: always at hand to find the map again.
         val center = { sendToCore(JSONObject().put("type", "center")) }
-        if (selection != null) {
+        val node = selection
+        if (node != null) {
             title(R.string.more_node)
             entry(R.string.center, R.drawable.ic_filter_center_focus, center)
+            if (!mapReadOnly) {
+                entry(if (node.isNull("link")) R.string.add_link else R.string.edit_link, R.drawable.ic_link) { editLink(node) }
+            }
         }
         title(R.string.more_map)
         if (selection == null) entry(R.string.center, R.drawable.ic_filter_center_focus, center)

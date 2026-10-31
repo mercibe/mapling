@@ -39,6 +39,10 @@ export interface SelectedNode {
   revision: number;
   root: boolean;
   textEditable: boolean;
+  /** The node's link as written, whatever its kind (null: none); `setLink` changes it. */
+  link: string | null;
+  /** The first web address in the node's text (null: none), to offer as its link. */
+  textLink: string | null;
   /** Content of this node that is not displayed, by kind (what its dot stands for). */
   hidden: Partial<Record<HiddenKind, number>>;
   branch: BranchSummary;
@@ -62,6 +66,7 @@ export type ShellMessage = { v: number; requestId?: string } & (
   | { type: 'undo' }
   | { type: 'redo' }
   | { type: 'center' }
+  | { type: 'setLink'; id: string; link: string | null }
   | { type: Command; id: string; revision?: number }
 );
 
@@ -223,6 +228,8 @@ export class Bridge {
         // Not an edit: also available on a read-only map.
         if (this.session) this.view.center(this.selection()?.id ?? null);
         return;
+      case 'setLink':
+        return this.setLink(message.id, message.link);
       case 'editText':
       case 'addChild':
       case 'addSibling':
@@ -332,6 +339,17 @@ export class Bridge {
     this.view.command(name, key);
   }
 
+  /** The node's link as the user typed it, or none: an edit, undone like the others. */
+  private setLink(key: string, link: string | null): void {
+    const session = this.session;
+    if (!session) throw new BridgeError('NO_MAP_LOADED', 'No map loaded');
+    if (this.readOnly) return;
+    if (!session.map.has(key)) throw new BridgeError('OUTDATED_COMMAND', `Unknown node: ${key}`);
+    if (this.edit((map) => map.setLink(key, link))) {
+      this.view.show(session.map.toView(this.locale), this.readOnly, true);
+    }
+  }
+
   private history(direction: 'undo' | 'redo'): void {
     const session = this.session;
     if (!session || this.readOnly) return;
@@ -382,6 +400,8 @@ export class Bridge {
       revision: session.revision,
       root: key === map.rootKey,
       textEditable: !this.readOnly && !map.isReadOnly(key),
+      link: map.link(key),
+      textLink: map.textLink(key),
       hidden: map.nodeHidden(key),
       branch: map.branchSummary(key),
     };

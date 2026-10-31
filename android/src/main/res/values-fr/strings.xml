@@ -146,4 +146,10 @@ SPDX-License-Identifier: GPL-3.0-or-later
     <string name="renamed_out_of_reach">La carte a été renommée, mais sa source ne permet pas à Mapling de la garder ouverte sous son nouveau nom. Rouvrez-la avec Ouvrir.</string>
     <string name="renaming">Renommage…</string>
     <string name="error_no_browser">Aucune application de ce téléphone ne peut ouvrir ce lien.</string>
+    <string name="add_link">Ajouter un lien…</string>
+    <string name="edit_link">Modifier le lien…</string>
+    <string name="add_link_title">Ajouter un lien</string>
+    <string name="edit_link_title">Modifier le lien</string>
+    <string name="remove_link">Retirer le lien</string>
+    <string name="link_not_web">Ce n’est pas une adresse web (http ou https) : Mapling ne l’affichera pas comme lien.</string>
 </resources>

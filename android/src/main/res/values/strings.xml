@@ -150,4 +150,10 @@ SPDX-License-Identifier: GPL-3.0-or-later
     <string name="renamed_out_of_reach">The map was renamed, but its source does not let Mapling keep it open under its new name. Open it again with Open.</string>
     <string name="renaming">Renaming…</string>
     <string name="error_no_browser">No app on this phone can open this link.</string>
+    <string name="add_link">Add a link…</string>
+    <string name="edit_link">Edit the link…</string>
+    <string name="add_link_title">Add a link</string>
+    <string name="edit_link_title">Edit the link</string>
+    <string name="remove_link">Remove the link</string>
+    <string name="link_not_web">Not a web address (http or https): Mapling will not show it as a link.</string>
 </resources>

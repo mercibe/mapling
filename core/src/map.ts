@@ -235,6 +235,39 @@ export class MindMap {
     return true;
   }
 
+  /** The node's link as written (LINK), whatever its kind; null when it has none. */
+  link(key: string): string | null {
+    const el = this.element(key);
+    return el.hasAttribute('LINK') ? el.getAttribute('LINK') : null;
+  }
+
+  /** The first web address written in the node's text, as written; null when there is none. */
+  textLink(key: string): string | null {
+    return this.text(key).split(/\s+/).find((word) => webLink(word) !== null) ?? null;
+  }
+
+  /**
+   * Sets the node's link (LINK) as given, or removes it (null or blank). A new link goes
+   * right after MODIFIED, where Freeplane 1.12 writes it. Returns false when unchanged.
+   */
+  setLink(key: string, link: string | null, now = Date.now()): boolean {
+    this.checkMapEditable();
+    const el = this.element(key);
+    const value = link?.trim() || null;
+    if (value === this.link(key)) return false;
+    this.ensureId(el);
+    el.setAttribute('MODIFIED', String(now));
+    if (value === null) {
+      el.removeAttribute('LINK');
+    } else {
+      const names = Array.from(el.attributes).map((a) => a.name);
+      const next = names[names.indexOf('MODIFIED') + 1];
+      if (next) this.setAttributeBefore(el, 'LINK', value, next);
+      else el.setAttribute('LINK', value);
+    }
+    return true;
+  }
+
   /** Adds a node under `parentKey` at `index` among its siblings, and returns its key. */
   addNode(parentKey: string, index: number, text: string, side: Side = 'right', now = Date.now()): string {
     this.checkMapEditable();
