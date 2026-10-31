@@ -47,7 +47,7 @@ interface JsMindInstance extends TouchMap {
   layout: JmLayout;
   view: TouchMap['view'] & {
     e_panel: HTMLElement;
-    e_editor: HTMLInputElement;
+    e_editor: HTMLInputElement | HTMLTextAreaElement;
     is_node(element: EventTarget | null): boolean;
     get_binded_nodeid(element: EventTarget | null): string | null;
     editing_node: JmNode | null;
@@ -58,7 +58,7 @@ interface JsMindInstance extends TouchMap {
   get_selected_node(): JmNode | null;
   select_node(id: string): void;
   select_clear(): void;
-  begin_edit(id: string): void;
+  begin_edit(target: string | JmNode): void; // given an id, jsMind calls it again with the node
   get_editable(): boolean;
   add_node(parentId: string, id: string, topic: string, data?: object, direction?: number): JmNode | null;
   insert_node_after(afterId: string, id: string, topic: string, data?: object, direction?: number): JmNode | null;
@@ -84,6 +84,8 @@ const PENDING_ID = '_pending';
 export class JsMindView implements View {
   private readonly jm: JsMindInstance;
   private bridge: Bridge | null = null;
+  /** Height of the node being edited, before its editor (null: root, or not editing). */
+  private editedHeight: number | null = null;
 
   constructor(container: HTMLElement | string) {
     this.jm = new jsMind({
@@ -270,31 +272,76 @@ export class JsMindView implements View {
   /** Read-only texts cannot be edited; the end of editing completes a new node. */
   private guardEditing(): void {
     const jm = this.jm;
-    const beginEdit = jm.begin_edit.bind(jm);
-    jm.begin_edit = (id: string) => {
-      const node = jm.get_node(id);
-      if (node && node.data.readOnly) return;
-      beginEdit(id);
-      // jsMind sizes the editor to the node (a new node's "…" is tiny): let the CSS size it.
-      jm.view.e_editor.style.width = '';
-    };
     const view = jm.view;
+    const editor = this.textEditor(() => this.keepOnItsLink());
+    const beginEdit = jm.begin_edit.bind(jm);
+    jm.begin_edit = (target: string | JmNode) => {
+      const node = typeof target === 'string' ? jm.get_node(target) : target;
+      if (!node || node.data.readOnly) return;
+      const element = node._data.view.element;
+      this.editedHeight = element && !node.isroot ? element.offsetHeight : null;
+      beginEdit(node); // the node itself: given its id, jsMind would call this function again
+      // jsMind empties the node for its editor: the icons go back in front of it.
+      const link = node.data.link as string | undefined;
+      if (link && editor.parentElement) editor.before(this.icons(link));
+      // jsMind sizes the editor to the node (a new node's "…" is tiny): let the CSS size it.
+      editor.style.width = '';
+      fitHeight(editor);
+      this.keepOnItsLink();
+    };
     const editNodeEnd = view.edit_node_end.bind(view);
     view.edit_node_end = () => {
       const node = view.editing_node;
+      if (node?._data.view.element) node._data.view.element.style.transform = ''; // back to the CSS
+      this.editedHeight = null;
       editNodeEnd();
       if (node && node.id === PENDING_ID) this.completeNewNode(node);
     };
-    // jsMind ends editing on Enter by the legacy `keyCode` 13 only; virtual keyboards
-    // (Android) and synthetic events may leave it at 0 or 229, while `key` is reliable.
-    view.e_editor.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter' && event.keyCode !== 13) view.edit_node_end();
-    });
     const selectClear = jm.select_clear.bind(jm);
     jm.select_clear = () => {
       selectClear();
       this.bridge?.select(null); // jsMind emits no event for this
     };
+  }
+
+  /**
+   * jsMind placed the node for its height before editing; the CSS lifts it by half its
+   * height so that its bottom meets its link. While the editor changes that height, the
+   * lift is set from both heights, so that the bottom stays on the link.
+   */
+  private keepOnItsLink(): void {
+    const element = this.jm.view.editing_node?._data.view.element;
+    if (!element || this.editedHeight === null) return;
+    element.style.transform = `translateY(${this.editedHeight / 2 - element.offsetHeight}px)`;
+  }
+
+  /**
+   * A text area instead of jsMind's one-line field, which jsMind only fills, places, selects
+   * and reads (checked in its source): a long text wraps while it is edited, as in the node
+   * and in Freeplane. The text stays on one line: Enter validates, and line breaks pasted
+   * become spaces (a text on several lines could no longer be edited here).
+   */
+  private textEditor(fitted: () => void): HTMLTextAreaElement {
+    const view = this.jm.view;
+    const editor = document.createElement('textarea');
+    editor.className = 'jsmind-editor';
+    editor.rows = 1;
+    // `key`, not only the legacy keyCode 13 jsMind checks: virtual keyboards (Android) and
+    // synthetic events may leave it at 0 or 229.
+    editor.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' && event.keyCode !== 13) return;
+      event.preventDefault(); // no line break
+      event.stopPropagation();
+      view.edit_node_end();
+    });
+    editor.addEventListener('input', () => {
+      if (/[\r\n]/.test(editor.value)) editor.value = editor.value.replace(/\r\n|\r|\n/g, ' ');
+      fitHeight(editor);
+      fitted();
+    });
+    editor.addEventListener('blur', () => view.edit_node_end());
+    view.e_editor = editor;
+    return editor;
   }
 
   // ---------- adding a node: created in the map only once its text is validated ----------
@@ -402,6 +449,12 @@ function bottomAnchoredLayout(layout: JmLayout): void {
   };
   layout._layout_offset_subnodes = (nodes) => place(nodes, true);
   layout._layout_offset_subnodes_height = (nodes) => place(nodes, false);
+}
+
+/** As tall as its text, on every WebView (field-sizing is recent: Chromium 123). */
+function fitHeight(editor: HTMLTextAreaElement): void {
+  editor.style.height = 'auto';
+  editor.style.height = `${editor.scrollHeight}px`;
 }
 
 function side(node: JmNode): Side {

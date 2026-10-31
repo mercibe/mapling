@@ -73,7 +73,7 @@ jsMind 0.9.1 (vendored in `core/vendor/`) draws the map and captures gestures, b
 
 ## Browser support
 
-The core and jsMind run in Chromium 85 or later, the oldest version that has every JavaScript feature they use (the latest one being logical assignment, `??=`, in Chromium 85; jsMind itself needs static class fields, Chromium 72). The stylesheet uses two later CSS features only to widen the text editor (`:has()`, Chromium 105; `field-sizing`, Chromium 123): without them, the editor keeps its minimum width. DOM methods newer than Chromium 85 are avoided (`replaceChildren`, for instance, is Chromium 86). The Android shell checks the WebView's version at startup (`MIN_CHROMIUM`). Raising this minimum is a deliberate change: update this section and `MIN_CHROMIUM` together.
+The core and jsMind run in Chromium 85 or later, the oldest version that has every JavaScript feature they use (the latest one being logical assignment, `??=`, in Chromium 85; jsMind itself needs static class fields, Chromium 72). The text editor is a text area that wraps as the node does, its height fitted by script on every version. The stylesheet uses two later CSS features only to size it more finely (`:has()`, Chromium 105; `field-sizing`, Chromium 123): without them, the editor takes a node's full width. DOM methods newer than Chromium 85 are avoided (`replaceChildren`, for instance, is Chromium 86). The Android shell checks the WebView's version at startup (`MIN_CHROMIUM`). Raising this minimum is a deliberate change: update this section and `MIN_CHROMIUM` together.
 
 ## Tests (`core/test`)
 

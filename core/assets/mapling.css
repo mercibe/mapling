@@ -55,8 +55,20 @@ jmnode.root, jmnode.root:hover {
 jmnode.selected, jmnode.selected:hover { background-color: #d9ebe6; color: #10352f; box-shadow: none; }
 
 /* The text editor: at least about fifteen characters wide, growing with the text where
-   the browser can (field-sizing), within the screen; the node grows with it meanwhile. */
-.jsmind-editor { min-width: 15ch; max-width: 80vw; field-sizing: content; }
+   the browser can (field-sizing), up to a node's width, then on several lines as the node;
+   its height follows the text (fitHeight). The node grows with it meanwhile. */
+.jsmind-editor {
+  min-width: 15ch;
+  max-width: 20em;
+  field-sizing: content;
+  resize: none;
+  overflow: hidden;
+  display: block;
+  line-height: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+@supports not (field-sizing: content) { .jsmind-editor { width: 20em; } }
 jmnode:has(> .jsmind-editor) { max-width: none; }
 
 /* While a text is edited: one line only, the node's own underline; no frame, no focus
