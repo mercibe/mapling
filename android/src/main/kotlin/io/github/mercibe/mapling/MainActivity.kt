@@ -410,6 +410,8 @@ class MainActivity : AppCompatActivity() {
             return menu.add(group, id, Menu.NONE, label).setIcon(icon).setEnabled(enabled)
         }
         add(menu, getString(R.string.open), R.drawable.ic_folder_open, coreReady) { leaveMap(::pickDocument) }
+        // Back to the home screen: the opposite of Open (also in the ⋮ menu, with the map's commands).
+        if (open) add(menu, getString(R.string.close), R.drawable.ic_close, true, action = ::closeMap)
         add(menu, getString(R.string.new_map), R.drawable.ic_note_add, coreReady) { leaveMap(::pickNewMap) }
         val others = recent.entries.filter { it.document != document?.toString() }
         if (others.isNotEmpty()) {
@@ -646,6 +648,15 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /** Close, asking first if unsaved: the map is no longer reopened at start. */
+    private fun closeMap() {
+        leaveMap {
+            // A lent map never was reopened at start; the one before it still is.
+            if (document?.toString() !in lent) preferences().edit { remove(LAST_OPEN) }
+            close()
+        }
+    }
+
     /** Renamed, but no longer reachable under its new address: closed, forgotten, and said so. */
     private fun renamedOutOfReach(uri: Uri) {
         if (document == uri) close()
@@ -698,13 +709,7 @@ class MainActivity : AppCompatActivity() {
         entry(R.string.reload, R.drawable.ic_refresh) { leaveMap { open(uri) } }
         entry(R.string.save_as, R.drawable.ic_save) { saveAs() }
         if (uri.toString() in renamable) entry(R.string.rename, R.drawable.ic_edit) { renameMap() }
-        entry(R.string.close, R.drawable.ic_close) {
-            leaveMap {
-                // Not reopened at the next start; a lent map never was, the one before it still is.
-                if (document?.toString() !in lent) preferences().edit { remove(LAST_OPEN) }
-                close()
-            }
-        }
+        entry(R.string.close, R.drawable.ic_close, ::closeMap)
         // Last, out of the way of the frequent ones; shown only where it applies.
         if (uri.toString() in deletable) entry(R.string.delete_map, R.drawable.ic_delete) { confirmDeleteMap() }
         sheet.setContentView(list)
