@@ -52,6 +52,11 @@ interface JsMindInstance extends TouchMap {
     get_binded_nodeid(element: EventTarget | null): string | null;
     editing_node: JmNode | null;
     edit_node_end(): void;
+    opts: { hmargin: number; vmargin: number };
+    expand_size(): void;
+    relayout(): void;
+    resize(): void;
+    get_view_offset(): { x: number; y: number };
   };
   show(mind: object, skipCentering?: boolean): void;
   get_node(id: string): JmNode | null;
@@ -76,6 +81,9 @@ declare const jsMind: {
 };
 
 // ---------- the view ----------
+
+/** A zoom (a pinch, the wheel) is over once no step came for this long: the map is sized then. */
+const ZOOM_SETTLED_MS = 150;
 
 /** Text of a node being added, until its text is validated (neutral: no language). */
 export const PLACEHOLDER = '…';
@@ -118,6 +126,7 @@ export class JsMindView implements View {
       },
     });
     this.guardEditing();
+    this.roomAroundTheMap();
     this.editOnDoubleTap();
     bottomAnchoredLayout(this.jm.layout);
     installTouchGestures(this.jm);
@@ -269,6 +278,76 @@ export class JsMindView implements View {
     });
   }
 
+  /**
+   * jsMind keeps only a fixed margin (100 px) beyond the outermost nodes: the root of a map
+   * whose nodes are all on one side sits near the edge, and cannot be centered. A margin of
+   * the whole visible area, at the current zoom, lets any node go as far as the opposite
+   * edge, as in Freeplane. jsMind reads its margins when it sizes the map (expand_size), which
+   * it does not do on zooming (set_zoom only draws) nor when the map's area changes size:
+   * then the view does it, and keeps what is on screen in place. Not at each step of a pinch:
+   * resizing the map's whole area at each frame made it less fluid; once, when it ends.
+   */
+  private roomAroundTheMap(): void {
+    const view = this.jm.view;
+    const panel = view.e_panel;
+    const expandSize = view.expand_size.bind(view);
+    view.expand_size = () => {
+      view.opts.hmargin = Math.round(panel.clientWidth / view.zoom_current);
+      view.opts.vmargin = Math.round(panel.clientHeight / view.zoom_current);
+      expandSize();
+    };
+    const setZoom = view.set_zoom.bind(view);
+    let zoomEnd: ReturnType<typeof setTimeout> | undefined;
+    view.set_zoom = (zoom, center) => {
+      if (!setZoom(zoom, center)) return false;
+      clearTimeout(zoomEnd);
+      zoomEnd = setTimeout(() => {
+        if (!this.jm.mind) return;
+        const before = view.get_view_offset();
+        const scroll = { left: panel.scrollLeft, top: panel.scrollTop };
+        view.relayout(); // sizes, then draws
+        this.followMap(before, scroll);
+      }, ZOOM_SETTLED_MS);
+      return true;
+    };
+    // The point of the map in the middle of the area stays in the middle. It is noted at each
+    // scroll, in the map's own units: once the area has changed size, the browser may already
+    // have cut the scrolling down to the new limits, and it can no longer be read.
+    let size = { width: panel.clientWidth, height: panel.clientHeight };
+    let middle: { x: number; y: number } | null = null;
+    panel.addEventListener('scroll', () => {
+      if (panel.clientWidth !== size.width || panel.clientHeight !== size.height) return; // being resized
+      const offset = view.get_view_offset();
+      middle = {
+        x: (panel.scrollLeft + size.width / 2) / view.zoom_current - offset.x,
+        y: (panel.scrollTop + size.height / 2) / view.zoom_current - offset.y,
+      };
+    });
+    new ResizeObserver(() => {
+      const { clientWidth: width, clientHeight: height } = panel;
+      if (width === 0 || (width === size.width && height === size.height)) return; // hidden, or unchanged
+      size = { width, height };
+      if (!this.jm.mind) return;
+      const point = middle;
+      view.resize();
+      if (!point) return;
+      const offset = view.get_view_offset();
+      panel.scrollLeft = (point.x + offset.x) * view.zoom_current - width / 2;
+      panel.scrollTop = (point.y + offset.y) * view.zoom_current - height / 2;
+    }).observe(panel);
+  }
+
+  /**
+   * Sizing the map again moves it inside its area (by the change of its offset): scrolls by
+   * as much from `scroll`, so that the map stays where it was on screen.
+   */
+  private followMap(before: { x: number; y: number }, scroll: { left: number; top: number }): void {
+    const view = this.jm.view;
+    const after = view.get_view_offset();
+    view.e_panel.scrollLeft = scroll.left + (after.x - before.x) * view.zoom_current;
+    view.e_panel.scrollTop = scroll.top + (after.y - before.y) * view.zoom_current;
+  }
+
   /** Read-only texts cannot be edited; the end of editing completes a new node. */
   private guardEditing(): void {
     const jm = this.jm;
@@ -328,10 +407,14 @@ export class JsMindView implements View {
     editor.rows = 1;
     // `key`, not only the legacy keyCode 13 jsMind checks: virtual keyboards (Android) and
     // synthetic events may leave it at 0 or 229.
+    // Escape cancels, as in Freeplane: the editor gets the node's text back, and jsMind
+    // changes nothing for an unchanged text (a new node's placeholder: no node is added).
     editor.addEventListener('keydown', (event) => {
-      if (event.key !== 'Enter' && event.keyCode !== 13) return;
+      const escape = event.key === 'Escape';
+      if (!escape && event.key !== 'Enter' && event.keyCode !== 13) return;
       event.preventDefault(); // no line break
       event.stopPropagation();
+      if (escape && view.editing_node) editor.value = view.editing_node.topic;
       view.edit_node_end();
     });
     editor.addEventListener('input', () => {
