@@ -6,6 +6,10 @@ SPDX-License-Identifier: GPL-3.0-or-later
 Reference web shell: implements docs/BRIDGE.md end to end. Run `npm run build`,
 serve the repository root over HTTP, and open /web/. To host it, `npm run build:web`
 assembles it in web/dist.
+
+It looks like the Android shell (android/src/main/res/layout/main.xml): toolbar with ☰,
+undo, redo and save; the map, or the home screen; the node bar with ⋮; the ☰ drawer.
+It takes the whole window, as on a tablet.
 -->
 <html>
 <head>
@@ -14,45 +18,164 @@ assembles it in web/dist.
 <title>Mapling</title>
 <link rel="stylesheet" href="../core/vendor/jsmind-0.9.1/jsmind.css">
 <link rel="stylesheet" href="../core/assets/mapling.css">
+<!-- The template of a new map, as the Android shell writes it. -->
+<link rel="prefetch" id="new-map-template" href="../core/assets/new-map.mm">
 <style>
-  html, body { margin: 0; height: 100%; font-family: system-ui, sans-serif; }
-  body { display: flex; flex-direction: column; }
-  #toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 6px; border-bottom: 1px solid #ccc; }
-  #toolbar button { font-size: 14px; padding: 6px 10px; }
-  #toolbar .separator { width: 1px; align-self: stretch; background: #ccc; margin: 0 4px; }
-  #status { margin-left: auto; font-size: 13px; color: #555; }
-  #status.modified { color: #b45309; font-weight: 600; }
-  #messages:empty { display: none; }
-  #messages p { margin: 0; padding: 6px 10px; font-size: 14px; border-bottom: 1px solid #ddd; }
-  #messages .warning { background: #fff4d6; }
-  #messages .info { background: #e8f0fe; }
-  #messages .error { background: #fde2e2; }
-  #messages .hint { background: #f4f4f4; color: #444; }
-  #map-area { flex: 1; min-height: 0; position: relative; }
-  #about { max-width: 32em; font-size: 14px; line-height: 1.4; }
-  #about h2 { margin-top: 0; }
-  #about form { text-align: right; }
-  #empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #777; }
+  /* Mapling's colors (android/src/main/res/values/colors.xml). */
+  :root {
+    --forest: #154d46;
+    --ivory: #fff9e9;
+    --node-bar: #f3f5f4;
+    --menu-icon: #444746;
+    --menu-detail: #5f6368;
+    --text: #333;
+  }
+  html, body { margin: 0; height: 100%; font-family: system-ui, sans-serif; color: var(--text); }
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+  button:disabled { cursor: default; }
+  .icon { width: 24px; height: 24px; fill: currentColor; flex: none; }
+
+  /* The app: the whole window, as on a tablet. */
+  #app { position: relative; display: flex; flex-direction: column; height: 100%; background: #fff; overflow: hidden; }
+
+  #toolbar { display: flex; align-items: center; min-height: 56px; padding: 0 4px; background: var(--forest); color: var(--ivory); }
+  #toolbar .spacer { flex: 1; }
+  .icon-button { display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; border-radius: 50%; }
+  .icon-button:not(:disabled):hover { background: rgb(0 0 0 / 0.08); }
+  #toolbar .icon-button:disabled { opacity: 0.38; }
+
+  #messages:empty, #hints:empty { display: none; }
+  #messages p, #hints p { margin: 0; padding: 8px 16px; font-size: 14px; }
+  .warning { background: #fff4d6; }
+  .info { background: #e8f0fe; }
+  .error { background: #fde2e2; }
+  .hint { background: #f4f4f4; }
+  .info button { margin-left: 8px; font-weight: 600; color: var(--forest); }
+
+  /* Isolated: jsMind's z-index (2 for the nodes) stays inside, below the drawer. */
+  #map-area { flex: 1; min-height: 0; position: relative; isolation: isolate; }
+  #mapling { position: absolute; inset: 0; }
+  /* As in the Android WebView: no scroll bars; the map is moved by dragging it. */
+  #mapling .jsmind-inner { scrollbar-width: none; }
+  /* Above the map: jsMind sets `visibility: visible` on each node, which hiding #mapling
+     does not override, and draws its nodes at z-index 2. */
+  #home { position: absolute; inset: 0; z-index: 3; overflow: auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 16px; box-sizing: border-box; text-align: center; background: #fff; }
+  #home .invite { max-width: 28em; margin: 24px 0 0; font-size: 14px; color: var(--menu-detail); }
+  .filled { min-width: 12em; padding: 10px 24px; border-radius: 20px; background: var(--forest); color: var(--ivory); font-weight: 500; }
+
+  #node-bar { position: relative; display: flex; justify-content: center; background: var(--node-bar); color: var(--forest); }
+  #node-bar .icon-button { width: 56px; border-radius: 0; }
+  #node-bar .icon-button:disabled { opacity: 0.3; }
+  #node-bar [data-action="more"] { position: absolute; right: 0; }
+  @media (max-width: 359px) { #node-bar .icon-button { width: 48px; } }
+
+  /* The ☰ drawer, over the app, with a scrim: touching it closes the drawer. */
+  #scrim { position: absolute; inset: 0; background: rgb(0 0 0 / 0.32); opacity: 0; visibility: hidden; transition: opacity 0.2s, visibility 0.2s; }
+  #drawer { position: absolute; top: 0; bottom: 0; left: 0; width: min(80%, 360px); overflow: auto; padding: 12px; box-sizing: border-box; background: #fff; border-radius: 0 16px 16px 0; transform: translateX(-100%); visibility: hidden; transition: transform 0.2s, visibility 0.2s; }
+  #app.drawer-open #scrim { opacity: 1; visibility: visible; }
+  #app.drawer-open #drawer { transform: none; visibility: visible; }
+  #drawer-header { display: block; width: 100%; padding: 16px; text-align: left; border-radius: 12px; }
+  #drawer-header strong { display: block; font-size: 16px; font-weight: 500; }
+  #drawer-header span { font-size: 13px; color: var(--menu-detail); }
+  #drawer hr { border: 0; border-top: 1px solid #ccc; margin: 8px 16px; }
+  .entry { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 0 16px; box-sizing: border-box; text-align: left; font-size: 14px; font-weight: 500; border-radius: 28px; }
+  .entry .icon { color: var(--menu-icon); }
+  .entry:hover, #drawer-header:hover { background: rgb(0 0 0 / 0.05); }
+
+  /* Dialogs, as Material 3's. */
+  dialog { max-width: min(560px, calc(100% - 48px)); padding: 24px; border: 0; border-radius: 28px; box-sizing: border-box; font-size: 14px; line-height: 1.45; color: var(--text); }
+  dialog::backdrop { background: rgb(0 0 0 / 0.32); }
+  dialog h2 { margin: 0 0 16px; font-size: 24px; font-weight: 400; }
+  dialog p { margin: 0 0 12px; white-space: pre-line; }
+  dialog .buttons { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+  dialog .buttons button { padding: 10px 12px; border-radius: 20px; font-weight: 500; color: var(--forest); }
+  dialog .buttons button:hover { background: rgb(21 77 70 / 0.08); }
+  dialog .buttons .left { margin-right: auto; }
+  dialog input { width: 100%; box-sizing: border-box; padding: 8px 0; font: inherit; font-size: 16px; border: 0; border-bottom: 2px solid var(--forest); outline: none; }
+  #link-note { margin-top: 8px; font-size: 13px; color: var(--menu-detail); }
+
+  /* The ⋮ menu: a sheet from the bottom, at most 640 px wide (Material 3's bottom sheets). */
+  #more { width: min(640px, 100%); max-width: none; margin: auto auto 0; padding: 8px 0 16px; border-radius: 28px 28px 0 0; }
+  #more h3 { margin: 0; padding: 16px 24px 8px; font-size: 14px; font-weight: 500; color: var(--menu-detail); }
+  #more .entry { min-height: 48px; padding: 0 24px; gap: 20px; font-size: 16px; font-weight: 400; border-radius: 0; }
+
+  [hidden] { display: none !important; }
 </style>
 </head>
 <body>
-<div id="toolbar">
-  <input type="file" id="file" accept=".mm" hidden>
-  <button data-action="open"></button>
-  <button data-action="save"></button>
-  <span class="separator"></span>
-  <button data-action="undo"></button>
-  <button data-action="redo"></button>
-  <span class="separator"></span>
-  <button data-action="editText"></button>
-  <button data-action="addChild"></button>
-  <button data-action="addSibling"></button>
-  <button data-action="deleteNode"></button>
-  <span class="separator"></span>
-  <button data-action="center"></button>
-  <span id="status"></span>
-  <button data-action="about"></button>
+<div id="app">
+  <div id="toolbar">
+    <button class="icon-button" data-action="menu"><svg class="icon"><use href="icons.svg#menu"/></svg></button>
+    <span class="spacer"></span>
+    <button class="icon-button" data-action="undo" data-with-map><svg class="icon"><use href="icons.svg#undo"/></svg></button>
+    <button class="icon-button" data-action="redo" data-with-map><svg class="icon"><use href="icons.svg#redo"/></svg></button>
+    <button class="icon-button" data-action="save" data-with-map><svg class="icon"><use href="icons.svg#save"/></svg></button>
+  </div>
+  <div id="messages"></div>
+  <div id="map-area">
+    <div id="mapling"></div>
+    <div id="home">
+      <input type="file" id="file" accept=".mm" hidden>
+      <button class="filled" data-action="open" data-text="action.openMap"></button>
+      <button class="filled" data-action="newMap" data-text="action.newMap"></button>
+      <p class="invite" data-text="home.invite"></p>
+    </div>
+  </div>
+  <div id="hints"></div>
+  <div id="node-bar" data-with-map>
+    <button class="icon-button" data-action="editText"><svg class="icon"><use href="icons.svg#edit"/></svg></button>
+    <button class="icon-button" data-action="addChild"><svg class="icon"><use href="icons.svg#subdirectory_arrow_right"/></svg></button>
+    <button class="icon-button" data-action="addSibling"><svg class="icon"><use href="icons.svg#add_row_below"/></svg></button>
+    <button class="icon-button" data-action="deleteNode"><svg class="icon"><use href="icons.svg#delete"/></svg></button>
+    <button class="icon-button" data-action="more"><svg class="icon"><use href="icons.svg#more_vert"/></svg></button>
+  </div>
+
+  <div id="scrim"></div>
+  <nav id="drawer">
+    <button id="drawer-header" data-action="mapInfo" data-with-map><strong></strong><span></span></button>
+    <button class="entry" data-action="open"><svg class="icon"><use href="icons.svg#folder_open"/></svg><span data-text="action.open"></span></button>
+    <button class="entry" data-action="close" data-with-map><svg class="icon"><use href="icons.svg#close"/></svg><span data-text="action.close"></span></button>
+    <button class="entry" data-action="newMap"><svg class="icon"><use href="icons.svg#note_add"/></svg><span data-text="action.newMap"></span></button>
+    <hr>
+    <button class="entry" data-action="about"><svg class="icon"><use href="icons.svg#info"/></svg><span data-text="action.about"></span></button>
+  </nav>
 </div>
+
+<dialog id="more">
+  <div id="more-node">
+    <h3 data-text="more.node"></h3>
+    <button class="entry" data-action="center"><svg class="icon"><use href="icons.svg#filter_center_focus"/></svg><span data-text="action.center"></span></button>
+    <button class="entry" data-action="editLink"><svg class="icon"><use href="icons.svg#link"/></svg><span id="link-entry"></span></button>
+  </div>
+  <h3 data-text="more.map"></h3>
+  <button class="entry" data-action="center" id="center-map"><svg class="icon"><use href="icons.svg#filter_center_focus"/></svg><span data-text="action.center"></span></button>
+  <button class="entry" data-action="mapInfo"><svg class="icon"><use href="icons.svg#info"/></svg><span data-text="action.mapInfo"></span></button>
+  <button class="entry" data-action="saveCopy"><svg class="icon"><use href="icons.svg#save"/></svg><span data-text="action.save"></span></button>
+  <button class="entry" data-action="close"><svg class="icon"><use href="icons.svg#close"/></svg><span data-text="action.close"></span></button>
+</dialog>
+
+<!-- Questions and information: text, then buttons (see ask() in shell.js). -->
+<dialog id="ask">
+  <h2></h2>
+  <p></p>
+  <form method="dialog" class="buttons"></form>
+</dialog>
+
+<!-- Any text is kept as a link (docs/BRIDGE.md, setLink): no validation by the browser,
+     only the note saying it will not be shown as a link. -->
+<dialog id="link">
+  <form method="dialog" novalidate>
+    <h2></h2>
+    <input id="link-field" type="url" placeholder="https://" autocomplete="off">
+    <p id="link-note" data-text="link.notWeb" hidden></p>
+    <div class="buttons">
+      <button value="remove" class="left" id="link-remove" data-text="link.remove"></button>
+      <button value="cancel" data-text="dialog.cancel"></button>
+      <button value="ok" data-text="dialog.ok"></button>
+    </div>
+  </form>
+</dialog>
+
 <dialog id="about">
   <h2>Mapling</h2>
   <p data-text="about.description"></p>
@@ -63,15 +186,12 @@ assembles it in web/dist.
     <li><a href="../LICENSE" target="_blank" data-text="about.licenseLink"></a></li>
     <li><a href="../LICENSE-EXCEPTION.md" target="_blank" data-text="about.exceptionLink"></a></li>
     <li><a href="../core/vendor/jsmind-0.9.1/LICENSE" target="_blank" data-text="about.jsmindLink"></a></li>
+    <li><a href="../android/LICENSE-material-symbols.txt" target="_blank" data-text="about.iconsLink"></a></li>
     <li><a href="../PRIVACY.md" target="_blank" data-text="about.privacyLink"></a></li>
   </ul>
-  <form method="dialog"><button data-text="about.close"></button></form>
+  <form method="dialog" class="buttons"><button data-text="dialog.ok"></button></form>
 </dialog>
-<div id="messages"></div>
-<div id="map-area">
-  <div id="mapling"></div>
-  <div id="empty"></div>
-</div>
+
 <!-- The shell defines window.MindShell before the core is loaded (docs/BRIDGE.md). -->
 <script type="module" src="shell.js"></script>
 <script src="../core/vendor/jsmind-0.9.1/jsmind.js"></script>

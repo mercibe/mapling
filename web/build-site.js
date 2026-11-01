@@ -7,8 +7,9 @@
 //
 // Layout: the repository's, flattened by one level: the shell at the root, the core
 // under core/ (as the Android shell serves it), the licenses and the privacy policy
-// beside the shell. jsMind keeps its own license in core/vendor/. The .htaccess
-// gives Apache the right media types.
+// beside the shell. jsMind keeps its own license in core/vendor/, the icons theirs in
+// android/ (shared with the Android shell). The .htaccess gives Apache the right
+// media types.
 
 import { cpSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -22,13 +23,13 @@ if (!existsSync(join(root, 'core', 'dist', 'main.js'))) {
 }
 
 rmSync(out, { recursive: true, force: true });
-for (const file of ['shell.js', 'drafts.js', 'i18n', '.htaccess']) {
+for (const file of ['shell.js', 'drafts.js', 'icons.svg', 'i18n', '.htaccess']) {
   cpSync(join(root, 'web', file), join(out, file), { recursive: true });
 }
 for (const dir of ['dist', 'assets', 'vendor']) {
   cpSync(join(root, 'core', dir), join(out, 'core', dir), { recursive: true });
 }
-for (const file of ['LICENSE', 'LICENSE-EXCEPTION.md', 'PRIVACY.md']) {
+for (const file of ['LICENSE', 'LICENSE-EXCEPTION.md', 'PRIVACY.md', 'android/LICENSE-material-symbols.txt']) {
   cpSync(join(root, file), join(out, file));
 }
 
@@ -38,7 +39,7 @@ const page = readFileSync(join(root, 'web', 'index.html'), 'utf8').replaceAll('"
 writeFileSync(join(out, 'index.html'), page);
 
 const missing = [...page.matchAll(/(?:src|href)="([^"]+)"/g)]
-  .map((match) => match[1])
+  .map((match) => match[1].split('#')[0]) // icons.svg#menu: the file
   .filter((path) => !path.includes(':') && !existsSync(join(out, path))); // links to the Web aside
 if (missing.length > 0) throw new Error(`Missing in ${out}: ${missing.join(', ')}`);
 
