@@ -124,6 +124,29 @@ Undoes or redoes the last change, typically from the native menu. Ignored when t
 
 Scrolls the map so that the selected node, or the root when nothing is selected, is in the middle of the view (as far as the map extends). Useful on small screens. Not an edit: also available on a read-only map.
 
+### `zoomIn` / `zoomOut`
+
+```json
+{ "v": 1, "type": "zoomIn" }
+{ "v": 1, "type": "zoomOut" }
+```
+
+Zooms in or out by one step, around the middle of the view (Freeplane's Alt+Up and Alt+Down). Not an edit: also available on a read-only map.
+
+### `moveNode`
+
+```json
+{ "v": 1, "type": "moveNode", "id": "ID_1964929139", "direction": "up" }
+```
+
+Moves node `id` as Freeplane's Ctrl+arrows do (`direction`: `up`, `down`, `left` or `right`):
+
+- `up` and `down`: before or after its sibling; from the first, it goes to the end, and from the last, to the start. Among the root's children, only those on its side count.
+- Toward the root (`left` on the right side, `right` on the left side): it becomes the sibling of its parent, right after it. A child of the root changes sides.
+- Away from the root: it becomes the last child of the sibling before it on its side, else of the one after it. That sibling is unfolded, so that the node stays in sight.
+
+Nothing happens when the node cannot move (the root, or no sibling to go to). An edit like the others: undone with `undo`. Ignored on a read-only map; refused with `OUTDATED_COMMAND` when the node no longer exists.
+
 ### `setLink`
 
 ```json

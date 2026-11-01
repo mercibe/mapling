@@ -55,6 +55,8 @@ interface JsMindInstance extends TouchMap {
     opts: { hmargin: number; vmargin: number };
     expand_size(): void;
     relayout(): void;
+    zoom_in(): boolean;
+    zoom_out(): boolean;
     resize(): void;
     get_view_offset(): { x: number; y: number };
   };
@@ -207,6 +209,12 @@ export class JsMindView implements View {
     const view = panel.getBoundingClientRect();
     panel.scrollLeft += node.left + node.width / 2 - (view.left + view.width / 2);
     panel.scrollTop += node.top + node.height / 2 - (view.top + view.height / 2);
+  }
+
+  /** One step of jsMind's zoom, around the middle of the map (no point given). */
+  zoom(direction: 'in' | 'out'): void {
+    if (direction === 'in') this.jm.view.zoom_in();
+    else this.jm.view.zoom_out();
   }
 
   // ---------- gestures in jsMind ----------

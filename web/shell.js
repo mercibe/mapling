@@ -358,8 +358,13 @@ const actions = {
   deleteNode,
   more: () => more.showModal(),
   center: () => send({ type: 'center' }),
+  zoomIn: () => send({ type: 'zoomIn' }),
+  zoomOut: () => send({ type: 'zoomOut' }),
+  moveNode: (direction) => send({ type: 'moveNode', id: state.selection.id, direction }),
   mapInfo: showMapInfo,
   editLink,
+  // Opened apart, as a click on the link's icon (openLink); only web links, by the core's rule.
+  followLink: () => window.open(window.MindCore.webLink(state.selection.link), '_blank', 'noopener,noreferrer'),
   about: () => document.getElementById('about').showModal(),
 };
 
@@ -396,8 +401,12 @@ function enabled(action) {
     case 'saveCopy':
     case 'more':
     case 'center':
+    case 'zoomIn':
+    case 'zoomOut':
     case 'mapInfo':
       return !!state.map;
+    case 'followLink':
+      return !!node && node.link !== null && window.MindCore.webLink(node.link) !== null;
     case 'save':
       return !!state.map && state.dirty;
     case 'undo':
@@ -411,12 +420,13 @@ function enabled(action) {
       return editable && !!node;
     case 'addSibling':
     case 'deleteNode':
+    case 'moveNode':
       return editable && !!node && !node.root;
   }
 }
 
-function run(action) {
-  if (enabled(action)) actions[action]();
+function run(action, argument) {
+  if (enabled(action)) actions[action](argument);
 }
 
 for (const button of document.querySelectorAll('[data-action]')) {
@@ -428,8 +438,8 @@ for (const button of document.querySelectorAll('[data-action]')) {
   });
 }
 
-// Keyboard shortcuts of the web shell, Freeplane's for the nodes (jsMind keeps F2, Space
-// and the arrow keys). Caught before jsMind's: with no map open, the keys never reach
+// Keyboard shortcuts of the web shell, Freeplane's (read in its menus, mindmapmodemenu.xml):
+// Ctrl+arrows move the node, Alt+Up and Alt+Down zoom (jsMind keeps F2, Space and the arrows). Caught before jsMind's: with no map open, the keys never reach
 // the map behind the home screen.
 document.addEventListener('keydown', (event) => {
   if (event.target.closest('input, textarea, dialog')) return; // typing a node's text, or in a dialog
@@ -438,8 +448,14 @@ document.addEventListener('keydown', (event) => {
   const plain = !ctrl && !event.altKey && !event.shiftKey;
   const onButton = !!event.target.closest('button, a'); // Enter and Tab keep their usual role there
   const key = event.key.toLowerCase();
+  const arrow = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' }[event.key];
   const action =
-    ctrl && key === 'o' ? 'open'
+    ctrl && !event.altKey && !event.shiftKey && arrow ? 'moveNode'
+    : event.altKey && !ctrl && !event.shiftKey && arrow === 'up' ? 'zoomIn'
+    : event.altKey && !ctrl && !event.shiftKey && arrow === 'down' ? 'zoomOut'
+    : ctrl && key === 'k' ? 'editLink'
+    : ctrl && event.key === 'Enter' ? 'followLink'
+    : ctrl && key === 'o' ? 'open'
     : ctrl && key === 's' ? 'save'
     : ctrl && key === 'z' && !event.shiftKey ? 'undo'
     : ctrl && (key === 'y' || (key === 'z' && event.shiftKey)) ? 'redo'
@@ -453,7 +469,7 @@ document.addEventListener('keydown', (event) => {
   if (event.key === 'Tab' && !(action && enabled(action))) return event.stopPropagation();
   if (!action) return;
   event.preventDefault();
-  run(action);
+  run(action, arrow);
 }, true);
 
 // ---------- display ----------

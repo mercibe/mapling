@@ -11,6 +11,7 @@ import { localizedText } from './localized-text.ts';
 import { parseXml, serializeXml, type Envelope } from './xml.ts';
 
 export type Side = 'left' | 'right';
+export type Direction = 'up' | 'down' | 'left' | 'right';
 
 /** Kinds of content kept in the file but not displayed (formatting is not reported). */
 export type HiddenKind = 'note' | 'details' | 'attribute' | 'link' | 'icon' | 'connector' | 'image';
@@ -295,6 +296,57 @@ export class MindMap {
     const after = Array.from(el.attributes).find((a) => a.name !== 'TEXT' && a.name !== 'LOCALIZED_TEXT');
     if (after) this.setAttributeBefore(el, 'FOLDED', 'true', after.name);
     else el.setAttribute('FOLDED', 'true');
+  }
+
+  /**
+   * Moves a node as Freeplane's Ctrl+arrows do (read in Freeplane 1.12's code). Up and down:
+   * before or after its sibling, from one end to the other; among the root's children, only
+   * those on its side count. Toward the root (left on the right side, right on the left):
+   * after its parent, as its sibling; a child of the root changes sides. Away from it: last
+   * child of the sibling before it on its side, else after it, unfolded so that the node
+   * stays in sight. Returns false when the node stays (the root, or no sibling to go to).
+   */
+  moveInDirection(key: string, direction: Direction): boolean {
+    this.checkMapEditable();
+    const parent = this.parentKey(key);
+    if (parent === null) return false;
+    const side = this.branchSide(key);
+    const children = this.childKeys(parent);
+    const siblings = parent === this.rootKey ? children.filter((k) => this.side(this.element(k)) === side) : children;
+    const others = children.filter((k) => k !== key); // indexes count without the moved node
+    const i = siblings.indexOf(key);
+    if (direction === 'up' || direction === 'down') {
+      if (siblings.length < 2) return false;
+      const last = siblings.length - 1;
+      const index =
+        direction === 'up'
+          ? i > 0 ? others.indexOf(siblings[i - 1]) : others.indexOf(siblings[last]) + 1
+          : i < last ? others.indexOf(siblings[i + 1]) + 1 : others.indexOf(siblings[0]);
+      this.moveNode(key, parent, index, side);
+      return true;
+    }
+    const towardRoot = (direction === 'left') === (side === 'right');
+    if (towardRoot) {
+      if (parent === this.rootKey) {
+        this.moveNode(key, parent, children.indexOf(key), side === 'right' ? 'left' : 'right');
+      } else {
+        const grandparent = this.parentKey(parent) as string;
+        this.moveNode(key, grandparent, this.childKeys(grandparent).indexOf(parent) + 1, side);
+      }
+      return true;
+    }
+    const target = siblings[i - 1] ?? siblings[i + 1];
+    if (!target) return false;
+    this.element(target).removeAttribute('FOLDED');
+    this.moveNode(key, target, this.childKeys(target).length, side);
+    return true;
+  }
+
+  /** The side of the map a node (not the root) is on: that of its ancestor among the root's children. */
+  private branchSide(key: string): Side {
+    let el = this.element(key);
+    while (el.parentNode !== this.rootEl) el = el.parentNode as Element;
+    return this.side(el);
   }
 
   /**

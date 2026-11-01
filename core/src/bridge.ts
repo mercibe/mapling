@@ -5,7 +5,7 @@
 // Platform-neutral: the shell's `send` function and the view are passed in.
 
 import { MapError } from './errors.ts';
-import type { BranchSummary, HiddenKind, MindMap, ViewNode } from './map.ts';
+import type { BranchSummary, Direction, HiddenKind, MindMap, ViewNode } from './map.ts';
 import { MapSession } from './session.ts';
 
 export const PROTOCOL_VERSION = 1;
@@ -67,6 +67,9 @@ export type ShellMessage = { v: number; requestId?: string } & (
   | { type: 'redo' }
   | { type: 'center' }
   | { type: 'setLink'; id: string; link: string | null }
+  | { type: 'moveNode'; id: string; direction: Direction }
+  | { type: 'zoomIn' }
+  | { type: 'zoomOut' }
   | { type: Command; id: string; revision?: number }
 );
 
@@ -105,6 +108,8 @@ export interface View {
   command(name: Command, key: string): void;
   /** Scrolls so that this node, or the root when null, is in the middle of the view. */
   center(key: string | null): void;
+  /** Zooms in or out by one step, around the middle of the view. */
+  zoom(direction: 'in' | 'out'): void;
   /** Whether a text is being typed, not validated yet: the map does not hold it. */
   editing(): boolean;
 }
@@ -230,6 +235,13 @@ export class Bridge {
         return;
       case 'setLink':
         return this.setLink(message.id, message.link);
+      case 'moveNode':
+        return this.moveNode(message.id, message.direction);
+      case 'zoomIn':
+      case 'zoomOut':
+        // Not an edit: also available on a read-only map.
+        if (this.session) this.view.zoom(message.type === 'zoomIn' ? 'in' : 'out');
+        return;
       case 'editText':
       case 'addChild':
       case 'addSibling':
@@ -346,6 +358,17 @@ export class Bridge {
     if (this.readOnly) return;
     if (!session.map.has(key)) throw new BridgeError('OUTDATED_COMMAND', `Unknown node: ${key}`);
     if (this.edit((map) => map.setLink(key, link))) {
+      this.view.show(session.map.toView(this.locale), this.readOnly, true);
+    }
+  }
+
+  /** Moves a node as Freeplane's Ctrl+arrows do (MindMap.moveInDirection): an edit, undone like the others. */
+  private moveNode(key: string, direction: Direction): void {
+    const session = this.session;
+    if (!session) throw new BridgeError('NO_MAP_LOADED', 'No map loaded');
+    if (this.readOnly) return;
+    if (!session.map.has(key)) throw new BridgeError('OUTDATED_COMMAND', `Unknown node: ${key}`);
+    if (this.edit((map) => map.moveInDirection(key, direction))) {
       this.view.show(session.map.toView(this.locale), this.readOnly, true);
     }
   }
