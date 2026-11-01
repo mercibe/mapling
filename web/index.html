@@ -50,7 +50,8 @@ It takes the whole window, as on a tablet.
   .info { background: #e8f0fe; }
   .error { background: #fde2e2; }
   .hint { background: #f4f4f4; }
-  .info button { margin-left: 8px; font-weight: 600; color: var(--forest); }
+  /* A real button under the message (Material's outlined button). */
+  .info button { display: block; margin-top: 8px; padding: 8px 16px; border: 1px solid var(--forest); border-radius: 20px; background: #fff; font-weight: 500; color: var(--forest); }
 
   /* Isolated: jsMind's z-index (2 for the nodes) stays inside, below the drawer. */
   #map-area { flex: 1; min-height: 0; position: relative; isolation: isolate; }
