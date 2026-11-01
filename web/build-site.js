@@ -23,7 +23,7 @@ if (!existsSync(join(root, 'core', 'dist', 'main.js'))) {
 }
 
 rmSync(out, { recursive: true, force: true });
-for (const file of ['shell.js', 'drafts.js', 'icons.svg', 'i18n', '.htaccess']) {
+for (const file of ['shell.js', 'drafts.js', 'icons.svg', 'favicon.svg', 'i18n', '.htaccess']) {
   cpSync(join(root, 'web', file), join(out, file), { recursive: true });
 }
 for (const dir of ['dist', 'assets', 'vendor']) {
