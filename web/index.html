@@ -7,7 +7,7 @@ Reference web shell: implements docs/BRIDGE.md end to end. Run `npm run build`,
 serve the repository root over HTTP, and open /web/. To host it, `npm run build:web`
 assembles it in web/dist.
 
-It looks like the Android shell (android/src/main/res/layout/main.xml): toolbar with ☰,
+It looks like the Android shell (android/src/main/res/layout/main.xml): toolbar with ☰, the map's title,
 undo, redo and save; the map, or the home screen; the node bar with ⋮; the ☰ drawer.
 It takes the whole window, as on a tablet.
 -->
@@ -40,7 +40,8 @@ It takes the whole window, as on a tablet.
   #app { position: relative; display: flex; flex-direction: column; height: 100%; background: #fff; overflow: hidden; }
 
   #toolbar { display: flex; align-items: center; min-height: 56px; padding: 0 4px; background: var(--forest); color: var(--ivory); }
-  #toolbar .spacer { flex: 1; }
+  /* The map's title (its root's text), on one line. */
+  #map-title { flex: 1; min-width: 0; padding: 0 8px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 18px; font-weight: 500; }
   .icon-button { display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; border-radius: 50%; }
   .icon-button:not(:disabled):hover { background: rgb(0 0 0 / 0.08); }
   #toolbar .icon-button:disabled { opacity: 0.38; }
@@ -108,7 +109,7 @@ It takes the whole window, as on a tablet.
 <div id="app">
   <div id="toolbar">
     <button class="icon-button" data-action="menu"><svg class="icon"><use href="icons.svg#menu"/></svg></button>
-    <span class="spacer"></span>
+    <span id="map-title"></span>
     <button class="icon-button" data-action="undo" data-with-map><svg class="icon"><use href="icons.svg#undo"/></svg></button>
     <button class="icon-button" data-action="redo" data-with-map><svg class="icon"><use href="icons.svg#redo"/></svg></button>
     <button class="icon-button" data-action="save" data-with-map><svg class="icon"><use href="icons.svg#save"/></svg></button>

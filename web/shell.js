@@ -17,8 +17,8 @@ import { deleteDraft, draftKey, draftsNamed, fingerprint, moveDraft, writeDraft 
 // ---------- state ----------
 
 const state = {
-  map: null, // { name, draftKey, readOnly, title, version, size, modified } of the open map, once loaded
-  opening: null, // map being loaded: { name, draftKey, draftsToDelete, transferFrom, size, modified }
+  map: null, // { name, draftKey, readOnly, title, version, size, modified, fresh } of the open map, once loaded; fresh: a new map, with no file yet
+  opening: null, // map being loaded: { name, draftKey, draftsToDelete, transferFrom, size, modified, fresh }
   dirty: false,
   history: { canUndo: false, canRedo: false },
   selection: null, // node reported by selectionChanged
@@ -74,7 +74,7 @@ function receive(message) {
       onLoaded(message);
       break;
     case 'saveData':
-      download(message.data, state.map.name);
+      download(message.data, downloadName());
       state.downloadToConfirm = message.saveId; // `saved` waits for the user's confirmation
       break;
     case 'dirtyChanged':
@@ -107,12 +107,12 @@ function receive(message) {
 }
 
 function onLoaded(message) {
-  const { name, draftKey, draftsToDelete, transferFrom, size, modified } = state.opening;
+  const { name, draftKey, draftsToDelete, transferFrom, size, modified, fresh } = state.opening;
   for (const key of draftsToDelete) deleteDraft(storage, key);
   // A draft restored from another file of this name now belongs to this one: it is
   // moved, and stays under its old key if writing the new one fails.
   if (transferFrom && !moveDraft(storage, transferFrom, draftKey)) state.draftFailed = true;
-  state.map = { name, draftKey, readOnly: message.readOnly, title: message.title ?? '', version: message.mapVersion, size, modified };
+  state.map = { name, draftKey, readOnly: message.readOnly, title: message.title ?? '', version: message.mapVersion, size, modified, fresh };
   state.opening = null;
   state.selection = null;
   state.downloadToConfirm = null;
@@ -167,17 +167,17 @@ fileInput.addEventListener('change', async () => {
 async function newMap() {
   if (!(await mayLeaveMap())) return;
   const template = await fetch(document.getElementById('new-map-template').href);
-  openBytes(t('newMap.fileName'), await template.arrayBuffer(), null);
+  openBytes(t('newMap.fileName'), await template.arrayBuffer(), null, true);
 }
 
-async function openBytes(name, bytes, modified) {
+async function openBytes(name, bytes, modified, fresh = false) {
   // Drafts the user chose to give up are deleted only once the new map is loaded:
   // if loading fails, the open map stays, and so must the protection of its changes.
   const draftsToDelete = [];
   const discarded = state.dirty ? state.map.draftKey : null; // agreed in mayLeaveMap()
   if (discarded) draftsToDelete.push(discarded);
   const ownKey = draftKey(name, await fingerprint(bytes));
-  state.opening = { name, draftKey: ownKey, draftsToDelete, transferFrom: null, size: bytes.byteLength, modified };
+  state.opening = { name, draftKey: ownKey, draftsToDelete, transferFrom: null, size: bytes.byteLength, modified, fresh };
   // A browser gives no path, so a draft is tied to the file's name and content: the
   // draft of this very version is offered first; one made on another file with this
   // name (or an earlier version of this one) is offered with a warning, and kept if
@@ -209,6 +209,21 @@ async function closeMap() {
   // concern no open map, and are ignored (see draftData).
   Object.assign(state, { map: null, dirty: false, history: { canUndo: false, canRedo: false }, selection: null, messages: [], downloadToConfirm: null });
   render();
+}
+
+/**
+ * The name of a downloaded copy: the file's own, or, for a new map (which has no file yet),
+ * its root's text with the date and time (ISO 8601), without the characters file names refuse.
+ */
+function downloadName() {
+  const { name, title, fresh } = state.map;
+  if (!fresh) return name;
+  const now = new Date();
+  const two = (n) => String(n).padStart(2, '0');
+  // ISO 8601, basic format (local time): no colon, which file names refuse.
+  const stamp = `${now.getFullYear()}${two(now.getMonth() + 1)}${two(now.getDate())}T${two(now.getHours())}${two(now.getMinutes())}`;
+  const root = oneLine(title).replace(/[\\/:*?"<>|]/g, '-').slice(0, 100).trim() || name.replace(/\.mm$/, '');
+  return `${root} ${stamp}.mm`;
 }
 
 function download(base64, name) {
@@ -519,6 +534,7 @@ function render() {
   document.getElementById('home').hidden = !!map;
   document.getElementById('mapling').style.visibility = map ? '' : 'hidden';
   document.title = map ? `${oneLine(map.title) || map.name} – Mapling` : 'Mapling';
+  document.getElementById('map-title').textContent = map ? oneLine(map.title) || map.name : '';
 
   // The drawer's header: the root's text, then the file.
   const header = document.getElementById('drawer-header');
