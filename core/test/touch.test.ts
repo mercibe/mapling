@@ -3,7 +3,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { DoubleTap, type DragPlugin, type Point, STILL_PX, TouchGestures, isStill, mayDrag, pinchZoom, withFinger } from '../src/touch.ts';
+import { DoubleTap, type DragPlugin, type Point, STILL_PX, TouchGestures, isStill, mayDrag, pinchZoom, scrollAfterPinch, withFinger } from '../src/touch.ts';
 
 test('only the selected node can be moved, and never while a text is edited', () => {
   assert.equal(mayDrag('ID_1', 'ID_1', false), true);
@@ -221,4 +221,18 @@ test('only the last two taps count', () => {
   taps.tap('A');
   taps.tap('A');
   assert.equal(taps.onSameNode('A'), true);
+});
+
+// Once the fingers are lifted, the scrolling leaves each point where the pinch showed it.
+// Point q (in the map's pixels) shows, while pinching, at origin·from + shift + (q − origin)·from·s
+// − scroll (s = to / from); after the zoom, at (q + moved)·to − the new scrolling.
+test('the scrolling after a pinch leaves every point where the pinch showed it', () => {
+  const [scroll, origin, from, to, shift, moved] = [300, 500, 1, 1.5, 40, 120];
+  const after = scrollAfterPinch(scroll, origin, from, to, shift, moved);
+  for (const q of [0, 500, 812]) {
+    const pinched = origin * from + shift + (q - origin) * to - scroll;
+    assert.equal((q + moved) * to - after, pinched);
+  }
+  assert.equal(scrollAfterPinch(300, 500, 1, 1, 0, 0), 300, 'neither zoomed nor slid: unchanged');
+  assert.equal(scrollAfterPinch(300, 500, 1, 1, 50, 0), 250, 'only slid: scrolled back by as much');
 });

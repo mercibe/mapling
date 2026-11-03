@@ -196,6 +196,16 @@ export function withFinger(event: Omit<DragInput, 'clientX' | 'clientY'>): DragI
   return { clientX: finger.clientX, clientY: finger.clientY, touches: event.touches, preventDefault: () => event.preventDefault() };
 }
 
+/**
+ * Once jsMind's zoom is applied, the scrolling (on one axis) that leaves the map where the
+ * pinch showed it: scaled from `from` to `to` around `origin` (in the map's own pixels) and
+ * moved by `shift` (the fingers' slide, on screen), the map having moved by `moved` (in its
+ * own pixels) in its area, sized again for the new zoom.
+ */
+export function scrollAfterPinch(scroll: number, origin: number, from: number, to: number, shift: number, moved: number): number {
+  return scroll + origin * (to - from) + moved * to - shift;
+}
+
 function spread(fingers: Point[]): number {
   return Math.hypot(fingers[1].x - fingers[0].x, fingers[1].y - fingers[0].y);
 }
@@ -245,7 +255,8 @@ export function installTouchGestures(jm: TouchMap): void {
   // frame, a node at the width limit could otherwise jump between one and two lines.
   const panel = jm.view.e_panel;
   let frame = 0;
-  let preview: { from: number; zoom: number; origin: Point } | null = null; // origin: in the layers' own pixels
+  // origin: in the layers' own pixels; start: the middle of the fingers at first, on screen; shift: how far it slid
+  let preview: { from: number; zoom: number; origin: Point; start: Point; shift: Point } | null = null;
   const scale = (transform: string, origin: string) => {
     for (const layer of Array.from(panel.children) as HTMLElement[]) {
       layer.style.transformOrigin = origin;
@@ -267,8 +278,8 @@ export function installTouchGestures(jm: TouchMap): void {
     jm.view.relayout();
     const after = jm.view.get_view_offset();
     const zoom = jm.view.zoom_current;
-    panel.scrollLeft = scroll.left + done.origin.x * (zoom - done.from) + (after.x - before.x) * zoom;
-    panel.scrollTop = scroll.top + done.origin.y * (zoom - done.from) + (after.y - before.y) * zoom;
+    panel.scrollLeft = scrollAfterPinch(scroll.left, done.origin.x, done.from, zoom, done.shift.x, after.x - before.x);
+    panel.scrollTop = scrollAfterPinch(scroll.top, done.origin.y, done.from, zoom, done.shift.y, after.y - before.y);
   };
 
   // Capture phase: these run before the plugin's own listeners on the same element.
@@ -278,16 +289,19 @@ export function installTouchGestures(jm: TouchMap): void {
     const pinch = gestures.touchMove(points(event.touches));
     if (!pinch) return;
     if (!preview) {
-      // The point between the fingers when the pinch starts stays in place.
+      // The point between the fingers when the pinch starts follows them, as in Chrome.
       const from = jm.view.zoom_current;
       const box = panel.getBoundingClientRect();
       const origin = { x: (panel.scrollLeft + pinch.center.x - box.left) / from, y: (panel.scrollTop + pinch.center.y - box.top) / from };
-      preview = { from, zoom: from, origin };
+      preview = { from, zoom: from, origin, start: pinch.center, shift: { x: 0, y: 0 } };
     }
     const shown = preview;
     shown.zoom = pinch.zoom;
+    shown.shift = { x: pinch.center.x - shown.start.x, y: pinch.center.y - shown.start.y };
     cancelAnimationFrame(frame);
-    frame = requestAnimationFrame(() => scale(`scale(${shown.zoom / shown.from})`, `${shown.origin.x}px ${shown.origin.y}px`));
+    // The layers' pixels are zoomed: the slide is given in them.
+    const move = `translate(${shown.shift.x / shown.from}px, ${shown.shift.y / shown.from}px)`;
+    frame = requestAnimationFrame(() => scale(`${move} scale(${shown.zoom / shown.from})`, `${shown.origin.x}px ${shown.origin.y}px`));
   }, options);
   container.addEventListener('touchend', (event) => {
     gestures.touchEnd(event.touches.length);
