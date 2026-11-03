@@ -31,6 +31,8 @@ interface JmNode {
 interface JmLayout {
   opts: { hspace: number; vspace: number; pspace: number; cousin_space: number };
   set_visible(nodes: JmNode[], visible: boolean): void;
+  is_visible(node: JmNode): boolean;
+  layout(): void;
   _should_reserve_cousin_space(node: JmNode): boolean;
   _layout_offset_subnodes(nodes: JmNode[]): number;
   _layout_offset_subnodes_height(nodes: JmNode[]): number;
@@ -55,6 +57,7 @@ interface JsMindInstance extends TouchMap {
     opts: { hmargin: number; vmargin: number };
     expand_size(): void;
     relayout(): void;
+    init_nodes_size(node: JmNode): void;
     zoom_in(): boolean;
     zoom_out(): boolean;
     resize(): void;
@@ -313,6 +316,7 @@ export class JsMindView implements View {
         if (!this.jm.mind) return;
         const before = view.get_view_offset();
         const scroll = { left: panel.scrollLeft, top: panel.scrollTop };
+        this.measureNodes();
         view.relayout(); // sizes, then draws
         this.followMap(before, scroll);
       }, ZOOM_SETTLED_MS);
@@ -343,6 +347,21 @@ export class JsMindView implements View {
       panel.scrollLeft = (point.x + offset.x) * view.zoom_current - width / 2;
       panel.scrollTop = (point.y + offset.y) * view.zoom_current - height / 2;
     }).observe(panel);
+  }
+
+  /**
+   * jsMind measures each node once, when shown, and places it with that size at every zoom.
+   * Under a fractional zoom, a text at the width limit may take one line instead of two (the
+   * font's rounding): measured again once a zoom is over, and laid out with its true height.
+   * Not while a text is typed: the node then holds the editor.
+   */
+  private measureNodes(): void {
+    const jm = this.jm;
+    if (!jm.mind || jm.view.editing_node) return;
+    for (const node of Object.values(jm.mind.nodes)) {
+      if (node._data.view.element && jm.layout.is_visible(node)) jm.view.init_nodes_size(node);
+    }
+    jm.layout.layout();
   }
 
   /**

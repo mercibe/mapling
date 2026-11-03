@@ -6,7 +6,8 @@
 // and pinching zooms the whole page instead of the map. Here:
 // - a node moves only if it is the selected one, once a single finger rests on it
 //   briefly; any other slide scrolls the map (the browser's own scrolling);
-// - two fingers zoom the map with jsMind's zoom (the page zoom is disabled in CSS).
+// - two fingers zoom the map: scaled while pinching, then jsMind's zoom once the fingers
+//   are lifted (the page zoom is disabled in CSS).
 // Moving and zooming never overlap: a second finger, or an interrupted touch, cancels
 // the move without applying it. The gestures are plain state, tested in Node; the
 // wiring to the DOM needs a browser.
@@ -208,7 +209,10 @@ function middle(fingers: Point[]): Point {
 export interface TouchMap extends GestureMap {
   view: GestureMap['view'] & {
     container: HTMLElement;
+    e_panel: HTMLElement; // scrolls; holds the layers: the links' drawing and the nodes
     set_zoom(zoom: number, center?: Point): boolean;
+    relayout(): void;
+    get_view_offset(): Point;
   };
 }
 
@@ -236,19 +240,63 @@ export function installTouchGestures(jm: TouchMap): void {
     drag.call(this, withFinger(event as TouchEvent));
   };
 
+  // While pinching, the map's layers are only scaled (by the graphics card); jsMind's zoom,
+  // which lays out every text again, is applied once, when the fingers are lifted. At each
+  // frame, a node at the width limit could otherwise jump between one and two lines.
+  const panel = jm.view.e_panel;
+  let frame = 0;
+  let preview: { from: number; zoom: number; origin: Point } | null = null; // origin: in the layers' own pixels
+  const scale = (transform: string, origin: string) => {
+    for (const layer of Array.from(panel.children) as HTMLElement[]) {
+      layer.style.transformOrigin = origin;
+      layer.style.transform = transform;
+    }
+  };
+  const endPinch = () => {
+    cancelAnimationFrame(frame);
+    const done = preview;
+    preview = null;
+    if (!done) return;
+    scale('', '');
+    // jsMind's zoom, then the scrolling that leaves every point where the scaling showed it.
+    // The map's area is sized for the new zoom first (which moves the map inside it): the
+    // browser would otherwise cut the scrolling down to the area's former limits.
+    const scroll = { left: panel.scrollLeft, top: panel.scrollTop };
+    const before = jm.view.get_view_offset();
+    jm.view.set_zoom(done.zoom);
+    jm.view.relayout();
+    const after = jm.view.get_view_offset();
+    const zoom = jm.view.zoom_current;
+    panel.scrollLeft = scroll.left + done.origin.x * (zoom - done.from) + (after.x - before.x) * zoom;
+    panel.scrollTop = scroll.top + done.origin.y * (zoom - done.from) + (after.y - before.y) * zoom;
+  };
+
   // Capture phase: these run before the plugin's own listeners on the same element.
   const options = { capture: true, passive: true };
-  let frame = 0;
   container.addEventListener('touchstart', (event) => gestures.touchStart(points(event.touches)), options);
   container.addEventListener('touchmove', (event) => {
     const pinch = gestures.touchMove(points(event.touches));
     if (!pinch) return;
-    // Redrawing the map is costly: at most once per displayed frame.
+    if (!preview) {
+      // The point between the fingers when the pinch starts stays in place.
+      const from = jm.view.zoom_current;
+      const box = panel.getBoundingClientRect();
+      const origin = { x: (panel.scrollLeft + pinch.center.x - box.left) / from, y: (panel.scrollTop + pinch.center.y - box.top) / from };
+      preview = { from, zoom: from, origin };
+    }
+    const shown = preview;
+    shown.zoom = pinch.zoom;
     cancelAnimationFrame(frame);
-    frame = requestAnimationFrame(() => jm.view.set_zoom(pinch.zoom, pinch.center));
+    frame = requestAnimationFrame(() => scale(`scale(${shown.zoom / shown.from})`, `${shown.origin.x}px ${shown.origin.y}px`));
   }, options);
-  container.addEventListener('touchend', (event) => gestures.touchEnd(event.touches.length), options);
-  container.addEventListener('touchcancel', () => gestures.touchCancel(), options);
+  container.addEventListener('touchend', (event) => {
+    gestures.touchEnd(event.touches.length);
+    if (event.touches.length < 2) endPinch();
+  }, options);
+  container.addEventListener('touchcancel', () => {
+    gestures.touchCancel();
+    endPinch();
+  }, options);
   // A finger resting on a node must not open the browser's context menu.
   container.addEventListener('contextmenu', (event) => {
     if (gestures.touching) event.preventDefault();
