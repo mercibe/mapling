@@ -40,6 +40,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
@@ -1046,35 +1047,43 @@ class MainActivity : AppCompatActivity() {
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
             .addCategory(Intent.CATEGORY_OPENABLE)
             .setType("*/*") // providers disagree on the type of .mm files
-        startActivityForResult(intent, REQUEST_OPEN)
+        openPicker.launch(intent)
     }
 
-    @Deprecated("Deprecated in Java")
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        val uri = data?.data.takeIf { resultCode == RESULT_OK }
-        when (requestCode) {
-            REQUEST_OPEN -> if (uri != null) {
-                keepAccess(uri, data!!.flags)
-                open(uri)
-            }
-            REQUEST_SAVE_LENT_COPY -> {
-                val lentUri = document?.takeIf { lent[it.toString()] == false } ?: return
-                if (uri == null) return
-                keepAccess(uri, data!!.flags)
-                writeLentCopy(lentUri, uri)
-            }
-            REQUEST_SAVE_COPY -> {
-                val copy = pendingCopy ?: return
-                pendingCopy = null
-                if (uri == null) { // the map stays modified, protected by its draft
-                    copy.requestId?.let(::giveUpLeaving)
-                    return
-                }
-                keepAccess(uri, data!!.flags)
-                saveWriter.execute { writeTo(uri, copy.saveId, copy.bytes, requestId = copy.requestId, copy = copy) }
-            }
+    /**
+     * The system's file picker, then `then` with the document picked (null: none) and the
+     * access granted with it. The generic contract keeps our intents and the result's flags,
+     * which the typed ones (OpenDocument, CreateDocument) drop. Registered with the activity.
+     */
+    private fun picker(then: (uri: Uri?, flags: Int) -> Unit) =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            then(result.data?.data.takeIf { result.resultCode == RESULT_OK }, result.data?.flags ?: 0)
         }
+
+    private val openPicker = picker { uri, flags ->
+        if (uri != null) {
+            keepAccess(uri, flags)
+            open(uri)
+        }
+    }
+
+    private val lentCopyPicker = picker { uri, flags ->
+        val lentUri = document?.takeIf { lent[it.toString()] == false }
+        if (uri != null && lentUri != null) {
+            keepAccess(uri, flags)
+            writeLentCopy(lentUri, uri)
+        }
+    }
+
+    private val copyPicker = picker { uri, flags ->
+        val copy = pendingCopy ?: return@picker
+        pendingCopy = null
+        if (uri == null) { // the map stays modified, protected by its draft
+            copy.requestId?.let(::giveUpLeaving)
+            return@picker
+        }
+        keepAccess(uri, flags)
+        saveWriter.execute { writeTo(uri, copy.saveId, copy.bytes, requestId = copy.requestId, copy = copy) }
     }
 
     /** Keeps the right to read and write the document after the process dies or the phone restarts. */
@@ -1540,7 +1549,7 @@ class MainActivity : AppCompatActivity() {
             .addCategory(Intent.CATEGORY_OPENABLE)
             .setType(MAP_TYPE)
             .putExtra(Intent.EXTRA_TITLE, documentName)
-        startActivityForResult(intent, REQUEST_SAVE_LENT_COPY)
+        lentCopyPicker.launch(intent)
     }
 
     /**
@@ -1573,7 +1582,7 @@ class MainActivity : AppCompatActivity() {
             .addCategory(Intent.CATEGORY_OPENABLE)
             .setType(MAP_TYPE)
             .putExtra(Intent.EXTRA_TITLE, name)
-        startActivityForResult(intent, REQUEST_SAVE_COPY)
+        copyPicker.launch(intent)
     }
 
     /**
@@ -1867,9 +1876,6 @@ class MainActivity : AppCompatActivity() {
             "connector" to R.plurals.count_connector,
             "image" to R.plurals.count_image,
         )
-        const val REQUEST_OPEN = 1
-        const val REQUEST_SAVE_COPY = 2
-        const val REQUEST_SAVE_LENT_COPY = 4
         const val STATE_DOCUMENT = "document"
 
         // One of each for the whole process, not per activity: when Android recreates
