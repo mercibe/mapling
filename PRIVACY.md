@@ -22,18 +22,18 @@ Questions: open an issue on <https://github.com/mercibe/mapling>.
 
 # Politique de confidentialité
 
-Mapling ne collecte aucune donnée. Aucun compte, aucune publicité, aucune mesure d'audience, aucun accès au réseau : l'application Android ne demande même pas la permission d'utiliser Internet.
+Mapling ne collecte aucune donnée. Aucun compte, aucune publicité, aucune mesure d’audience, aucun accès au réseau : l’application Android ne demande même pas la permission d’utiliser Internet.
 
-- **Vos cartes** : Mapling ne lit et n'écrit que les documents que vous choisissez, par le sélecteur de documents d'Android (Google Drive, le stockage du téléphone ou un autre fournisseur). Elles ne vont nulle part ailleurs.
-- **Gardé sur votre appareil seulement**, dans le stockage privé de l'application, et effacé quand vous la désinstallez : la liste de vos dix cartes les plus récentes (nom et accès au document), et les brouillons des modifications non enregistrées, effacés dès que la carte est enregistrée ou les modifications abandonnées. Un brouillon devenu illisible (fichier endommagé) est plutôt mis de côté, et gardé jusqu'à la désinstallation. Ces données sont exclues des sauvegardes d'Android.
-- **Liens** : toucher un lien Web sur un nœud, ou « Code source » dans À propos, l'ouvre dans votre navigateur ; Mapling lui-même n'envoie rien.
+- **Vos cartes** : Mapling ne lit et n’écrit que les documents que vous choisissez, par le sélecteur de documents d’Android (Google Drive, le stockage du téléphone ou un autre fournisseur). Elles ne vont nulle part ailleurs.
+- **Gardé sur votre appareil seulement**, dans le stockage privé de l’application, et effacé quand vous la désinstallez : la liste de vos dix cartes les plus récentes (nom et accès au document), et les brouillons des modifications non enregistrées, effacés dès que la carte est enregistrée ou les modifications abandonnées. Un brouillon devenu illisible (fichier endommagé) est plutôt mis de côté, et gardé jusqu’à la désinstallation. Ces données sont exclues des sauvegardes d’Android.
+- **Liens** : toucher un lien Web sur un nœud, ou « Code source » dans À propos, l’ouvre dans votre navigateur ; Mapling lui-même n’envoie rien.
 
 ## Version Web
 
-La version Web (<https://benoitmercier.me/mapling-web/>) fonctionne entièrement dans votre navigateur. Celui-ci télécharge la page et ses fichiers depuis l'hébergeur, comme toute page Web ; ensuite, Mapling n'envoie rien.
+La version Web (<https://benoitmercier.me/mapling-web/>) fonctionne entièrement dans votre navigateur. Celui-ci télécharge la page et ses fichiers depuis l’hébergeur, comme toute page Web ; ensuite, Mapling n’envoie rien.
 
-- **Vos cartes** : le navigateur lit le fichier que vous ouvrez sur votre ordinateur ; il n'est jamais envoyé. Enregistrer télécharge une copie.
-- **Gardé dans votre navigateur seulement**, dans le stockage local du site `benoitmercier.me` : les brouillons des modifications non enregistrées, effacés dès que vous confirmez que la copie est enregistrée ou que vous abandonnez les modifications, et les noms des cartes pour lesquelles l'information sur le contenu invisible a déjà été affichée. Un brouillon endommagé reste en place jusqu'à ce que vous effaciez les données du site. Effacer les données du site dans votre navigateur les supprime.
-- **Hébergeur** : comme pour tout site Web, l'hébergeur tient des journaux d'accès ordinaires (adresse IP, date, fichier demandé). Mapling n'ajoute ni témoin (cookie), ni mesure d'audience, ni script tiers.
+- **Vos cartes** : le navigateur lit le fichier que vous ouvrez sur votre ordinateur ; il n’est jamais envoyé. Enregistrer télécharge une copie.
+- **Gardé dans votre navigateur seulement**, dans le stockage local du site `benoitmercier.me` : les brouillons des modifications non enregistrées, effacés dès que vous confirmez que la copie est enregistrée ou que vous abandonnez les modifications, et les noms des cartes pour lesquelles l’information sur le contenu invisible a déjà été affichée. Un brouillon endommagé reste en place jusqu’à ce que vous effaciez les données du site. Effacer les données du site dans votre navigateur les supprime.
+- **Hébergeur** : comme pour tout site Web, l’hébergeur tient des journaux d’accès ordinaires (adresse IP, date, fichier demandé). Mapling n’ajoute ni témoin (cookie), ni mesure d’audience, ni script tiers.
 
 Questions : ouvrez un ticket sur <https://github.com/mercibe/mapling>.
