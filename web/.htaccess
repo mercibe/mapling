@@ -14,5 +14,9 @@ AddDefaultCharset utf-8
 </Files>
 
 # The web shell stays public even when a parent folder asks for a password.
-Satisfy Any
+# Satisfy is Apache 2.2's way, and needs mod_access_compat on Apache 2.4:
+# tested, so that the file stays valid on a strict Apache 2.4.
+<IfModule mod_access_compat.c>
+  Satisfy Any
+</IfModule>
 Require all granted

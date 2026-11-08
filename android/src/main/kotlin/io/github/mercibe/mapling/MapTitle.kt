@@ -16,16 +16,6 @@ fun mapTitle(fileName: String): String {
 /** The root's text on one line: line breaks and runs of spaces become single spaces. */
 fun oneLine(title: String): String = title.trim().replace(Regex("\\s+"), " ")
 
-/**
- * A map as named on one line: "Root text (File.mm)", so that the user sees both what it is
- * about and which file holds it. A long root text is shortened, so that the file's name
- * always shows. Without a known root text, the file's name alone.
- */
-fun mapLabel(title: String, fileName: String, maxTitle: Int = 40): String {
-    val text = oneLine(title)
-    return if (text.isEmpty()) fileName else "${shortenEnd(text, maxTitle)} ($fileName)"
-}
-
 /** At most `max` characters: the end gives way to "…". */
 fun shortenEnd(text: String, max: Int): String = if (text.length <= max) text else text.take(max - 1).trimEnd() + "…"
 

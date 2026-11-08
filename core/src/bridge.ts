@@ -100,7 +100,8 @@ export type CoreMessage =
 export interface View {
   /**
    * Displays the map. `keepViewState` is true when the same map is shown again
-   * (undo, redo): folding, selection and scroll position are then kept.
+   * (undo, redo): selection and scroll position are then kept (folding comes
+   * from the map itself).
    */
   show(root: ViewNode, readOnly: boolean, keepViewState: boolean): void;
   setReadOnly(readOnly: boolean): void;

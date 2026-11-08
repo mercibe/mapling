@@ -37,7 +37,7 @@ The build stops with a clear message if the core has not been built. Rebuild the
 ## Tests
 
 ```
-./gradlew testDebugUnitTest   # JUnit tests (drafts, write check, file reads, recent maps, WebView version), on the computer
+./gradlew testDebugUnitTest   # JUnit tests (drafts, write check, file reads and snapshots, recent maps, map titles, WebView version), on the computer
 ./gradlew lint                # Android Lint, including calls to APIs newer than Android 8
 ```
 
@@ -55,6 +55,8 @@ Debug builds let Chrome inspect the WebView: with the device connected, open `ch
 | `src/main/kotlin/.../AssetServer.kt` | Serves the page and the core from the app's assets, and nothing else |
 | `src/main/kotlin/.../DraftStore.kt` | Drafts of unsaved changes, one per document |
 | `src/main/kotlin/.../WriteCheck.kt` | Whether a document may be overwritten: not if it was changed elsewhere |
+| `src/main/kotlin/.../FileReads.kt` | Whether a read of the open map's file still applies when it returns, and a file's content with its date |
+| `src/main/kotlin/.../MapTitle.kt` | A map's name and title as shown: file name without `.mm`, root text on one line, shortened texts |
 | `src/main/kotlin/.../RecentMaps.kt` | The last maps opened, and whether their hidden content was told |
 | `src/main/kotlin/.../WebViewVersion.kt` | The oldest WebView the core runs on |
 | `src/main/assets/index.html` | The page: only the map |
