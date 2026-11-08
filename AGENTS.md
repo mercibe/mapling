@@ -37,7 +37,7 @@ core/              core: .mm model, operations, bridge, jsMind view; Node tests
   assets/          stylesheet of the map view, template of a new map
 web/               reference web shell (open a local file, download a copy); drafts tested in Node
 android/           Kotlin shell (WebView + Storage Access Framework), see android/README.md
-ios/               not started, contributions welcome
+fastlane/          store listings: texts, icon, screenshots (en, fr)
 docs/              public documentation (English)
 fixtures/          public test maps (never modify)
 fixtures-private/  real user maps, git-ignored; tests use them only if present

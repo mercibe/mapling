@@ -9,7 +9,7 @@ Mapling follows the [GitHub flow](https://docs.github.com/en/get-started/using-g
 - `main` is always stable: all tests pass and it could be released at any time. Nobody commits to it directly.
 - Work happens on a short-lived branch per milestone or feature (e.g. `milestone-2-web-shell`, `task-icons`).
 - Contributions reach `main` through a pull request, reviewed before merging. The maintainer may also merge their own branches locally, as a fast-forward (`git merge --ff-only`), once the work is validated.
-- Releases are tags on `main` (`v0.1.0`, …).
+- Releases are tags on `main` (`v1.0.0`, …).
 - Commit messages are in English, in the imperative mood ("Add …", "Fix …"), with small, readable commits.
 - Before opening a pull request or merging, run `npm test` and `npm run check`: every commit should pass them.
 
@@ -31,6 +31,9 @@ Every source file starts with:
 SPDX-FileCopyrightText: <year> <author>
 SPDX-License-Identifier: GPL-3.0-or-later
 ```
+
+A contributor who adds substantial work to an existing file adds their own
+`SPDX-FileCopyrightText` line below the existing ones.
 
 The App Store exception applies to the whole repository (see
 `LICENSE-EXCEPTION.md`); it is not repeated in each file.

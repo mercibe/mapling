@@ -1,4 +1,4 @@
-Mapling opens your Freeplane mind maps (.mm files) on your phone or tablet, so that you can read them and make quick changes anywhere: in the bus before a meeting, away from your computer.
+Mapling opens your Freeplane mind maps (.mm files) on your phone or tablet, so that you can read them and make quick changes anywhere: on the bus before a meeting, away from your computer.
 
 Need a new map? Create a simple one in seconds: a few taps add its branches, and it opens in Freeplane like any other.
 

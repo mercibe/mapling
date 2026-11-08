@@ -1,6 +1,6 @@
 # Mapling
 
-Your Freeplane mind maps on your Android phone or tablet. Open a map (`.mm` file) from Google Drive or any storage, read it, make quick changes anywhere (in the bus before a meeting, away from your computer), and save it back without losing anything Freeplane wrote. Or start a new map in a few taps, and finish it later in Freeplane.
+Your Freeplane mind maps on your Android phone or tablet. Open a map (`.mm` file) from Google Drive or any storage, read it, make quick changes anywhere (on the bus before a meeting, away from your computer), and save it back without losing anything Freeplane wrote. Or start a new map in a few taps, and finish it later in Freeplane.
 
 <p>
 <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" alt="A meeting map, a node selected" width="240">
@@ -24,12 +24,14 @@ Supported format: maps written by Freeplane 1.12. Older (FreeMind included) and 
 ## Install
 
 - **Google Play**: coming soon (Android 8 or later).
-- **APK**: download it from the [releases](https://github.com/mercibe/mapling/releases) page.
+- **APK**: coming with the first release.
 - **Build it yourself**: see [android/README.md](android/README.md).
 
 No account, no ads, no tracking, and no network access: the app asks for no permission at all. See the [privacy policy](PRIVACY.md).
 
 ## Try it in a browser
+
+Online: <https://benoitmercier.me/mapling-web/>. Or run it locally:
 
 ```
 npm install
