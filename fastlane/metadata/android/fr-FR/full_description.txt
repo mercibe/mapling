@@ -17,6 +17,8 @@ Votre travail est protégé :
 • avant d'enregistrer, Mapling vérifie que la carte n'a pas été modifiée ailleurs (sur votre ordinateur, par exemple) ; si c'est le cas, vous pouvez enregistrer une copie et garder les deux versions ;
 • ce que Mapling n'affiche pas (notes, icônes, attributs…) n'est jamais perdu, et vous êtes prévenu quand une carte en contient.
 
+À savoir : les cartes écrites par Freeplane 1.12 sont modifiables ; les plus anciennes (FreeMind compris) et les plus récentes s'ouvrent en lecture seule. Les textes de nœud mis en forme (texte enrichi) ou sur plusieurs lignes s'affichent, mais ne se modifient que dans Freeplane.
+
 Respect de votre vie privée : aucun compte, aucune publicité, aucun pistage, et aucun accès au réseau. Mapling ne demande aucune permission : il ne lit et n'écrit que les cartes que vous choisissez.
 
 Logiciel libre (GNU GPL 3.0 ou ultérieure). Mapling n'est pas affilié au projet Freeplane.

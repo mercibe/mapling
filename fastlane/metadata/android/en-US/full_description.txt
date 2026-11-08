@@ -17,6 +17,8 @@ Your work is safe:
 • before saving, Mapling checks that the map was not changed elsewhere (on your computer, for instance); if it was, you can save a copy and keep both versions;
 • content Mapling does not display (notes, icons, attributes…) is never lost, and you are told when a map holds some.
 
+Good to know: maps written by Freeplane 1.12 can be edited; older ones (FreeMind included) and newer ones open read-only. Formatted (rich) and multi-line node texts are shown, but can only be edited in Freeplane.
+
 Private by design: no account, no ads, no tracking, and no network access at all. Mapling asks for no permission: it reads and writes only the maps you choose.
 
 Free software (GNU GPL 3.0 or later). Mapling is not affiliated with the Freeplane project.
