@@ -57,6 +57,7 @@
   "about.copyright": "© 2026 Benoit Mercier",
   "about.license": "Mapling est un logiciel libre : vous pouvez le redistribuer et le modifier selon les termes de la Licence publique générale GNU, version 3 ou ultérieure, avec une permission supplémentaire pour les magasins d’applications. Il est fourni sans aucune garantie.",
   "about.uses": "Utilise jsMind (BSD-3-Clause) et les icônes Material Symbols (Apache-2.0). Mapling n’est pas affilié au projet Freeplane.",
+  "about.sourceLink": "Code source",
   "about.licenseLink": "Licence (GPL-3.0-or-later)",
   "about.exceptionLink": "Permission supplémentaire",
   "about.jsmindLink": "Licence de jsMind",
