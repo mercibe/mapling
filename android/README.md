@@ -45,6 +45,8 @@ The core has its own tests (`npm test`, at the repository root). The rest of the
 
 ## Debugging
 
+The debug build installs as *Mapling debug* (`io.github.mercibe.mapling.debug`), beside the app from Google Play, with its own data.
+
 Debug builds let Chrome inspect the WebView: with the device connected, open `chrome://inspect` in Chrome on the computer. Messages from the page's console also appear in `adb logcat` under the `mapling` tag.
 
 ## Files

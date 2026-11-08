@@ -57,6 +57,11 @@ android {
     }
 
     buildTypes {
+        // The debug build installs beside the one from Google Play, with its own data and
+        // its own name on screen (src/debug/res).
+        debug {
+            applicationIdSuffix = ".debug"
+        }
         release {
             if (uploadStoreFile != null) signingConfig = signingConfigs.getByName("upload")
             // Leaves out what the libraries bring but the app does not use. The default rules
