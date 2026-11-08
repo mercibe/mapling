@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2026 Benoit Mercier and Mapling contributors
+// SPDX-FileCopyrightText: 2026 Benoit Mercier
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 // Touch gestures on the map. jsMind was designed for the mouse: on a touch screen,

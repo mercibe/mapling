@@ -28,7 +28,7 @@ permission. Do not submit code you are not entitled to license this way.
 Every source file starts with:
 
 ```
-SPDX-FileCopyrightText: <year> <author> and Mapling contributors
+SPDX-FileCopyrightText: <year> <author>
 SPDX-License-Identifier: GPL-3.0-or-later
 ```
 

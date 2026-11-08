@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2026 Benoit Mercier and Mapling contributors
+// SPDX-FileCopyrightText: 2026 Benoit Mercier
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 // The bridge is tested as a shell sees it: JSON messages in, JSON messages out.

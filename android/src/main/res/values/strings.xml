@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-SPDX-FileCopyrightText: 2026 Benoit Mercier and Mapling contributors
+SPDX-FileCopyrightText: 2026 Benoit Mercier
 SPDX-License-Identifier: GPL-3.0-or-later
 -->
 <resources>
@@ -118,7 +118,7 @@ SPDX-License-Identifier: GPL-3.0-or-later
     <string name="error_delete">The map could not be deleted.</string>
     <string name="about">About</string>
     <!-- %1$s: the version, e.g. "1.0.0" -->
-    <string name="about_text">Version %1$s\n\nView and lightly edit Freeplane mind maps, without losing anything Freeplane wrote.\n\n© 2026 Benoit Mercier and Mapling contributors\n\nMapling is free software: you may redistribute and modify it under the GNU General Public License, version 3 or later, with an additional permission for app stores. It comes with no warranty.\n\nUses jsMind (BSD-3-Clause), AndroidX and Material Components (Apache-2.0), and Material Symbols icons (Apache-2.0). Mapling is not affiliated with the Freeplane project.</string>
+    <string name="about_text">Version %1$s\n\nView and lightly edit Freeplane mind maps, without losing anything Freeplane wrote.\n\n© 2026 Benoit Mercier\n\nMapling is free software: you may redistribute and modify it under the GNU General Public License, version 3 or later, with an additional permission for app stores. It comes with no warranty.\n\nUses jsMind (BSD-3-Clause), AndroidX and Material Components (Apache-2.0), and Material Symbols icons (Apache-2.0). Mapling is not affiliated with the Freeplane project.</string>
     <string name="licenses">Licenses</string>
     <string name="license_mapling" translatable="false">Mapling: GPL-3.0-or-later + exception</string>
     <string name="license_jsmind" translatable="false">jsMind: BSD-3-Clause</string>

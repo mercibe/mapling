@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2026 Benoit Mercier and Mapling contributors
+// SPDX-FileCopyrightText: 2026 Benoit Mercier
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 // For some texts it provides itself, such as the root of a new map, Freeplane

@@ -53,7 +53,7 @@
   "hint.hidden": "This node holds items that are not shown here, and kept: {items}.",
   "action.about": "About",
   "about.description": "View and lightly edit Freeplane mind maps, without losing anything Freeplane wrote. Everything happens in your browser: the maps you open are sent nowhere.",
-  "about.copyright": "© 2026 Benoit Mercier and Mapling contributors",
+  "about.copyright": "© 2026 Benoit Mercier",
   "about.license": "Mapling is free software: you may redistribute and modify it under the GNU General Public License, version 3 or later, with an additional permission for app stores. It comes with no warranty.",
   "about.uses": "Uses jsMind (BSD-3-Clause) and Material Symbols icons (Apache-2.0). Mapling is not affiliated with the Freeplane project.",
   "about.licenseLink": "License (GPL-3.0-or-later)",
