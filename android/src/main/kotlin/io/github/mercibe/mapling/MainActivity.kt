@@ -180,7 +180,13 @@ class MainActivity : AppCompatActivity() {
     private val saveTargets = mutableMapOf<String, SaveTarget>()
 
     /** A save refused because of a change made elsewhere, while the user picks where to copy it. */
-    private class PendingCopy(val document: Uri, val name: String, val saveId: Long, val bytes: ByteArray)
+    private class PendingCopy(
+        val document: Uri,
+        val name: String,
+        val saveId: Long,
+        val bytes: ByteArray,
+        val requestId: String?, // set: the save request, which leaving the map may wait for
+    )
 
     private var pendingCopy: PendingCopy? = null
 
@@ -199,7 +205,7 @@ class MainActivity : AppCompatActivity() {
         webView = findViewById(R.id.map)
         home = findViewById(R.id.home)
         findViewById<View>(R.id.open_map).setOnClickListener { pickDocument() }
-        findViewById<View>(R.id.new_map).setOnClickListener { pickNewMap() }
+        findViewById<View>(R.id.new_map).setOnClickListener { newMap() }
         recent = RecentMaps.decode(preferences().getString(RECENT_MAPS, null))
         nodeBar = findViewById(R.id.node_bar)
         setUpToolbar()
@@ -289,7 +295,7 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         val open = document
-        if (open != null) checkFile(open) else renderHome()
+        if (open == null) renderHome() else if (open != NEW_MAP) checkFile(open)
     }
 
     /** Only the document: the map itself is protected by its draft on disk. */
@@ -355,7 +361,8 @@ class MainActivity : AppCompatActivity() {
         for ((id, _, _) in TOOLBAR_ACTIONS) menu.findItem(id).isVisible = open
         menu.findItem(MENU_UNDO).isEnabled = canUndo
         menu.findItem(MENU_REDO).isEnabled = canRedo
-        menu.findItem(MENU_SAVE).isEnabled = dirty
+        // A new map can be saved as it is: its first save gives it a file.
+        menu.findItem(MENU_SAVE).isEnabled = dirty || document == NEW_MAP
         return true
     }
 
@@ -413,7 +420,7 @@ class MainActivity : AppCompatActivity() {
         add(menu, getString(R.string.open), R.drawable.ic_folder_open, coreReady) { leaveMap(::pickDocument) }
         // Back to the home screen: the opposite of Open (also in the ⋮ menu, with the map's commands).
         if (open) add(menu, getString(R.string.close), R.drawable.ic_close, true, action = ::closeMap)
-        add(menu, getString(R.string.new_map), R.drawable.ic_note_add, coreReady) { leaveMap(::pickNewMap) }
+        add(menu, getString(R.string.new_map), R.drawable.ic_note_add, coreReady) { leaveMap(::newMap) }
         val others = recent.entries.filter { it.document != document?.toString() }
         if (others.isNotEmpty()) {
             val section = menu.addSubMenu(R.string.recent_maps) // a titled section in the drawer
@@ -443,6 +450,7 @@ class MainActivity : AppCompatActivity() {
      */
     private fun showMapInfo() {
         val uri = document ?: return
+        if (uri == NEW_MAP) return mapInfoDialog(uri, null, null, null) // no file to ask about yet
         thread {
             val source = try {
                 packageManager.resolveContentProvider(uri.authority!!, 0)?.applicationInfo?.loadLabel(packageManager)?.toString()
@@ -476,7 +484,8 @@ class MainActivity : AppCompatActivity() {
         val status = mutableListOf<String>()
         if (uri.toString() in lent) status.add(getString(R.string.info_lent))
         if (mapReadOnly) status.add(getString(R.string.info_read_only))
-        if (uri.toString() !in deletable) status.add(getString(R.string.info_not_deletable))
+        if (uri == NEW_MAP) status.add(getString(R.string.info_not_saved))
+        else if (uri.toString() !in deletable) status.add(getString(R.string.info_not_deletable))
         val message = (listOf(lines.joinToString("\n")) + status).joinToString("\n\n")
         MaterialAlertDialogBuilder(this)
             .setTitle(R.string.map_info)
@@ -561,7 +570,11 @@ class MainActivity : AppCompatActivity() {
      * the map worked on. A map lent read-only goes by its own way, so that the copy is editable.
      */
     private fun saveAs() {
-        if (lent[document?.toString()] == false) pickLentCopy() else save(copyName = documentName)
+        when {
+            lent[document?.toString()] == false -> pickLentCopy()
+            document == NEW_MAP -> save() // its first save asks where already
+            else -> save(copyName = documentName)
+        }
     }
 
     /**
@@ -791,7 +804,8 @@ class MainActivity : AppCompatActivity() {
         title(R.string.more_map)
         if (selection == null) entry(R.string.center, R.drawable.ic_filter_center_focus, center)
         entry(R.string.map_info, R.drawable.ic_info) { showMapInfo() }
-        entry(R.string.reload, R.drawable.ic_refresh) { leaveMap { open(uri) } }
+        // A new map has no file yet: nothing to read again.
+        if (uri != NEW_MAP) entry(R.string.reload, R.drawable.ic_refresh) { leaveMap { open(uri) } }
         entry(R.string.save_as, R.drawable.ic_save) { saveAs() }
         if (uri.toString() in renamable) entry(R.string.rename, R.drawable.ic_edit) { renameMap() }
         entry(R.string.close, R.drawable.ic_close, ::closeMap)
@@ -1044,10 +1058,6 @@ class MainActivity : AppCompatActivity() {
                 keepAccess(uri, data!!.flags)
                 open(uri)
             }
-            REQUEST_NEW_MAP -> if (uri != null) {
-                keepAccess(uri, data!!.flags)
-                createMap(uri)
-            }
             REQUEST_SAVE_LENT_COPY -> {
                 val lentUri = document?.takeIf { lent[it.toString()] == false } ?: return
                 if (uri == null) return
@@ -1057,9 +1067,12 @@ class MainActivity : AppCompatActivity() {
             REQUEST_SAVE_COPY -> {
                 val copy = pendingCopy ?: return
                 pendingCopy = null
-                if (uri == null) return // the map stays modified, protected by its draft
+                if (uri == null) { // the map stays modified, protected by its draft
+                    copy.requestId?.let(::giveUpLeaving)
+                    return
+                }
                 keepAccess(uri, data!!.flags)
-                saveWriter.execute { writeTo(uri, copy.saveId, copy.bytes, copy = copy) }
+                saveWriter.execute { writeTo(uri, copy.saveId, copy.bytes, requestId = copy.requestId, copy = copy) }
             }
         }
     }
@@ -1208,33 +1221,12 @@ class MainActivity : AppCompatActivity() {
 
     // ---------- creating a map ----------
 
-    /** Where and under which name: the system's picker, as for any document. */
-    private fun pickNewMap() {
-        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
-            .addCategory(Intent.CATEGORY_OPENABLE)
-            .setType(MAP_TYPE)
-            .putExtra(Intent.EXTRA_TITLE, getString(R.string.new_map) + ".mm")
-        startActivityForResult(intent, REQUEST_NEW_MAP)
-    }
-
-    /** Writes a new map as Freeplane does (the core's template), then opens it like any other. */
-    private fun createMap(uri: Uri) {
-        thread {
-            try {
-                val template = assets.open(NEW_MAP_TEMPLATE).use { it.readBytes() }
-                contentResolver.openOutputStream(uri, "wt")!!.use { it.write(template) }
-                // The file holds what was just written: loaded as is, not read back. Dropbox
-                // serves no content for a moment after a write (checked on a Pixel, 2026-10-25).
-                // No date: a map just created cannot have been changed elsewhere, nothing to watch.
-                val name = displayName(uri)
-                learnFlags(uri)
-                runOnUiThread { load(uri, name, template, DraftStore.fingerprint(template), modified = null) }
-            } catch (e: Exception) {
-                Log.w(TAG, "Cannot create $uri", e)
-                runOnUiThread { alert(R.string.error_write) }
-            }
-        }
-    }
+    /**
+     * A new map opens at once, from the core's template (as Freeplane writes one), with no
+     * file yet: where and under which name are asked at its first save, as in any editor.
+     * Until then, its document is NEW_MAP, which keys its draft.
+     */
+    private fun newMap() = open(NEW_MAP)
 
     /**
      * Reads the document off the main thread (a provider such as Drive may download it
@@ -1243,12 +1235,13 @@ class MainActivity : AppCompatActivity() {
     private fun open(uri: Uri) {
         thread {
             try {
-                val (bytes, modified) = readFile(uri)
-                learnFlags(uri)
-                val name = displayName(uri)
+                val fileless = uri == NEW_MAP
+                val (bytes, modified) = if (fileless) assets.open(NEW_MAP_TEMPLATE).use { it.readBytes() } to null else readFile(uri)
+                if (!fileless) learnFlags(uri)
+                val name = if (fileless) "" else displayName(uri)
                 val base = DraftStore.fingerprint(bytes)
                 val found = drafts.read(uri.toString())
-                Log.i(TAG, "Opened $name: ${bytes.size} bytes, ${describe(uri)}, draft: ${found.javaClass.simpleName}, $uri")
+                Log.i(TAG, "Opened $name: ${bytes.size} bytes, ${if (fileless) "no file" else describe(uri)}, draft: ${found.javaClass.simpleName}, $uri")
                 runOnUiThread {
                     when (found) {
                         is Found.Present -> offerDraft(uri, name, bytes, base, modified, found.draft)
@@ -1256,7 +1249,8 @@ class MainActivity : AppCompatActivity() {
                             toast(getString(R.string.draft_unreadable))
                             load(uri, name, bytes, base, modified)
                         }
-                        Found.None -> load(uri, name, bytes, base, modified)
+                        // A new map left unmodified, or given up, has nothing to restore: the home screen instead.
+                        Found.None -> if (fileless && reopen == uri) stopReopening() else load(uri, name, bytes, base, modified)
                     }
                 }
             } catch (e: Exception) {
@@ -1324,7 +1318,7 @@ class MainActivity : AppCompatActivity() {
         mapVersion = message.optString("mapVersion")
         val warnings = message.getJSONArray("warnings")
         readOnlyReasons = List(warnings.length()) { warnings.getJSONObject(it).getString("code") }
-        if (load.uri.toString() !in lent) {
+        if (load.uri.toString() !in lent && load.uri != NEW_MAP) {
             // A restored draft is not saved yet: the recent maps keep the title of the file.
             val fileTitle = if (load.restoredDraft) recentTitle(load.uri) else documentTitle
             putFirstInRecent(load.uri, load.name, fileTitle)
@@ -1487,7 +1481,9 @@ class MainActivity : AppCompatActivity() {
     private fun save(copyName: String? = null): String? {
         val uri = document ?: return null
         val requestId = "r${++requestCount}"
-        saveTargets[requestId] = SaveTarget(uri, base, copyName)
+        // A new map's first save is a copy too: the user picks where, its root's text offered.
+        val name = copyName ?: newFileName(documentTitle, getString(R.string.new_map)).takeIf { uri == NEW_MAP }
+        saveTargets[requestId] = SaveTarget(uri, base, name)
         sendToCore(JSONObject().put("type", "save").put("requestId", requestId))
         return requestId
     }
@@ -1502,7 +1498,7 @@ class MainActivity : AppCompatActivity() {
         val target = saveTargets.remove(requestId) ?: return
         val saveId = message.getLong("saveId")
         val bytes = Base64.decode(message.getString("data"), Base64.NO_WRAP)
-        if (target.copyName != null) return pickCopy(target.uri, saveId, bytes, target.copyName)
+        if (target.copyName != null) return pickCopy(target.uri, saveId, bytes, target.copyName, requestId)
         saveWriter.execute {
             val current = try {
                 contentResolver.openInputStream(target.uri)!!.use { DraftStore.fingerprint(it.readBytes()) }
@@ -1549,7 +1545,8 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * Read-only, the map is unmodified: the copy is the lent file's content, loaded as
-     * written rather than read back (see createMap).
+     * written rather than read back: Dropbox serves no content for a moment after a write
+     * (checked on a Pixel, 2026-10-25).
      */
     private fun writeLentCopy(lentUri: Uri, copy: Uri) {
         thread {
@@ -1570,8 +1567,8 @@ class MainActivity : AppCompatActivity() {
     private fun copyName() = getString(R.string.copy_name, mapTitle(documentName)) + ".mm"
 
     /** Where the user picks, with `name` offered; once written, the copy is the map worked on. */
-    private fun pickCopy(uri: Uri, saveId: Long, bytes: ByteArray, name: String) {
-        pendingCopy = PendingCopy(uri, name, saveId, bytes)
+    private fun pickCopy(uri: Uri, saveId: Long, bytes: ByteArray, name: String, requestId: String? = null) {
+        pendingCopy = PendingCopy(uri, name, saveId, bytes, requestId)
         val intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
             .addCategory(Intent.CATEGORY_OPENABLE)
             .setType(MAP_TYPE)
@@ -1626,7 +1623,9 @@ class MainActivity : AppCompatActivity() {
                 // handled too: leave only if the map is now unmodified.
                 val leave = leaveAfterSave?.takeIf { it.requestId == requestId } ?: return@sendToCore
                 leaveAfterSave = null
-                if (!dirty && document == leave.uri) leave.then()
+                // A copy that took the place of the map left (a new map's first save) is that map.
+                val sameMap = document == leave.uri || (copy?.document == leave.uri && document == uri)
+                if (!dirty && sameMap) leave.then()
             }
             if (document == uri) {
                 // The document now holds these bytes. A draft left by later changes must
@@ -1811,6 +1810,9 @@ class MainActivity : AppCompatActivity() {
         const val LAST_OPEN = "lastOpen" // the map to reopen at start; removed by Close
         const val NEW_MAP_TEMPLATE = "core/assets/new-map.mm"
 
+        /** The document of a new map not saved yet: no provider's, only a key for its draft. */
+        val NEW_MAP: Uri = "mapling:new-map".toUri()
+
         /**
          * The type of a map created here. Android knows it goes with ".mm" (from Debian's
          * table): a provider making a name unique then numbers it "Map (1).mm", where an
@@ -1867,7 +1869,6 @@ class MainActivity : AppCompatActivity() {
         )
         const val REQUEST_OPEN = 1
         const val REQUEST_SAVE_COPY = 2
-        const val REQUEST_NEW_MAP = 3
         const val REQUEST_SAVE_LENT_COPY = 4
         const val STATE_DOCUMENT = "document"
 

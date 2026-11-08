@@ -1,0 +1,1 @@
+Les nouvelles cartes s’ouvrent tout de suite : l’emplacement et le nom du fichier sont demandés au premier enregistrement, le texte de la racine proposé comme nom.

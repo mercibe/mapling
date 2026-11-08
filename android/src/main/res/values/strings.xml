@@ -136,6 +136,7 @@ SPDX-License-Identifier: GPL-3.0-or-later
     <string name="info_format">Format: %1$s</string>
     <string name="info_lent">Opened from another app: not kept in the recent maps.</string>
     <string name="info_read_only">Read-only.</string>
+    <string name="info_not_saved">Not saved yet: where to keep it and under which name are asked at the first save.</string>
     <string name="info_not_deletable">Its source does not let Mapling delete it.</string>
     <string name="more">More</string>
     <string name="more_node">Selected node</string>

@@ -39,4 +39,18 @@ class MapTitleTest {
         assertEquals("Réuni…e.mm", shortenMiddle("Réunion d'équipe.mm", 10))
         assertEquals(10, shortenMiddle("Réunion d'équipe.mm", 10).length)
     }
+
+    @Test
+    fun aNewMapIsOfferedItsRootsTextAsFileName() {
+        assertEquals("Vacances d'été.mm", newFileName(" Vacances\nd'été ", "New map"))
+        assertEquals("Budget 2027-2028.mm", newFileName("Budget 2027/2028", "New map"))
+        assertEquals("a-b-c-d-e-f-g-h-i.mm", newFileName("a\\b:c*d?e\"f<g>h|i", "New map"))
+        assertEquals(103, newFileName("x".repeat(150), "New map").length)
+    }
+
+    @Test
+    fun aNewMapWithNoUsableRootTextGetsTheFallback() {
+        assertEquals("New map.mm", newFileName("", "New map"))
+        assertEquals("New map.mm", newFileName("  \n ", "New map"))
+    }
 }

@@ -36,7 +36,7 @@ android {
         applicationId = "io.github.mercibe.mapling"
         minSdk = 26
         targetSdk = 37
-        versionCode = 1
+        versionCode = 2
         versionName = projectVersion
         resValue("string", "build_id", buildId)
     }

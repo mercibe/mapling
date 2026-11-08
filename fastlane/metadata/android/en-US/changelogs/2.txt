@@ -1,0 +1,1 @@
+New maps open at once: where to keep them and under which name is asked at the first save, the root's text offered as the file name.

@@ -13,6 +13,15 @@ fun mapTitle(fileName: String): String {
     return title.ifEmpty { fileName }
 }
 
+/**
+ * The file name offered when a new map is first saved: its root's text on one line, without
+ * the characters file names refuse; `fallback` when nothing is left.
+ */
+fun newFileName(title: String, fallback: String): String {
+    val name = oneLine(title).replace(Regex("[\\\\/:*?\"<>|]"), "-").take(100).trim()
+    return name.ifEmpty { fallback } + ".mm"
+}
+
 /** The root's text on one line: line breaks and runs of spaces become single spaces. */
 fun oneLine(title: String): String = title.trim().replace(Regex("\\s+"), " ")
 
