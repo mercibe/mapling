@@ -19,6 +19,15 @@ val uploadStoreFile: String? = providers.gradleProperty("maplingUploadStoreFile"
 // at each release sent to Google Play.
 val projectVersion = (groovy.json.JsonSlurper().parse(file("../package.json")) as Map<*, *>)["version"] as String
 
+// The commit the app is built from, shown in About: "v1.0.0-3-g2b7e7be*, 2026-11-02"
+// (`*`: uncommitted changes; the date is the commit's). Empty without Git (source archive).
+fun git(vararg args: String): String = providers.exec {
+    commandLine("git", *args)
+    isIgnoreExitValue = true
+}.standardOutput.asText.get().trim()
+val buildId = listOf(git("describe", "--tags", "--always", "--dirty=*"), git("log", "-1", "--format=%cs"))
+    .filter { it.isNotEmpty() }.joinToString(", ")
+
 android {
     namespace = "io.github.mercibe.mapling"
     compileSdk = 37
@@ -29,6 +38,11 @@ android {
         targetSdk = 37
         versionCode = 1
         versionName = projectVersion
+        resValue("string", "build_id", buildId)
+    }
+
+    buildFeatures {
+        resValues = true
     }
 
     signingConfigs {

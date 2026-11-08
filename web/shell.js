@@ -530,6 +530,10 @@ function render() {
   for (const element of document.querySelectorAll('[data-text]')) {
     element.textContent = t(element.dataset.text);
   }
+  // Written by the assembly (build-site.js); empty when served from the repository.
+  const version = document.getElementById('about-version');
+  version.hidden = !version.dataset.version;
+  version.textContent = t('about.version', { version: version.dataset.version });
   for (const element of document.querySelectorAll('[data-with-map]')) element.hidden = !map;
   document.getElementById('home').hidden = !!map;
   document.getElementById('mapling').style.visibility = map ? '' : 'hidden';

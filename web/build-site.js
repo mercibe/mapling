@@ -11,6 +11,7 @@
 // android/ (shared with the Android shell). The .htaccess gives Apache the right
 // media types.
 
+import { execFileSync } from 'node:child_process';
 import { cpSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -33,9 +34,25 @@ for (const file of ['LICENSE', 'LICENSE-EXCEPTION.md', 'PRIVACY.md', 'android/LI
   cpSync(join(root, file), join(out, file));
 }
 
+// The version shown in About, as on Android: "1.0.0 (v1.0.0-3-g2b7e7be*, 2026-11-02)"
+// (`*`: uncommitted changes; the date is the commit's). Without Git, the version alone.
+function git(...args) {
+  try {
+    return execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  } catch {
+    return '';
+  }
+}
+const { version } = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
+const details = [git('describe', '--tags', '--always', '--dirty=*'), git('log', '-1', '--format=%cs')]
+  .filter(Boolean).join(', ');
+const fullVersion = details ? `${version} (${details})` : version;
+
 // In the repository, the page reaches the core and the licenses one level up
 // (../core/, ../LICENSE); here, beside it.
-const page = readFileSync(join(root, 'web', 'index.html'), 'utf8').replaceAll('"../', '"');
+const page = readFileSync(join(root, 'web', 'index.html'), 'utf8')
+  .replaceAll('"../', '"')
+  .replace('data-version=""', `data-version="${fullVersion}"`);
 writeFileSync(join(out, 'index.html'), page);
 
 const missing = [...page.matchAll(/(?:src|href)="([^"]+)"/g)]

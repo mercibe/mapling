@@ -489,9 +489,14 @@ class MainActivity : AppCompatActivity() {
 
     /** Version, copyright, license and no warranty (GPL section 5), with the licenses' texts. */
     private fun showAbout() {
-        val version = packageManager.getPackageInfo(packageName, 0).versionName
+        // "1.0.0 (2b7e7be*, 2026-11-02, debug)", and the WebView's version for bug reports.
+        val details = listOf(getString(R.string.build_id), if (isDebuggable()) getString(R.string.debug_build) else "")
+            .filter { it.isNotEmpty() }.joinToString(", ")
+        val versionName = packageManager.getPackageInfo(packageName, 0).versionName
+        val version = if (details.isEmpty()) versionName else "$versionName ($details)"
+        val webView = WebView.getCurrentWebViewPackage()?.versionName ?: "?"
         // Two buttons fit on one line; the source code is a link in the text.
-        val text = getString(R.string.about_text, version) + "\n\n" + getString(R.string.source_code_link, SOURCE_URL)
+        val text = getString(R.string.about_text, version, webView) + "\n\n" + getString(R.string.source_code_link, SOURCE_URL)
         val dialog = MaterialAlertDialogBuilder(this)
             .setTitle(R.string.app_name)
             .setMessage(text)
