@@ -20,3 +20,10 @@ AddDefaultCharset utf-8
   Satisfy Any
 </IfModule>
 Require all granted
+
+# Every file is checked with the server at each visit (an unchanged one costs a short
+# "304 Not Modified"): a browser never mixes files of two versions after an update,
+# such as a stylesheet kept a week by default with a newer script.
+<IfModule mod_headers.c>
+  Header set Cache-Control "no-cache"
+</IfModule>
