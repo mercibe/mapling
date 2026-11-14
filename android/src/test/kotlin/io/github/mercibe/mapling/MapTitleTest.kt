@@ -32,15 +32,6 @@ class MapTitleTest {
     }
 
     @Test
-    fun aLongTextLosesItsEndAndAFileNameItsMiddle() {
-        assertEquals("Short", shortenEnd("Short", 10))
-        assertEquals("Long text…", shortenEnd("Long text that goes on", 10))
-        assertEquals("Réunion.mm", shortenMiddle("Réunion.mm", 10))
-        assertEquals("Réuni…e.mm", shortenMiddle("Réunion d'équipe.mm", 10))
-        assertEquals(10, shortenMiddle("Réunion d'équipe.mm", 10).length)
-    }
-
-    @Test
     fun aNewMapIsOfferedItsRootsTextAsFileName() {
         assertEquals("Vacances d'été.mm", newFileName(" Vacances\nd'été ", "New map"))
         assertEquals("Budget 2027-2028.mm", newFileName("Budget 2027/2028", "New map"))

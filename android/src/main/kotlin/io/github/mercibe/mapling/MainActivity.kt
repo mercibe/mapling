@@ -16,6 +16,8 @@ import android.provider.OpenableColumns
 import android.util.Base64
 import android.text.SpannableStringBuilder
 import android.text.Spanned
+import android.text.TextPaint
+import android.text.TextUtils
 import android.text.method.LinkMovementMethod
 import android.text.style.ForegroundColorSpan
 import android.text.style.RelativeSizeSpan
@@ -47,6 +49,7 @@ import androidx.appcompat.widget.Toolbar
 import androidx.core.content.edit
 import androidx.core.net.toUri
 import androidx.core.view.GravityCompat
+import androidx.core.view.doOnNextLayout
 import androidx.core.widget.TextViewCompat
 import androidx.core.widget.doAfterTextChanged
 import androidx.drawerlayout.widget.DrawerLayout
@@ -379,19 +382,42 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * A recent map in the drawer, on two lines: its root's text, then its file, smaller and
-     * grey. Each is shortened to fit its line, so that no line is cut.
+     * grey. Each is shortened to `width` pixels of `paint`, so that the root's text never
+     * wraps and pushes the file out of the entry; unshortened until that width is known.
      */
-    private fun recentLabel(entry: RecentMaps.Entry): CharSequence {
-        val file = shortenMiddle(entry.name, DRAWER_FILE_CHARS)
+    private fun recentLabel(entry: RecentMaps.Entry, paint: TextPaint? = null, width: Float = 0f): CharSequence {
+        fun fit(text: String, scale: Float, where: TextUtils.TruncateAt): CharSequence =
+            if (paint == null) text
+            else TextUtils.ellipsize(text, TextPaint(paint).apply { textSize *= scale }, width, where)
         val title = oneLine(entry.title)
-        if (title.isEmpty()) return file
-        val label = SpannableStringBuilder(shortenEnd(title, DRAWER_TITLE_CHARS)).append('\n')
+        if (title.isEmpty()) return fit(entry.name, 1f, TextUtils.TruncateAt.MIDDLE)
+        val label = SpannableStringBuilder(fit(title, 1f, TextUtils.TruncateAt.END)).append('\n')
         val start = label.length
-        label.append(file)
-        label.setSpan(RelativeSizeSpan(0.8f), start, label.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        label.append(fit(entry.name, DRAWER_FILE_SCALE, TextUtils.TruncateAt.MIDDLE))
+        label.setSpan(RelativeSizeSpan(DRAWER_FILE_SCALE), start, label.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         label.setSpan(ForegroundColorSpan(getColor(R.color.menu_detail)), start, label.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         return label
     }
+
+    /**
+     * Once the drawer is laid out, its file names and the recent maps' labels are shortened to
+     * the width their text really has there: it depends on the screen, the font and the
+     * system's text size. Android's own middle ellipsis is not used: on Android 13, it left a
+     * gap after the "…" and cut the name's end.
+     */
+    private fun fitDrawerTexts(navigation: View, file: TextView, items: List<Pair<MenuItem, RecentMaps.Entry>>) {
+        file.text = TextUtils.ellipsize(file.text, file.paint, textWidth(file), TextUtils.TruncateAt.MIDDLE)
+        val found = ArrayList<View>()
+        for ((item, _) in items) {
+            navigation.findViewsWithText(found, item.title, View.FIND_VIEWS_WITH_TEXT)
+            val text = found.firstOrNull() as? TextView ?: continue
+            for ((other, entry) in items) other.title = recentLabel(entry, text.paint, textWidth(text))
+            return
+        }
+    }
+
+    /** The width a text view gives its text, beside its icon and inside its padding. */
+    private fun textWidth(view: TextView) = (view.width - view.totalPaddingLeft - view.totalPaddingRight).toFloat()
 
     /** The ☰ drawer, filled each time it opens: the open map, the commands, the recent maps, About. */
     private fun openDrawer() {
@@ -401,7 +427,8 @@ class MainActivity : AppCompatActivity() {
         header.visibility = if (open) View.VISIBLE else View.GONE
         val title = oneLine(documentTitle)
         header.findViewById<TextView>(R.id.drawer_title).text = title.ifEmpty { documentName }
-        header.findViewById<TextView>(R.id.drawer_file).text = if (title.isEmpty()) "" else documentName
+        val file = header.findViewById<TextView>(R.id.drawer_file)
+        file.text = if (title.isEmpty()) "" else documentName
         // Touching the open map's name tells more about it.
         header.setBackgroundResource(selectableBackground())
         header.setOnClickListener {
@@ -423,6 +450,7 @@ class MainActivity : AppCompatActivity() {
         if (open) add(menu, getString(R.string.close), R.drawable.ic_close, true, action = ::closeMap)
         add(menu, getString(R.string.new_map), R.drawable.ic_note_add, coreReady) { leaveMap(::newMap) }
         val others = recent.entries.filter { it.document != document?.toString() }
+        val recentItems = mutableListOf<Pair<MenuItem, RecentMaps.Entry>>()
         if (others.isNotEmpty()) {
             val section = menu.addSubMenu(R.string.recent_maps) // a titled section in the drawer
             for (entry in others) {
@@ -430,6 +458,7 @@ class MainActivity : AppCompatActivity() {
                     leaveMap { open(entry.document.toUri()) }
                 }
                 item.actionView = removeButton(entry, ::openDrawer) // then the list, updated
+                recentItems += item to entry
             }
         }
         add(menu, getString(R.string.about), R.drawable.ic_info, true, group = ABOUT) { showAbout() }
@@ -439,6 +468,7 @@ class MainActivity : AppCompatActivity() {
             actions[item.itemId]?.invoke()
             true
         }
+        navigation.doOnNextLayout { fitDrawerTexts(navigation, file, recentItems) }
         drawer.openDrawer(GravityCompat.START)
     }
 
@@ -1797,10 +1827,8 @@ class MainActivity : AppCompatActivity() {
         const val NEWER_VERSION_INTERVAL_MS = 2000L
         const val MENU_SAVE = 2
 
-        // What fits on one line of the ☰ drawer (at most 360 dp wide), beside the button that
-        // removes the entry: a root's text, a file's name (smaller).
-        const val DRAWER_TITLE_CHARS = 22
-        const val DRAWER_FILE_CHARS = 28
+        // In a recent map's entry of the ☰ drawer, the file's name is smaller than the root's text.
+        const val DRAWER_FILE_SCALE = 0.8f
 
         // Groups of entries in the ☰ drawer.
         const val COMMANDS = 1

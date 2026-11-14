@@ -33,7 +33,6 @@ SPDX-License-Identifier: GPL-3.0-or-later
             android:id="@+id/drawer_file"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:ellipsize="middle"
             android:maxLines="1"
             android:textAppearance="?attr/textAppearanceBodySmall"
             android:textColor="@color/menu_detail" />
