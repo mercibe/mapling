@@ -90,6 +90,9 @@ declare const jsMind: {
 /** A zoom (a pinch, the wheel) is over once no step came for this long: the map is sized then. */
 const ZOOM_SETTLED_MS = 150;
 
+/** Room left around a node the arrow keys select, when the map scrolls to show it. */
+const SHOW_MARGIN_PX = 16;
+
 /** Text of a node being added, until its text is validated (neutral: no language). */
 export const PLACEHOLDER = '…';
 const PENDING_ID = '_pending';
@@ -133,6 +136,7 @@ export class JsMindView implements View {
     this.guardEditing();
     this.roomAroundTheMap();
     this.editOnDoubleTap();
+    this.showSelectionOnArrows();
     bottomAnchoredLayout(this.jm.layout);
     installTouchGestures(this.jm);
     this.jm.add_event_listener((type, event) => this.onJsMindEvent(type, event));
@@ -286,6 +290,23 @@ export class JsMindView implements View {
     view.e_panel.addEventListener('dblclick', (event) => {
       const key = nodeOf(event.target);
       if (key && this.jm.get_editable() && taps.onSameNode(key)) this.jm.begin_edit(key);
+    });
+  }
+
+  /**
+   * jsMind selects a node with the arrow keys but never scrolls: the map scrolls just enough
+   * to show it whole, as in Freeplane. Keys only: a tap on a node half shown would move the
+   * map under the finger. jsMind's listener, set in its constructor, has selected it already.
+   */
+  private showSelectionOnArrows(): void {
+    const panel = this.jm.view.e_panel;
+    panel.addEventListener('keydown', (event) => {
+      if (!event.key.startsWith('Arrow') || event.ctrlKey || event.altKey || event.metaKey || this.editing()) return;
+      const element = this.jm.get_selected_node()?._data.view.element;
+      if (!element) return;
+      const shift = scrollToShow(element.getBoundingClientRect(), panel.getBoundingClientRect(), SHOW_MARGIN_PX);
+      panel.scrollLeft += shift.x;
+      panel.scrollTop += shift.y;
     });
   }
 
@@ -559,6 +580,27 @@ function bottomAnchoredLayout(layout: JmLayout): void {
   };
   layout._layout_offset_subnodes = (nodes) => place(nodes, true);
   layout._layout_offset_subnodes_height = (nodes) => place(nodes, false);
+}
+
+interface Box {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
+/**
+ * How far to scroll so that `box` is wholly inside `area`, with `margin` around it: not at
+ * all when it already is, else just enough. A box too large for the area shows its start
+ * (left, top), where its text begins.
+ */
+export function scrollToShow(box: Box, area: Box, margin: number): { x: number; y: number } {
+  const along = (start: number, end: number, areaStart: number, areaEnd: number): number => {
+    const back = start - margin - areaStart; // negative when the box begins before the area
+    if (back < 0) return back;
+    return Math.min(Math.max(end + margin - areaEnd, 0), back);
+  };
+  return { x: along(box.left, box.right, area.left, area.right), y: along(box.top, box.bottom, area.top, area.bottom) };
 }
 
 /** As tall as its text, on every WebView (field-sizing is recent: Chromium 123). */
