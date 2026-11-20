@@ -140,7 +140,19 @@ export class JsMindView implements View {
       shortcut: {
         // Adding and deleting go through the shell's commands (placeholder rule,
         // confirmation of deletions); jsMind's own shortcuts would bypass them.
-        mapping: { addchild: null, addbrother: null, delnode: null },
+        // Freeplane's keys added, which jsMind ignores while a text is edited: PageUp and
+        // PageDown select the first and last sibling; Home and End edit, the caret at the
+        // start or at the end.
+        handles: {
+          firstsibling: (_jm: unknown, event: KeyboardEvent) => this.selectEdgeSibling(event, false),
+          lastsibling: (_jm: unknown, event: KeyboardEvent) => this.selectEdgeSibling(event, true),
+          editstart: (_jm: unknown, event: KeyboardEvent) => this.editSelected(event, 0),
+          editend: (_jm: unknown, event: KeyboardEvent) => this.editSelected(event, null),
+        },
+        mapping: {
+          addchild: null, addbrother: null, delnode: null,
+          firstsibling: 33, lastsibling: 34, editstart: 36, editend: 35, // PageUp, PageDown, Home, End
+        },
       },
       plugin: {
         // Dragging a node near an edge scrolls the map; the default 20 px zone
@@ -327,6 +339,25 @@ export class JsMindView implements View {
       const element = this.jm.get_selected_node()?._data.view.element;
       if (element) this.showWhole(element);
     });
+  }
+
+  private selectEdgeSibling(event: KeyboardEvent, last: boolean): void {
+    event.preventDefault(); // the map does not scroll by a page
+    const node = this.jm.get_selected_node();
+    if (!node) return;
+    const sibling = edgeSibling(node, last);
+    this.jm.select_node(sibling.id);
+    const element = sibling._data.view.element;
+    if (element) this.showWhole(element);
+  }
+
+  /** Edits the selected node, the caret at `caret` (null: at the end), as a double tap or the Edit text command. */
+  private editSelected(event: KeyboardEvent, caret: number | null): void {
+    event.preventDefault();
+    const node = this.jm.get_selected_node();
+    if (!node || !this.jm.get_editable()) return;
+    this.caretAt = caret;
+    this.jm.begin_edit(node);
   }
 
   /** Scrolls the map just enough to show `element` whole, with a small margin; its end, if too large and `toEnd`. */
@@ -782,6 +813,20 @@ export function textOffsetAt(element: HTMLElement, x: number, y: number): number
  */
 export function shownText(topic: string): string {
   return topic.endsWith('\n') ? topic + '\u200b' : topic;
+}
+
+/**
+ * The first or the last of a node's siblings (itself, if it is that one or the root). Among
+ * the root's children, only those on the node's side: the others are on the opposite side
+ * of the map.
+ */
+export function edgeSibling<T extends { isroot: boolean; parent: T | null; children: T[]; direction: number }>(
+  node: T, last: boolean,
+): T {
+  const parent = node.parent;
+  if (!parent) return node;
+  const siblings = parent.isroot ? parent.children.filter((s) => s.direction === node.direction) : parent.children;
+  return siblings[last ? siblings.length - 1 : 0];
 }
 
 function side(node: JmNode): Side {
