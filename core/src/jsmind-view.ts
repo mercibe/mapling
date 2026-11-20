@@ -115,6 +115,8 @@ const PENDING_ID = '_pending';
 export class JsMindView implements View {
   private readonly jm: JsMindInstance;
   private bridge: Bridge | null = null;
+  /** Where the next editing puts the caret: set by a double tap, else the text's end. */
+  private caretAt: number | null = null;
 
   constructor(container: HTMLElement | string) {
     this.jm = new jsMind({
@@ -295,7 +297,11 @@ export class JsMindView implements View {
     return icons;
   }
 
-  /** jsMind would edit the node of the second tap, wherever the first one was. */
+  /**
+   * jsMind would edit the node of the second tap, wherever the first one was. The caret goes
+   * where the node was tapped, read before jsMind replaces its text with the editor. In the
+   * node being edited, a double tap is the editor's own: it selects a word.
+   */
   private editOnDoubleTap(): void {
     const view = this.jm.view;
     const nodeOf = (target: EventTarget | null) => (view.is_node(target) ? view.get_binded_nodeid(target) : null);
@@ -303,7 +309,9 @@ export class JsMindView implements View {
     view.e_panel.addEventListener('click', (event) => taps.tap(nodeOf(event.target)));
     view.e_panel.addEventListener('dblclick', (event) => {
       const key = nodeOf(event.target);
-      if (key && this.jm.get_editable() && taps.onSameNode(key)) this.jm.begin_edit(key);
+      if (!key || key === view.editing_node?.id || !this.jm.get_editable() || !taps.onSameNode(key)) return;
+      this.caretAt = textOffsetAt(event.target as HTMLElement, event.clientX, event.clientY);
+      this.jm.begin_edit(key);
     });
   }
 
@@ -423,14 +431,18 @@ export class JsMindView implements View {
     const beginEdit = jm.begin_edit.bind(jm);
     jm.begin_edit = (target: string | JmNode) => {
       const node = typeof target === 'string' ? jm.get_node(target) : target;
+      const caretAt = this.caretAt;
+      this.caretAt = null;
       if (!node || node.data.readOnly) return;
       beginEdit(node); // the node itself: given its id, jsMind would call this function again
       // jsMind empties the node for its editor: the icons go back in front of it.
       const link = node.data.link as string | undefined;
       if (link && editor.parentElement) editor.before(this.icons(link));
       if (editor.parentElement) editor.after(this.newlineButton(editor));
-      // A text on several lines: the caret at its end, so that a first key replaces nothing.
-      if (editor.value.includes('\n')) editor.setSelectionRange(editor.value.length, editor.value.length);
+      // jsMind selects the whole text. Only a new node keeps it so, its "…" replaced by the
+      // first key; any other text gets the caret where it was tapped, or at its end.
+      const caret = caretAt ?? editor.value.length;
+      if (node.id !== PENDING_ID) editor.setSelectionRange(caret, caret);
       // jsMind sizes the editor to the node (a new node's "…" is tiny): let the CSS size it.
       editor.style.width = '';
       fitHeight(editor);
@@ -747,6 +759,19 @@ function fitHeight(editor: HTMLTextAreaElement): void {
   editor.style.height = 'auto';
   const line = parseFloat(getComputedStyle(editor).lineHeight);
   editor.style.height = `${Math.max(1, Math.round(editor.scrollHeight / line)) * line}px`;
+}
+
+/**
+ * The offset, in the text of the node `element`, of the point (x, y) on screen; null off
+ * its text (padding, icons). The node shows its topic as one text node, so the offset in it
+ * is the offset in the topic. caretRangeFromPoint: Chromium before 128, which lacks the other.
+ */
+function textOffsetAt(element: HTMLElement, x: number, y: number): number | null {
+  const position = document.caretPositionFromPoint?.(x, y);
+  const range = position ? null : document.caretRangeFromPoint?.(x, y);
+  const text = position?.offsetNode ?? range?.startContainer;
+  if (!text || text.nodeType !== Node.TEXT_NODE || !element.contains(text)) return null;
+  return position?.offset ?? range?.startOffset ?? null;
 }
 
 function side(node: JmNode): Side {
