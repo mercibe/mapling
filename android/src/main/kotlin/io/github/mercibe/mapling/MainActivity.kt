@@ -333,6 +333,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        webView.removeCallbacks(autoSaveTimer)
         newerVersionWatch = null
         fileReads.invalidate()
         // Unless a newer activity has already taken over.
@@ -647,11 +648,11 @@ class MainActivity : AppCompatActivity() {
     private fun renameMap() {
         val uri = document ?: return
         if (!dirty) return askNewName(uri)
+        val saveFirst: () -> Unit = { save()?.let { requestId -> leaveAfterSave = LeaveAfterSave(requestId, uri) { askNewName(uri) } } }
+        if (autoSaves()) return saveFirst() // without asking, as when leaving
         MaterialAlertDialogBuilder(this)
             .setMessage(R.string.rename_save_first)
-            .setPositiveButton(R.string.save_and_rename) { _, _ ->
-                save()?.let { requestId -> leaveAfterSave = LeaveAfterSave(requestId, uri) { askNewName(uri) } }
-            }
+            .setPositiveButton(R.string.save_and_rename) { _, _ -> saveFirst() }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
     }
@@ -1421,6 +1422,8 @@ class MainActivity : AppCompatActivity() {
         keptOver = null
         unreadableTold = false
         watchForNewerVersion(load.uri, load.modified)
+        // The previous map's save is not this one's. A dirtyChanged may follow: it plans again.
+        autoSaveLater(dirty)
         render()
     }
 
@@ -1488,6 +1491,7 @@ class MainActivity : AppCompatActivity() {
     private fun fileUnreadable() {
         if (unreadableTold) return
         unreadableTold = true
+        pauseAutoSave() // told once: no banner later for the same trouble
         val dialog = MaterialAlertDialogBuilder(this).setTitle(R.string.file_unreadable_title)
         if (dirty) {
             dialog.setMessage(getString(R.string.file_unreadable) + "\n\n" + getString(R.string.file_unreadable_changes))
@@ -1512,6 +1516,7 @@ class MainActivity : AppCompatActivity() {
     /** A copy keeps both versions, reloading drops the changes. */
     private fun offerChangedElsewhere(uri: Uri, bytes: ByteArray, version: String, modified: Long?) {
         keptOver = version // coming back from picking a copy must not ask again
+        pauseAutoSave() // the user chooses: saving will ask again
         MaterialAlertDialogBuilder(this)
             .setTitle(R.string.conflict_title)
             .setMessage(R.string.changed_elsewhere)
@@ -1532,6 +1537,8 @@ class MainActivity : AppCompatActivity() {
     private fun close() {
         newerVersionWatch = null
         fileReads.invalidate()
+        webView.removeCallbacks(autoSaveTimer)
+        autoSavePaused = false
         document = null
         documentName = ""
         documentTitle = ""
@@ -1586,11 +1593,16 @@ class MainActivity : AppCompatActivity() {
         if (dirty && autoSaves()) save(auto = true)
     }
 
-    /** A change made elsewhere, or a failed write: no question every few seconds, a banner, and the disk again. */
-    private fun pauseAutoSave() {
+    /**
+     * A change made elsewhere, or a file that cannot be read or written: no question every few
+     * seconds, a banner, and the disk again. Only for the map still open; returns whether it is.
+     */
+    private fun pauseAutoSave(uri: Uri? = document): Boolean {
+        if (uri == null || uri != document) return false
         Log.i(TAG, "Automatic saving paused for $documentName")
         autoSavePaused = true
         render()
+        return true
     }
 
     // ---------- saving (docs/BRIDGE.md, section 6) ----------
@@ -1624,7 +1636,7 @@ class MainActivity : AppCompatActivity() {
                 Log.w(TAG, "Cannot read ${target.uri} before writing", e) // never write blindly
                 runOnUiThread {
                     giveUpLeaving(requestId)
-                    if (target.auto) pauseAutoSave() else alert(R.string.error_write)
+                    if (target.auto) pauseAutoSave(target.uri) else alert(R.string.error_write)
                 }
                 return@execute
             }
@@ -1632,7 +1644,11 @@ class MainActivity : AppCompatActivity() {
                 Log.i(TAG, "Not written: changed elsewhere (${current.take(8)}, based on ${target.base.take(8)})")
                 runOnUiThread {
                     giveUpLeaving(requestId) // the user decides again, once the conflict is settled
-                    if (target.auto) pauseAutoSave() else if (!isDestroyed) offerConflict(target.uri, saveId, bytes)
+                    if (!target.auto) {
+                        if (!isDestroyed) offerConflict(target.uri, saveId, bytes)
+                    } else if (pauseAutoSave(target.uri)) {
+                        keptOver = current // told by the banner: coming back must not ask again
+                    }
                 }
                 return@execute
             }
@@ -1709,7 +1725,7 @@ class MainActivity : AppCompatActivity() {
             Log.w(TAG, "Cannot write $uri", e)
             runOnUiThread {
                 requestId?.let(::giveUpLeaving) // the map stays open, still modified
-                if (auto) pauseAutoSave() else alert(R.string.error_write)
+                if (auto) pauseAutoSave(uri) else alert(R.string.error_write)
             }
             return
         }
