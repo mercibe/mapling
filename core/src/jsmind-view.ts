@@ -766,7 +766,7 @@ function fitHeight(editor: HTMLTextAreaElement): void {
  * its text (padding, icons). The node shows its topic as one text node, so the offset in it
  * is the offset in the topic. caretRangeFromPoint: Chromium before 128, which lacks the other.
  */
-function textOffsetAt(element: HTMLElement, x: number, y: number): number | null {
+export function textOffsetAt(element: HTMLElement, x: number, y: number): number | null {
   const position = document.caretPositionFromPoint?.(x, y);
   const range = position ? null : document.caretRangeFromPoint?.(x, y);
   const text = position?.offsetNode ?? range?.startContainer;
