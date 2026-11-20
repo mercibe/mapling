@@ -59,6 +59,7 @@ import com.google.android.material.navigation.NavigationView
 import io.github.mercibe.mapling.DraftStore.Draft
 import io.github.mercibe.mapling.DraftStore.Found
 import org.json.JSONObject
+import org.json.JSONTokener
 import java.io.File
 import java.text.DateFormat
 import java.util.Date
@@ -885,6 +886,38 @@ class MainActivity : AppCompatActivity() {
         sendToCore(JSONObject().put("type", type).put("id", node.getString("id")))
     }
 
+    /**
+     * A key pressed on the map, with a physical keyboard (docs/BRIDGE.md, shortcut): the
+     * command runs only when its button or menu entry could be used now, as on the web.
+     */
+    private fun runShortcut(command: String, direction: String) {
+        val node = selection.takeIf { !mapReadOnly }
+        val notRoot = node != null && !node.getBoolean("root")
+        when (command) {
+            "addChild" -> if (node != null) nodeCommand("addChild")
+            "addSibling" -> if (notRoot) nodeCommand("addSibling")
+            "deleteNode" -> if (notRoot) deleteSelected()
+            "moveNode" -> if (notRoot) sendToCore(JSONObject().put("type", "moveNode").put("id", node!!.getString("id")).put("direction", direction))
+            "undo" -> if (canUndo) sendToCore(JSONObject().put("type", "undo"))
+            "redo" -> if (canRedo) sendToCore(JSONObject().put("type", "redo"))
+            "save" -> if (dirty || document == NEW_MAP) save()
+            "zoomIn", "zoomOut" -> sendToCore(JSONObject().put("type", command))
+            "editLink" -> if (node != null) editLink(node)
+            "followLink" -> selection?.takeIf { !it.isNull("link") }?.let { followLink(it.getString("link")) }
+        }
+    }
+
+    /**
+     * Opens a node's link as written in the map: the core gives the address its icon opens
+     * (MindCore.webLink, normalized: "HTTPS://example.org" gives "https://example.org/"),
+     * or null for a link that is not a web one, which is then ignored.
+     */
+    private fun followLink(link: String) {
+        webView.evaluateJavascript("MindCore.webLink(${JSONObject.quote(link)})") { shown ->
+            (JSONTokener(shown).nextValue() as? String)?.let(::openLink)
+        }
+    }
+
     /** Asks first when the branch holds content that is not shown, with a summary of it. */
     private fun deleteSelected() {
         val node = selection ?: return
@@ -1425,6 +1458,9 @@ class MainActivity : AppCompatActivity() {
         // The previous map's save is not this one's. A dirtyChanged may follow: it plans again.
         autoSaveLater(dirty)
         render()
+        // Shown by render: the map takes the keys of a physical keyboard, which would otherwise
+        // go to the first button (☰) until the map is touched.
+        webView.requestFocus()
     }
 
     /**
@@ -1610,6 +1646,7 @@ class MainActivity : AppCompatActivity() {
     /** Returns the request's id, or null with no document open. As a copy, the user picks where. */
     private fun save(copyName: String? = null, auto: Boolean = false): String? {
         val uri = document ?: return null
+        webView.removeCallbacks(autoSaveTimer) // this save makes it needless (Ctrl+S while it waits)
         val requestId = "r${++requestCount}"
         // A new map's first save is a copy too: the user picks where, its root's text offered.
         val name = copyName ?: newFileName(documentTitle, getString(R.string.new_map)).takeIf { uri == NEW_MAP }
@@ -1840,6 +1877,7 @@ class MainActivity : AppCompatActivity() {
             "draftData" -> keepDraft(message)
             "saveData" -> write(message)
             "openLink" -> openLink(message.getString("url"))
+            "shortcut" -> runShortcut(message.getString("command"), message.optString("direction"))
             "titleChanged" -> {
                 documentTitle = message.getString("title")
                 if (!dirty) recentTitleIsSaved()

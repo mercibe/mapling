@@ -7,6 +7,7 @@ The Android shell: an activity around a WebView that runs the core (`core/`), pl
 - Keeps unsaved changes as drafts in the app's private storage, so that they survive the app being killed.
 - Saves the open map by itself 10 seconds after its last change and when the app goes to the background, unless turned off in Preferences. A change made elsewhere or a failed write pauses this for that map: a banner says so and the save button comes back.
 - Before saving, checks that the document was not changed elsewhere (another device, Freeplane on a computer); if it was, offers to save a copy, overwrite, or cancel.
+- With a physical keyboard, has the same keys as Mapling Web (arrows, Enter, Insert, Delete, Ctrl+Z, Ctrl+S…), read by the core.
 - Lists the last ten maps opened, reopens at start the map left open (unless it was closed), and creates new maps.
 - Its interface uses AndroidX and Material Components (Material 3), Google's standard libraries; JUnit for tests. Release builds leave out what the libraries bring but the app does not use (R8).
 

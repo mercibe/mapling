@@ -48,6 +48,13 @@ export interface SelectedNode {
   branch: BranchSummary;
 }
 
+/** A key of the map for one of the shell's commands (see shortcutOf); `direction` for moveNode only. */
+export type Shortcut = {
+  command: 'addChild' | 'addSibling' | 'deleteNode' | 'moveNode' | 'undo' | 'redo' | 'save'
+    | 'zoomIn' | 'zoomOut' | 'editLink' | 'followLink';
+  direction?: Direction;
+};
+
 /** Messages from the shell. */
 export type ShellMessage = { v: number; requestId?: string } & (
   | {
@@ -94,6 +101,7 @@ export type CoreMessage =
   | { type: 'historyChanged'; canUndo: boolean; canRedo: boolean }
   | { type: 'selectionChanged'; node: SelectedNode | null }
   | { type: 'openLink'; url: string }
+  | ({ type: 'shortcut' } & Shortcut)
   | { type: 'error'; requestId?: string; code: BridgeErrorCode; message: string };
 
 /** What the bridge needs from the display (the jsMind adapter, or a fake in tests). */
@@ -192,6 +200,11 @@ export class Bridge {
   /** A web link touched in the view (http or https, see webLink): the shell opens it. */
   openLink(url: string): void {
     this.post({ type: 'openLink', url });
+  }
+
+  /** A key pressed on the map, outside a text being edited: the shell runs the command, if it can. */
+  shortcut(shortcut: Shortcut): void {
+    this.post({ type: 'shortcut', ...shortcut });
   }
 
   /** Records the node selected in the view (null: none); the shell is told what it can do with it. */
@@ -302,7 +315,7 @@ export class Bridge {
     if (map.formatStatus === 'too-new') warnings.push({ code: 'FORMAT_TOO_NEW' });
     if (map.hasDuplicateIds) warnings.push({ code: 'DUPLICATE_IDS' });
     // The new map starts with no selection, even if it shares IDs with the previous one;
-    // the view reports its own selection, if any, while showing the map.
+    // the view reports its own once the map is shown (its root, after `loaded`).
     this.selectedKey = null;
     this.view.show(map.toView(this.locale), this.readOnly, false);
     this.reportedTitle = map.text(map.rootKey, this.locale);

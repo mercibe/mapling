@@ -114,6 +114,9 @@ function receive(message) {
       if (map) state.draftFailed = !writeDraft(storage, map.draftKey, map.name, message.data);
       break;
     }
+    case 'shortcut':
+      run(message.command, message.direction);
+      break;
     case 'openLink':
       // Checked by the core (http or https only); opened apart, without access to this page.
       window.open(message.url, '_blank', 'noopener,noreferrer');
@@ -482,6 +485,12 @@ function run(action, argument) {
 }
 
 for (const button of document.querySelectorAll('[data-action]')) {
+  // A click leaves the focus on the map, so that its keys keep acting (Enter would
+  // otherwise click the button again); Tab still reaches the buttons. Not from a text being
+  // typed: leaving it validates it first, so that Save, for one, includes it.
+  button.addEventListener('mousedown', (event) => {
+    if (!document.activeElement.matches('input, textarea')) event.preventDefault();
+  });
   button.addEventListener('click', () => {
     // An entry of the drawer or of the ⋮ menu closes it first.
     closeDrawer();
@@ -490,38 +499,21 @@ for (const button of document.querySelectorAll('[data-action]')) {
   });
 }
 
-// Keyboard shortcuts of the web shell, Freeplane's (read in its menus, mindmapmodemenu.xml):
-// Ctrl+arrows move the node, Alt+Up and Alt+Down zoom (jsMind keeps F2, Space and the arrows). Caught before jsMind's: with no map open, the keys never reach
-// the map behind the home screen.
+// The keys of the map's commands are read by the core, which sends them as `shortcut`
+// (core/src/jsmind-view.ts, shortcutOf). Here, only the page's own: Ctrl+O, and Escape
+// closing the drawer. Caught before jsMind's: with no map open, the keys never reach the
+// map behind the home screen.
 document.addEventListener('keydown', (event) => {
   if (event.target.closest('input, textarea, dialog')) return; // typing a node's text, or in a dialog
   if (event.key === 'Escape' && app.classList.contains('drawer-open')) return closeDrawer();
-  const ctrl = event.ctrlKey || event.metaKey;
-  const plain = !ctrl && !event.altKey && !event.shiftKey;
-  const onButton = !!event.target.closest('button, a'); // Enter and Tab keep their usual role there
-  const key = event.key.toLowerCase();
-  const arrow = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' }[event.key];
-  const action =
-    ctrl && !event.altKey && !event.shiftKey && arrow ? 'moveNode'
-    : event.altKey && !ctrl && !event.shiftKey && arrow === 'up' ? 'zoomIn'
-    : event.altKey && !ctrl && !event.shiftKey && arrow === 'down' ? 'zoomOut'
-    : ctrl && key === 'k' ? 'editLink'
-    : ctrl && event.key === 'Enter' ? 'followLink'
-    : ctrl && key === 'o' ? 'open'
-    : ctrl && key === 's' ? 'save'
-    : ctrl && key === 'z' && !event.shiftKey ? 'undo'
-    : ctrl && (key === 'y' || (key === 'z' && event.shiftKey)) ? 'redo'
-    : plain && (event.key === 'Insert' || (event.key === 'Tab' && !onButton)) ? 'addChild'
-    : plain && event.key === 'Enter' && !onButton ? 'addSibling' // none for the root, as in Freeplane
-    : plain && event.key === 'Delete' ? 'deleteNode'
-    : null;
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'o') {
+    event.preventDefault();
+    return run('open');
+  }
   if (!state.map) event.stopPropagation();
   // Without a node to act on, Tab (and Shift+Tab) moves the focus as usual: jsMind, which
   // cancels every Tab, must not get it.
-  if (event.key === 'Tab' && !(action && enabled(action))) return event.stopPropagation();
-  if (!action) return;
-  event.preventDefault();
-  run(action, arrow);
+  if (event.key === 'Tab' && (event.shiftKey || !enabled('addChild'))) event.stopPropagation();
 }, true);
 
 // ---------- display ----------

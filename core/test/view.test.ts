@@ -3,7 +3,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { edgeSibling, scrollToShow, shownText, textOffsetAt } from '../src/jsmind-view.ts';
+import { edgeSibling, scrollToShow, shortcutOf, shownText, textOffsetAt } from '../src/jsmind-view.ts';
 
 const area = { left: 0, top: 100, right: 400, bottom: 500 };
 const box = (left: number, top: number, width: number, height: number) => ({ left, top, right: left + width, bottom: top + height });
@@ -108,4 +108,42 @@ test('among the root\'s children, only those on the same side count', () => {
 test('the root has no siblings: it stays selected', () => {
   const nodes = tree();
   assert.equal(edgeSibling(nodes.root, true).id, 'root');
+});
+
+// ---------- shortcuts (sent to the shell) ----------
+
+const press = (key: string, modifiers: { ctrl?: boolean; meta?: boolean; alt?: boolean; shift?: boolean } = {}) =>
+  shortcutOf({ key, ctrlKey: !!modifiers.ctrl, metaKey: !!modifiers.meta, altKey: !!modifiers.alt, shiftKey: !!modifiers.shift });
+
+test('Enter, Insert, Tab and Delete add a sibling, add a child and delete the node', () => {
+  assert.deepEqual(press('Enter'), { command: 'addSibling' });
+  assert.deepEqual(press('Insert'), { command: 'addChild' });
+  assert.deepEqual(press('Tab'), { command: 'addChild' });
+  assert.deepEqual(press('Delete'), { command: 'deleteNode' });
+});
+
+test('Ctrl+arrows move the node, Alt+Up and Alt+Down zoom', () => {
+  assert.deepEqual(press('ArrowLeft', { ctrl: true }), { command: 'moveNode', direction: 'left' });
+  assert.deepEqual(press('ArrowUp', { ctrl: true }), { command: 'moveNode', direction: 'up' });
+  assert.deepEqual(press('ArrowUp', { alt: true }), { command: 'zoomIn' });
+  assert.deepEqual(press('ArrowDown', { alt: true }), { command: 'zoomOut' });
+});
+
+test('Ctrl (or Cmd) with S, Z, Y, K and Enter: save, undo, redo, link', () => {
+  assert.deepEqual(press('s', { ctrl: true }), { command: 'save' });
+  assert.deepEqual(press('z', { meta: true }), { command: 'undo' });
+  assert.deepEqual(press('y', { ctrl: true }), { command: 'redo' });
+  assert.deepEqual(press('Z', { ctrl: true, shift: true }), { command: 'redo' });
+  assert.deepEqual(press('k', { ctrl: true }), { command: 'editLink' });
+  assert.deepEqual(press('Enter', { ctrl: true }), { command: 'followLink' });
+});
+
+test('other keys, and these keys with other modifiers, are not shortcuts', () => {
+  assert.equal(press('a'), null);
+  assert.equal(press('ArrowUp'), null); // jsMind's: select the node above
+  assert.equal(press('Enter', { shift: true }), null);
+  assert.equal(press('Tab', { shift: true }), null);
+  assert.equal(press('ArrowUp', { ctrl: true, shift: true }), null);
+  assert.equal(press('ArrowLeft', { alt: true }), null);
+  assert.equal(press('s'), null);
 });

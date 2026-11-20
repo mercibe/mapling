@@ -447,3 +447,12 @@ test('load only if unmodified is refused for a modified map', async () => {
   await nextTask();
   assert.equal(s.take().find((m) => m.type === 'error').code, 'MAP_MODIFIED');
 });
+
+test('a key of a shell command is sent to the shell to run', () => {
+  const sent: any[] = [];
+  const bridge = new Bridge((json) => sent.push(JSON.parse(json)), {
+    show() {}, setReadOnly() {}, command() {}, center() {}, editing: () => false,
+  });
+  bridge.shortcut({ command: 'moveNode', direction: 'up' });
+  assert.deepEqual(sent, [{ v: 1, type: 'shortcut', command: 'moveNode', direction: 'up' }]);
+});

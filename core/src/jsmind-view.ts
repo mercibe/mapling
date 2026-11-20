@@ -6,8 +6,8 @@
 // the bridge, and what jsMind shows is redrawn from the map when needed.
 // Browser only (needs jsMind and a DOM to draw in); verified end to end in a browser.
 
-import type { Bridge, Command, View } from './bridge.ts';
-import type { MindMap, Side, ViewNode } from './map.ts';
+import type { Bridge, Command, Shortcut, View } from './bridge.ts';
+import type { Direction, MindMap, Side, ViewNode } from './map.ts';
 import { DoubleTap, installTouchGestures, type TouchMap } from './touch.ts';
 
 // ---------- the parts of jsMind 0.9.1 used here (checked in its source) ----------
@@ -164,6 +164,7 @@ export class JsMindView implements View {
     this.roomAroundTheMap();
     this.editOnDoubleTap();
     this.showSelectionOnArrows();
+    this.shortcutsToShell();
     bottomAnchoredLayout(this.jm.layout);
     linksUnderNodes(this.jm);
     installTouchGestures(this.jm);
@@ -190,6 +191,14 @@ export class JsMindView implements View {
       panel.scrollTop = scroll.top;
       if (selected && this.jm.get_node(selected)) this.jm.select_node(selected);
       else this.bridge?.select(null);
+    } else {
+      // A map just opened: its keys act at once, on its root, as in Freeplane. At the next
+      // frame, once the shell has shown it (`loaded`, which clears the shell's selection):
+      // a hidden map cannot take the focus.
+      requestAnimationFrame(() => {
+        panel.focus({ preventScroll: true });
+        if (!this.jm.get_selected_node() && this.jm.get_node(root.id)) this.jm.select_node(root.id);
+      });
     }
   }
 
@@ -338,6 +347,22 @@ export class JsMindView implements View {
       if (!event.key.startsWith('Arrow') || event.ctrlKey || event.altKey || event.metaKey || this.editing()) return;
       const element = this.jm.get_selected_node()?._data.view.element;
       if (element) this.showWhole(element);
+    });
+  }
+
+  /**
+   * The keys of the shell's commands are read here, where the editor is known, and sent to the
+   * shell, which runs the command if it can: so that adding or deleting a node keeps the
+   * shell's rules (placeholder, confirmation), and that every shell has the same keys.
+   * Listened to on the map, as jsMind does: the keys act only while it has the focus.
+   */
+  private shortcutsToShell(): void {
+    this.jm.view.e_panel.addEventListener('keydown', (event) => {
+      if (!this.jm.mind || this.editing()) return;
+      const shortcut = shortcutOf(event);
+      if (!shortcut) return;
+      event.preventDefault();
+      this.bridge?.shortcut(shortcut);
     });
   }
 
@@ -818,6 +843,32 @@ export function textOffsetAt(element: HTMLElement, x: number, y: number): number
  */
 export function shownText(topic: string): string {
   return topic.endsWith('\n') ? topic + '\u200b' : topic;
+}
+
+const ARROWS: Record<string, Direction> = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' };
+
+/**
+ * The shell's command for a key, as in Freeplane (read in its menus, mindmapmodemenu.xml);
+ * null for any other key. Ctrl+arrows move the node, Alt+Up and Alt+Down zoom; Tab adds a
+ * child, as Insert does.
+ */
+export function shortcutOf(event: Pick<KeyboardEvent, 'key' | 'ctrlKey' | 'metaKey' | 'altKey' | 'shiftKey'>): Shortcut | null {
+  const ctrl = event.ctrlKey || event.metaKey;
+  const plain = !ctrl && !event.altKey && !event.shiftKey;
+  const key = event.key.toLowerCase();
+  const arrow = ARROWS[event.key];
+  if (ctrl && !event.altKey && !event.shiftKey && arrow) return { command: 'moveNode', direction: arrow };
+  if (event.altKey && !ctrl && !event.shiftKey && arrow === 'up') return { command: 'zoomIn' };
+  if (event.altKey && !ctrl && !event.shiftKey && arrow === 'down') return { command: 'zoomOut' };
+  if (ctrl && key === 'k') return { command: 'editLink' };
+  if (ctrl && event.key === 'Enter') return { command: 'followLink' };
+  if (ctrl && key === 's') return { command: 'save' };
+  if (ctrl && key === 'z' && !event.shiftKey) return { command: 'undo' };
+  if (ctrl && (key === 'y' || (key === 'z' && event.shiftKey))) return { command: 'redo' };
+  if (plain && (event.key === 'Insert' || event.key === 'Tab')) return { command: 'addChild' };
+  if (plain && event.key === 'Enter') return { command: 'addSibling' };
+  if (plain && event.key === 'Delete') return { command: 'deleteNode' };
+  return null;
 }
 
 /**

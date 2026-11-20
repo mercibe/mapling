@@ -256,7 +256,7 @@ The current state of the loaded map, to be kept as a local draft (see section 6)
 { "v": 1, "type": "selectionChanged", "node": null }
 ```
 
-Sent whenever what the shell knows about the selected node changes: another node is selected, the map changed (new `revision`), or the node was removed or became read-only. `node` is `null` when nothing is selected; every successfully loaded map starts with no selection (a failed load keeps the current one). The shell uses it to enable its commands:
+Sent whenever what the shell knows about the selected node changes: another node is selected, the map changed (new `revision`), or the node was removed or became read-only. `node` is `null` when nothing is selected; every successfully loaded map starts with no selection, then its root is selected: a `selectionChanged` for the root follows `loaded`, unless the user selected a node meanwhile (a failed load keeps the current selection). The shell uses it to enable its commands:
 
 | Field | Use |
 |---|---|
@@ -285,6 +285,14 @@ Emitted whenever the possibility to undo or redo changes. The shell uses it to e
 ```
 
 The user touched the icon of a node's web link. The shell opens the address apart from the map: the system's browser on a phone, a new tab on the web. The core sends only `http` and `https` addresses; Freeplane commands (`execute:`, `menuitem:`…) are never sent. The shell may check the scheme again.
+
+### `shortcut`
+
+```json
+{ "v": 1, "type": "shortcut", "command": "moveNode", "direction": "up" }
+```
+
+A key of one of the shell's commands was pressed on the map, outside a text being edited. The keys are Freeplane's: Enter `addSibling`, Insert or Tab `addChild`, Delete `deleteNode`, Ctrl+arrows `moveNode` (with its `direction`), Ctrl+Z `undo`, Ctrl+Y or Ctrl+Shift+Z `redo`, Ctrl+S `save`, Alt+Up `zoomIn`, Alt+Down `zoomOut`, Ctrl+K `editLink`, Ctrl+Enter `followLink` (open the selected node's web link). Cmd counts as Ctrl. The shell runs the command as its own button or menu entry would, only when that one could be used now, and with the same rules (the confirmation of a deletion); otherwise it ignores the key. The core reads the keys so that every shell has the same ones, and so that they never act while a text is typed.
 
 ### `error`
 
@@ -374,6 +382,7 @@ A mobile system may kill a backgrounded app without notice, and a phone may cras
 - [ ] Tell the user once, when a map opens, about its `hiddenContent` (kept but not displayed).
 - [ ] Enable the Undo and Redo commands according to `historyChanged`, and the editing commands according to `selectionChanged`.
 - [ ] While a node with a lock or a dot is selected, explain what the mark means (`textEditable`, `hidden`), without taking room otherwise. The core's stylesheet offers the same marks for that (`.mapling-lock-mark`, `.mapling-dot-mark`).
+- [ ] Run a `shortcut` as the matching command, only when that command is enabled.
 - [ ] Ask for confirmation before `deleteNode` when the selected branch holds hidden content, with a translated summary; send the node's `id` and the `revision` the confirmation was based on, and ask again on `OUTDATED_COMMAND`.
 - [ ] Serve the core's resources locally; no network access.
 

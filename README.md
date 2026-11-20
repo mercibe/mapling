@@ -41,7 +41,7 @@ python3 -m http.server 8765    # or any static file server, from the repository 
 
 Then open <http://localhost:8765/web/>, and open a `.mm` file (for instance from `fixtures/`).
 
-- Select a node by clicking it, or with the arrows, PageUp and PageDown (first and last sibling); edit its text by double-clicking it (or F2, End, Home for the caret at the start, or the Edit text button), Enter to validate, Shift+Enter (or the ↵ button) for a new line; add, delete, undo and redo with the toolbar; drag a node onto another to move it.
+- Select a node by clicking it, or with the arrows, PageUp and PageDown (first and last sibling); edit its text by double-clicking it (or F2, End, Home for the caret at the start, or the Edit text button), Enter to validate, Shift+Enter (or the ↵ button) for a new line; add, delete, undo and redo with the toolbar or Freeplane's keys (Enter for a sibling, Insert or Tab for a child, Delete, Ctrl+Z, Ctrl+Y, Ctrl+S; Ctrl+arrows move a node); drag a node onto another to move it.
 - A small lock marks a text that can only be edited in Freeplane (rich text); a small dot marks content that is kept but not shown (notes, icons, links…). Select the node to see what it holds.
 - A browser cannot write to the file you opened: *Download a copy* saves the result, and the map counts as saved only once you confirm the copy is where you want it. Until then, unsaved changes are kept as a draft in the browser.
 
