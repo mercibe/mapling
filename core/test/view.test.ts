@@ -3,7 +3,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { scrollToShow, textOffsetAt } from '../src/jsmind-view.ts';
+import { scrollToShow, shownText, textOffsetAt } from '../src/jsmind-view.ts';
 
 const area = { left: 0, top: 100, right: 400, bottom: 500 };
 const box = (left: number, top: number, width: number, height: number) => ({ left, top, right: left + width, bottom: top + height });
@@ -63,4 +63,13 @@ test('a double tap off the node\'s text gives no offset: the caret goes to the e
   withCaretAt({ node: { nodeType: 3 }, offset: 2 }, 'position', () => assert.equal(textOffsetAt(node, 10, 20), null), 'another node\'s text');
   withCaretAt({ node, offset: 1 }, 'position', () => assert.equal(textOffsetAt(node, 10, 20), null), 'the node itself: its padding');
   withCaretAt(null, 'position', () => assert.equal(textOffsetAt(node, 10, 20), null), 'nothing under the point');
+});
+
+test('a text ending with a line break shows its last line, blank, as the editor does', () => {
+  assert.equal(shownText('a\n'), 'a\n​');
+  assert.equal(shownText('a\n\n'), 'a\n\n​');
+});
+
+test('any other text is shown as it is, spaces and inner line breaks included', () => {
+  for (const text of ['a', 'a\nb', '\na', '  a  ', '']) assert.equal(shownText(text), text);
 });

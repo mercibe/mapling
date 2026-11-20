@@ -649,11 +649,11 @@ export class JsMindView implements View {
       // Icons on the left, the text as a block beside them, as in Freeplane.
       const text = document.createElement('span');
       text.className = 'mapling-text';
-      text.textContent = node.topic;
+      text.textContent = shownText(node.topic);
       element.textContent = ''; // not replaceChildren: Chromium 86, one past the minimum
       element.append(this.icons(link), text);
     } else {
-      element.textContent = node.topic;
+      element.textContent = shownText(node.topic);
     }
     element.classList.toggle('mapling-locked', !!node.data.readOnly);
     element.classList.toggle('mapling-hidden-content', !!node.data.hidden);
@@ -764,7 +764,8 @@ function fitHeight(editor: HTMLTextAreaElement): void {
 /**
  * The offset, in the text of the node `element`, of the point (x, y) on screen; null off
  * its text (padding, icons). The node shows its topic as one text node, so the offset in it
- * is the offset in the topic. caretRangeFromPoint: Chromium before 128, which lacks the other.
+ * is the offset in the topic (past its end after shownText's mark: the editor brings it back).
+ * caretRangeFromPoint: Chromium before 128, which lacks the other.
  */
 export function textOffsetAt(element: HTMLElement, x: number, y: number): number | null {
   const position = document.caretPositionFromPoint?.(x, y);
@@ -772,6 +773,15 @@ export function textOffsetAt(element: HTMLElement, x: number, y: number): number
   const text = position?.offsetNode ?? range?.startContainer;
   if (!text || text.nodeType !== Node.TEXT_NODE || !element.contains(text)) return null;
   return position?.offset ?? range?.startOffset ?? null;
+}
+
+/**
+ * The text a node shows. A browser draws no line after a final line break, where the editor
+ * does: a zero-width space gives it one, so that a blank line the user typed at the end is
+ * seen, and the node keeps its height when edited.
+ */
+export function shownText(topic: string): string {
+  return topic.endsWith('\n') ? topic + '\u200b' : topic;
 }
 
 function side(node: JmNode): Side {
