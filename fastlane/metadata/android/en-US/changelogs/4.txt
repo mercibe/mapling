@@ -1,0 +1,1 @@
+Maps now save by themselves a few seconds after your last change and when you leave the app; you can turn this off in Preferences, and the save button then comes back. Double-tapping a node puts the cursor where you tapped; the edit button puts it at the end of the text. The root's bubble no longer lets lines show through after its text was edited.

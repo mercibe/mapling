@@ -5,6 +5,7 @@ The Android shell: an activity around a WebView that runs the core (`core/`), pl
 - Opens and saves documents through the system's document picker (Storage Access Framework): Google Drive, local storage, or any other document provider. The app asks for **no permission**, not even network access.
 - Serves the core to the WebView from the app's assets; the page cannot load anything else.
 - Keeps unsaved changes as drafts in the app's private storage, so that they survive the app being killed.
+- Saves the open map by itself 10 seconds after its last change and when the app goes to the background, unless turned off in Preferences. A change made elsewhere or a failed write pauses this for that map: a banner says so and the save button comes back.
 - Before saving, checks that the document was not changed elsewhere (another device, Freeplane on a computer); if it was, offers to save a copy, overwrite, or cancel.
 - Lists the last ten maps opened, reopens at start the map left open (unless it was closed), and creates new maps.
 - Its interface uses AndroidX and Material Components (Material 3), Google's standard libraries; JUnit for tests. Release builds leave out what the libraries bring but the app does not use (R8).
@@ -54,7 +55,7 @@ Debug builds let Chrome inspect the WebView: with the device connected, open `ch
 | File | Role |
 |---|---|
 | `src/main/kotlin/.../MainActivity.kt` | The activity: toolbar and menus, document picker, bridge messages, saving, drafts, unsaved-changes guards |
-| `src/main/kotlin/.../PreferencesActivity.kt` | The Preferences page: the interface's language (the phone's, or one of Mapling's) |
+| `src/main/kotlin/.../PreferencesActivity.kt` | The Preferences page: the interface's language (the phone's, or one of Mapling's), and saving automatically (on unless turned off) |
 | `src/main/kotlin/.../AssetServer.kt` | Serves the page and the core from the app's assets, and nothing else |
 | `src/main/kotlin/.../DraftStore.kt` | Drafts of unsaved changes, one per document |
 | `src/main/kotlin/.../WriteCheck.kt` | Whether a document may be overwritten: not if it was changed elsewhere |

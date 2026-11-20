@@ -13,8 +13,9 @@ Ce que vous pouvez faire :
 - rouvrir vos cartes récentes d’un geste ; Mapling rouvre la carte que vous aviez laissée ouverte.
 
 Votre travail est protégé :
+- Mapling enregistre votre carte de lui-même quelques secondes après votre dernière modification, et quand vous quittez l’application (vous pouvez le désactiver) ;
 - les modifications non enregistrées sont gardées dans un brouillon, même si Android ferme l’application ;
-- avant d’enregistrer, Mapling vérifie que la carte n’a pas été modifiée ailleurs (sur votre ordinateur, par exemple) ; si c’est le cas, vous pouvez enregistrer une copie et garder les deux versions ;
+- avant d’enregistrer, Mapling vérifie que la carte n’a pas été modifiée ailleurs (sur votre ordinateur, par exemple) ; si c’est le cas, il attend votre décision, et vous pouvez enregistrer une copie pour garder les deux versions ;
 - ce que Mapling n’affiche pas (notes, icônes, attributs…) n’est jamais perdu, et vous êtes prévenu quand une carte en contient.
 
 À savoir : les cartes écrites par Freeplane 1.12 sont modifiables ; les plus anciennes (FreeMind compris) et les plus récentes s’ouvrent en lecture seule. Les textes de nœud mis en forme (texte enrichi) s’affichent, mais ne se modifient que dans Freeplane.
