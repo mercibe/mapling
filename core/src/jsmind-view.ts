@@ -142,7 +142,7 @@ export class JsMindView implements View {
         // confirmation of deletions); jsMind's own shortcuts would bypass them.
         // Freeplane's keys added, which jsMind ignores while a text is edited: PageUp and
         // PageDown select the first and last sibling; Home and End edit, the caret at the
-        // start or at the end.
+        // start or at the end, F2 too (jsMind's own did not check that the map is editable).
         handles: {
           firstsibling: (_jm: unknown, event: KeyboardEvent) => this.selectEdgeSibling(event, false),
           lastsibling: (_jm: unknown, event: KeyboardEvent) => this.selectEdgeSibling(event, true),
@@ -150,8 +150,8 @@ export class JsMindView implements View {
           editend: (_jm: unknown, event: KeyboardEvent) => this.editSelected(event, null),
         },
         mapping: {
-          addchild: null, addbrother: null, delnode: null,
-          firstsibling: 33, lastsibling: 34, editstart: 36, editend: 35, // PageUp, PageDown, Home, End
+          addchild: null, addbrother: null, delnode: null, editnode: null,
+          firstsibling: 33, lastsibling: 34, editstart: 36, editend: [35, 113], // PageUp, PageDown, Home, End and F2
         },
       },
       plugin: {
@@ -341,21 +341,26 @@ export class JsMindView implements View {
     });
   }
 
+  /** With no node selected, the key keeps its usual role: it scrolls the map by a page. */
   private selectEdgeSibling(event: KeyboardEvent, last: boolean): void {
-    event.preventDefault(); // the map does not scroll by a page
     const node = this.jm.get_selected_node();
     if (!node) return;
+    event.preventDefault();
     const sibling = edgeSibling(node, last);
     this.jm.select_node(sibling.id);
     const element = sibling._data.view.element;
     if (element) this.showWhole(element);
   }
 
-  /** Edits the selected node, the caret at `caret` (null: at the end), as a double tap or the Edit text command. */
+  /**
+   * Edits the selected node, the caret at `caret` (null: at the end), as a double tap or the
+   * Edit text command. When nothing can be edited (no selection, a read-only map or text), the
+   * key keeps its usual role.
+   */
   private editSelected(event: KeyboardEvent, caret: number | null): void {
-    event.preventDefault();
     const node = this.jm.get_selected_node();
-    if (!node || !this.jm.get_editable()) return;
+    if (!node || node.data.readOnly || !this.jm.get_editable()) return;
+    event.preventDefault();
     this.caretAt = caret;
     this.jm.begin_edit(node);
   }
