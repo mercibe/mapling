@@ -95,11 +95,11 @@ class MainActivity : AppCompatActivity() {
     private var dirty = false
 
     /**
-     * Saving without the user asking (Preferences): AUTO_SAVE_DELAY_MS after the last change,
+     * Saving without the user asking (Preferences, read at each use: turned off, a save already
+     * planned does not happen): AUTO_SAVE_DELAY_MS after the last change,
      * and when the app goes to the background. Paused for the open map after a change made
      * elsewhere or a failed write: the user then saves, and chooses (see autoSaves).
      */
-    private var autoSaveOn = true
     private var autoSavePaused = false
     private val autoSaveTimer = Runnable { autoSave() }
 
@@ -317,10 +317,11 @@ class MainActivity : AppCompatActivity() {
     /** Back from another app, the open map or the recent maps may have been saved elsewhere meanwhile. */
     override fun onResume() {
         super.onResume()
-        autoSaveOn = PreferencesActivity.autoSave(this) // perhaps just changed in Preferences
-        invalidateOptionsMenu()
+        // Saving automatically may have just been turned on or off in Preferences.
+        autoSaveLater(dirty)
+        render() // the home screen too, when no map is open
         val open = document
-        if (open == null) renderHome() else if (open != NEW_MAP) checkFile(open)
+        if (open != null && open != NEW_MAP) checkFile(open)
     }
 
     /** Only the document: the map itself is protected by its draft on disk. */
@@ -1040,7 +1041,7 @@ class MainActivity : AppCompatActivity() {
             messages.addView(banner(it, R.color.message_info) { hiddenNotice = null; render() })
         }
         if (!draftsProtected) messages.addView(banner(getString(R.string.drafts_not_protected), R.color.message_warning))
-        if (autoSaveOn && autoSavePaused) {
+        if (autoSavePaused && PreferencesActivity.autoSave(this)) {
             messages.addView(banner(getString(R.string.auto_save_paused), R.color.message_warning, action = R.string.save to { save() }))
         }
     }
@@ -1571,7 +1572,7 @@ class MainActivity : AppCompatActivity() {
     /** Whether the open map is saved without the user asking: never a new map, nor one that cannot be written. */
     private fun autoSaves(): Boolean {
         val uri = document ?: return false
-        return autoSaveOn && !autoSavePaused && uri != NEW_MAP && !mapReadOnly && lent[uri.toString()] != false
+        return PreferencesActivity.autoSave(this) && !autoSavePaused && uri != NEW_MAP && !mapReadOnly && lent[uri.toString()] != false
     }
 
     /** Saves AUTO_SAVE_DELAY_MS from now, unless put off again; or not at all once `modified` is false. */
