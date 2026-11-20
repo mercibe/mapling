@@ -94,6 +94,15 @@ class MainActivity : AppCompatActivity() {
     private var base = ""
     private var dirty = false
 
+    /**
+     * Saving without the user asking (Preferences): AUTO_SAVE_DELAY_MS after the last change,
+     * and when the app goes to the background. Paused for the open map after a change made
+     * elsewhere or a failed write: the user then saves, and chooses (see autoSaves).
+     */
+    private var autoSaveOn = true
+    private var autoSavePaused = false
+    private val autoSaveTimer = Runnable { autoSave() }
+
     /** Reads of the open map's file in progress (checkFile): those started before a change are ignored. */
     private val fileReads = FileReads()
 
@@ -186,7 +195,8 @@ class MainActivity : AppCompatActivity() {
      * Document each pending `save` request belongs to, by requestId (docs/BRIDGE.md, section 7),
      * with the fingerprint of the content its map was based on when the save was requested.
      */
-    private class SaveTarget(val uri: Uri, val base: String, val copyName: String?) // copyName: as a copy
+    // copyName: as a copy; auto: not asked by the user (autoSave)
+    private class SaveTarget(val uri: Uri, val base: String, val copyName: String?, val auto: Boolean)
 
     private val saveTargets = mutableMapOf<String, SaveTarget>()
 
@@ -300,12 +310,15 @@ class MainActivity : AppCompatActivity() {
      */
     override fun onPause() {
         super.onPause()
+        autoSave()
         if (document != null) sendToCore(JSONObject().put("type", "flushDraft"))
     }
 
     /** Back from another app, the open map or the recent maps may have been saved elsewhere meanwhile. */
     override fun onResume() {
         super.onResume()
+        autoSaveOn = PreferencesActivity.autoSave(this) // perhaps just changed in Preferences
+        invalidateOptionsMenu()
         val open = document
         if (open == null) renderHome() else if (open != NEW_MAP) checkFile(open)
     }
@@ -377,6 +390,7 @@ class MainActivity : AppCompatActivity() {
         menu.findItem(MENU_REDO).isEnabled = canRedo
         // A new map can be saved as it is: its first save gives it a file.
         menu.findItem(MENU_SAVE).isEnabled = dirty || document == NEW_MAP
+        menu.findItem(MENU_SAVE).isVisible = open && !autoSaves()
         return true
     }
 
@@ -583,6 +597,10 @@ class MainActivity : AppCompatActivity() {
     private fun leaveMap(then: () -> Unit) {
         val uri = document
         if (!dirty || uri == null) return then()
+        if (autoSaves()) {
+            save()?.let { requestId -> leaveAfterSave = LeaveAfterSave(requestId, uri, then) }
+            return
+        }
         MaterialAlertDialogBuilder(this)
             .setMessage(R.string.unsaved_changes)
             .setPositiveButton(R.string.save) { _, _ ->
@@ -1022,6 +1040,9 @@ class MainActivity : AppCompatActivity() {
             messages.addView(banner(it, R.color.message_info) { hiddenNotice = null; render() })
         }
         if (!draftsProtected) messages.addView(banner(getString(R.string.drafts_not_protected), R.color.message_warning))
+        if (autoSaveOn && autoSavePaused) {
+            messages.addView(banner(getString(R.string.auto_save_paused), R.color.message_warning, action = R.string.save to { save() }))
+        }
     }
 
     /** While a node with a lock or a dot is selected, what the mark means; nothing otherwise. */
@@ -1380,6 +1401,7 @@ class MainActivity : AppCompatActivity() {
         documentName = load.name
         documentTitle = message.optString("title")
         base = load.base
+        autoSavePaused = false
         mapReadOnly = message.getBoolean("readOnly")
         mapVersion = message.optString("mapVersion")
         val warnings = message.getJSONArray("warnings")
@@ -1539,17 +1561,46 @@ class MainActivity : AppCompatActivity() {
         val draft = bytes?.let { Draft(uri.toString(), documentName, base, System.currentTimeMillis(), it) }
         Log.i(TAG, "Draft of $documentName: ${bytes?.let { "${it.size} bytes, based on ${base.take(8)}" } ?: "delete"}")
         drafts.submit(uri.toString(), draft)
+        // Drafts come at most a second after each change, then once a second at most:
+        // the map is saved once they stop.
+        autoSaveLater(bytes != null)
+    }
+
+    // ---------- saving automatically (Preferences) ----------
+
+    /** Whether the open map is saved without the user asking: never a new map, nor one that cannot be written. */
+    private fun autoSaves(): Boolean {
+        val uri = document ?: return false
+        return autoSaveOn && !autoSavePaused && uri != NEW_MAP && !mapReadOnly && lent[uri.toString()] != false
+    }
+
+    /** Saves AUTO_SAVE_DELAY_MS from now, unless put off again; or not at all once `modified` is false. */
+    private fun autoSaveLater(modified: Boolean) {
+        webView.removeCallbacks(autoSaveTimer)
+        if (modified && autoSaves()) webView.postDelayed(autoSaveTimer, AUTO_SAVE_DELAY_MS)
+    }
+
+    private fun autoSave() {
+        webView.removeCallbacks(autoSaveTimer)
+        if (dirty && autoSaves()) save(auto = true)
+    }
+
+    /** A change made elsewhere, or a failed write: no question every few seconds, a banner, and the disk again. */
+    private fun pauseAutoSave() {
+        Log.i(TAG, "Automatic saving paused for $documentName")
+        autoSavePaused = true
+        render()
     }
 
     // ---------- saving (docs/BRIDGE.md, section 6) ----------
 
     /** Returns the request's id, or null with no document open. As a copy, the user picks where. */
-    private fun save(copyName: String? = null): String? {
+    private fun save(copyName: String? = null, auto: Boolean = false): String? {
         val uri = document ?: return null
         val requestId = "r${++requestCount}"
         // A new map's first save is a copy too: the user picks where, its root's text offered.
         val name = copyName ?: newFileName(documentTitle, getString(R.string.new_map)).takeIf { uri == NEW_MAP }
-        saveTargets[requestId] = SaveTarget(uri, base, name)
+        saveTargets[requestId] = SaveTarget(uri, base, name, auto)
         sendToCore(JSONObject().put("type", "save").put("requestId", requestId))
         return requestId
     }
@@ -1572,7 +1623,7 @@ class MainActivity : AppCompatActivity() {
                 Log.w(TAG, "Cannot read ${target.uri} before writing", e) // never write blindly
                 runOnUiThread {
                     giveUpLeaving(requestId)
-                    alert(R.string.error_write)
+                    if (target.auto) pauseAutoSave() else alert(R.string.error_write)
                 }
                 return@execute
             }
@@ -1580,11 +1631,11 @@ class MainActivity : AppCompatActivity() {
                 Log.i(TAG, "Not written: changed elsewhere (${current.take(8)}, based on ${target.base.take(8)})")
                 runOnUiThread {
                     giveUpLeaving(requestId) // the user decides again, once the conflict is settled
-                    if (!isDestroyed) offerConflict(target.uri, saveId, bytes)
+                    if (target.auto) pauseAutoSave() else if (!isDestroyed) offerConflict(target.uri, saveId, bytes)
                 }
                 return@execute
             }
-            writeTo(target.uri, saveId, bytes, requestId = requestId)
+            writeTo(target.uri, saveId, bytes, requestId = requestId, auto = target.auto)
         }
     }
 
@@ -1647,7 +1698,9 @@ class MainActivity : AppCompatActivity() {
      * open document, like "save as": the map is now based on the copy, and the original's
      * draft is deleted, since the copy holds the changes.
      */
-    private fun writeTo(uri: Uri, saveId: Long, bytes: ByteArray, requestId: String? = null, copy: PendingCopy? = null) {
+    private fun writeTo(
+        uri: Uri, saveId: Long, bytes: ByteArray, requestId: String? = null, copy: PendingCopy? = null, auto: Boolean = false,
+    ) {
         val start = System.currentTimeMillis()
         try {
             contentResolver.openOutputStream(uri, "wt")!!.use { it.write(bytes) }
@@ -1655,7 +1708,7 @@ class MainActivity : AppCompatActivity() {
             Log.w(TAG, "Cannot write $uri", e)
             runOnUiThread {
                 requestId?.let(::giveUpLeaving) // the map stays open, still modified
-                alert(R.string.error_write)
+                if (auto) pauseAutoSave() else alert(R.string.error_write)
             }
             return
         }
@@ -1697,11 +1750,15 @@ class MainActivity : AppCompatActivity() {
                 // The document now holds these bytes. A draft left by later changes must
                 // be based on them, even if no change follows: ask for it again.
                 base = written
+                if (autoSavePaused) {
+                    autoSavePaused = false // the user settled what paused it, by saving
+                    render()
+                }
                 fileReads.invalidate()
                 Log.i(TAG, "Saved: now based on ${written.take(8)}")
                 sendToCore(JSONObject().put("type", "flushDraft"))
             }
-            toast(getString(R.string.saved))
+            if (!auto) toast(getString(R.string.saved))
         }
         Log.i(TAG, "Wrote ${bytes.size} bytes in ${System.currentTimeMillis() - start} ms: ${describe(uri)}")
     }
@@ -1772,6 +1829,7 @@ class MainActivity : AppCompatActivity() {
             }
             "dirtyChanged" -> {
                 dirty = message.getBoolean("dirty")
+                autoSaveLater(dirty) // a restored draft too, which may come with no draft of its own
                 if (!dirty) recentTitleIsSaved()
                 render()
             }
@@ -1869,7 +1927,10 @@ class MainActivity : AppCompatActivity() {
             Triple(MENU_SAVE, R.string.save, R.drawable.ic_save),
         )
 
-        const val PREFERENCES = "mapling"
+        const val PREFERENCES = PreferencesActivity.STORE
+
+        /** How long after the last change a map is saved, when saving automatically. */
+        const val AUTO_SAVE_DELAY_MS = 10_000L
         const val RECENT_MAPS = "recentMaps"
         const val LAST_OPEN = "lastOpen" // the map to reopen at start; removed by Close
         const val NEW_MAP_TEMPLATE = "core/assets/new-map.mm"

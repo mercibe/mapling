@@ -43,4 +43,47 @@ SPDX-License-Identifier: GPL-3.0-or-later
             android:textColor="@color/menu_detail"
             android:textSize="14sp" />
     </LinearLayout>
+
+    <!-- A preference turned on or off: touching the row flips its switch. -->
+    <LinearLayout
+        android:id="@+id/auto_save"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="?android:attr/selectableItemBackground"
+        android:minHeight="72dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="24dp"
+        android:paddingEnd="24dp">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/preference_auto_save"
+                android:textColor="@color/message_text"
+                android:textSize="16sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/preference_auto_save_detail"
+                android:textColor="@color/menu_detail"
+                android:textSize="14sp" />
+        </LinearLayout>
+
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/auto_save_switch"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:clickable="false"
+            android:focusable="false"
+            android:importantForAccessibility="no" />
+    </LinearLayout>
 </LinearLayout>

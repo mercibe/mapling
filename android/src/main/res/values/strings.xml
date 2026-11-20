@@ -121,6 +121,9 @@ SPDX-License-Identifier: GPL-3.0-or-later
     <string name="back">Back</string>
     <string name="preference_language">Language</string>
     <string name="language_system">Phone\'s language</string>
+    <string name="preference_auto_save">Save automatically</string>
+    <string name="preference_auto_save_detail">A few seconds after each change, and when you leave the app.</string>
+    <string name="auto_save_paused">Automatic saving is paused for this map: save it to choose what to do.</string>
     <!-- Each language in its own words: not translated. -->
     <string name="language_en" translatable="false">English</string>
     <string name="language_fr" translatable="false">Français</string>

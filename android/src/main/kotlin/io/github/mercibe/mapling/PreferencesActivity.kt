@@ -3,6 +3,7 @@
 
 package io.github.mercibe.mapling
 
+import android.content.Context
 import android.os.Build
 import android.os.Bundle
 import android.view.View
@@ -11,13 +12,19 @@ import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.appcompat.widget.Toolbar
+import androidx.core.content.edit
 import androidx.core.os.LocaleListCompat
+import androidx.core.view.AccessibilityDelegateCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.materialswitch.MaterialSwitch
 
 /**
- * Preferences, on a page of their own. Today the language only: the phone's, or one of
- * Mapling's. AndroidX keeps the choice (autoStoreLocales, in the manifest) and, from
- * Android 13, shares it with the system's setting (Settings → Apps → Mapling → Language).
+ * Preferences, on a page of their own. The language: the phone's, or one of Mapling's.
+ * AndroidX keeps the choice (autoStoreLocales, in the manifest) and, from Android 13, shares
+ * it with the system's setting (Settings → Apps → Mapling → Language). Saving automatically:
+ * on unless turned off, kept with the app's other data (autoSave).
  */
 class PreferencesActivity : AppCompatActivity() {
 
@@ -32,6 +39,26 @@ class PreferencesActivity : AppCompatActivity() {
         keepClearOfSystemBars()
         findViewById<TextView>(R.id.language_value).setText(LANGUAGES[chosen()].second)
         findViewById<View>(R.id.language).setOnClickListener { chooseLanguage() }
+        showAutoSave()
+    }
+
+    /** The row flips the switch; read aloud as a switch, its two lines as its name. */
+    private fun showAutoSave() {
+        val row = findViewById<View>(R.id.auto_save)
+        val switch = findViewById<MaterialSwitch>(R.id.auto_save_switch)
+        switch.isChecked = autoSave(this)
+        row.setOnClickListener {
+            switch.isChecked = !switch.isChecked
+            getSharedPreferences(STORE, MODE_PRIVATE).edit { putBoolean(AUTO_SAVE, switch.isChecked) }
+        }
+        ViewCompat.setAccessibilityDelegate(row, object : AccessibilityDelegateCompat() {
+            override fun onInitializeAccessibilityNodeInfo(host: View, info: AccessibilityNodeInfoCompat) {
+                super.onInitializeAccessibilityNodeInfo(host, info)
+                info.className = android.widget.Switch::class.java.name
+                info.isCheckable = true
+                info.isChecked = switch.isChecked
+            }
+        })
     }
 
     /** Index in LANGUAGES of the language chosen for Mapling; 0, the phone's, when none is. */
@@ -72,9 +99,16 @@ class PreferencesActivity : AppCompatActivity() {
         }
     }
 
-    private companion object {
+    companion object {
+        /** Where the app keeps its preferences and other small data (MainActivity too). */
+        const val STORE = "mapling"
+        private const val AUTO_SAVE = "autoSave"
+
+        /** Whether maps are saved without the user asking: on unless turned off here. */
+        fun autoSave(context: Context) = context.getSharedPreferences(STORE, MODE_PRIVATE).getBoolean(AUTO_SAVE, true)
+
         /** The phone's language (""), then Mapling's, as in res/xml/locales_config.xml. */
-        val LANGUAGES = listOf(
+        private val LANGUAGES = listOf(
             "" to R.string.language_system,
             "en" to R.string.language_en,
             "fr" to R.string.language_fr,
