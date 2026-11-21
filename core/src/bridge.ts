@@ -9,7 +9,7 @@ import { linkAsTyped, type BranchSummary, type Direction, type HiddenKind, type 
 import { MapSession } from './session.ts';
 
 export const PROTOCOL_VERSION = 1;
-export const CORE_VERSION = '1.0.3';
+export const CORE_VERSION = '1.0.4';
 
 /**
  * A draft is sent this long after the first change not yet sent; later changes
