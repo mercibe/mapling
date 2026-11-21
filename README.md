@@ -12,7 +12,7 @@ Your Freeplane mind maps on your Android phone or tablet. Open a map (`.mm` file
 
 - Open a map from Google Drive, the phone's storage or any document provider.
 - **Create a simple map in seconds**: New map, then add branches one tap at a time. It is an ordinary Freeplane map, ready to be enriched in Freeplane.
-- Edit the text of a node, add, delete and move nodes; undo and redo. Zoom with two fingers, move the selected node by holding it, fold and unfold branches.
+- Edit the text of a node, add, delete and move nodes; undo and redo. Zoom with two fingers, move a node by holding it, fold and unfold branches.
 - Only what you edit changes: notes, icons, styles, links and everything else Freeplane wrote are kept exactly as they were. Mapling tells you when a map holds content it does not display, and asks before deleting a branch that holds some.
 - **Saves by itself** a few seconds after your last change, and when you leave the app (you can turn this off in Preferences). Unsaved changes are also kept as a draft, even if Android closes the app.
 - Before saving, Mapling checks that the map was not changed elsewhere (on your computer, for instance); if it was, it waits for you, and you can save a copy to keep both versions.

@@ -4,8 +4,8 @@
 // Touch gestures on the map. jsMind was designed for the mouse: on a touch screen,
 // its drag plugin moves any node a finger lands on, so scrolling the map moves nodes,
 // and pinching zooms the whole page instead of the map. Here:
-// - a node moves only if it is the selected one, once a single finger rests on it
-//   briefly; any other slide scrolls the map (the browser's own scrolling);
+// - a node moves once a single finger has rested on it briefly, as a long press on Android
+//   (any node but the root); a slide started at once scrolls the map (the browser's own);
 // - two fingers zoom the map: scaled while pinching, then jsMind's zoom once the fingers
 //   are lifted (the page zoom is disabled in CSS).
 // Moving and zooming never overlap: a second finger, or an interrupted touch, cancels
@@ -17,15 +17,15 @@ export interface Point {
   y: number;
 }
 
-/** How long a finger must rest on the selected node before it can be moved. */
+/** How long a finger must rest on a node before it can be moved (a long press, as on Android). */
 export const HOLD_MS = 300;
 
 /** How far a finger may move while resting (screens are never perfectly still). */
 export const STILL_PX = 10;
 
-/** A touch may move a node only if it lands on the selected node, outside text editing. */
-export function mayDrag(touched: string | null, selected: string | null, editing: boolean): boolean {
-  return !editing && touched !== null && touched === selected;
+/** A touch may move a node if it lands on one, outside text editing (the plugin skips the root). */
+export function mayDrag(touched: string | null, editing: boolean): boolean {
+  return !editing && touched !== null;
 }
 
 export function isStill(start: Point, current: Point): boolean {
@@ -59,7 +59,6 @@ export class DoubleTap {
 }
 
 export interface GestureMap {
-  get_selected_node(): { id: string } | null;
   view: {
     zoom_current: number;
     opts: { zoom: { min: number; max: number } };
@@ -110,13 +109,12 @@ export class TouchGestures {
 
   /**
    * Replaces the drag plugin's dragstart for touches: `begin` (the plugin's own
-   * dragstart) runs only once a single finger has rested on the selected node.
+   * dragstart) runs only once a single finger has rested on a node.
    */
   dragstart(plugin: DragPlugin, fingers: number, touched: string | null, begin: () => void): void {
     this.plugin = plugin;
     this.cancelHold();
-    const selected = this.jm.get_selected_node()?.id ?? null;
-    if (fingers !== 1 || !mayDrag(touched, selected, this.jm.view.is_editing())) return;
+    if (fingers !== 1 || !mayDrag(touched, this.jm.view.is_editing())) return;
     this.hold = this.timers.set(() => {
       this.hold = null;
       begin();

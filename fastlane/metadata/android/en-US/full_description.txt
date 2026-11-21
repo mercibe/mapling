@@ -9,7 +9,7 @@ What you can do:
 - create a simple new map in seconds;
 - edit the text of a node, add, delete and move nodes;
 - undo and redo;
-- zoom with two fingers, move the selected node by holding it, fold and unfold branches;
+- zoom with two fingers, move a node by holding it, fold and unfold branches;
 - reopen your recent maps in one gesture; Mapling reopens the map you left open.
 
 Your work is safe:

@@ -5,12 +5,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DoubleTap, type DragPlugin, type Point, STILL_PX, TouchGestures, isStill, mayDrag, pinchZoom, scrollAfterPinch, withFinger } from '../src/touch.ts';
 
-test('only the selected node can be moved, and never while a text is edited', () => {
-  assert.equal(mayDrag('ID_1', 'ID_1', false), true);
-  assert.equal(mayDrag('ID_1', 'ID_2', false), false, 'another node is selected');
-  assert.equal(mayDrag('ID_1', null, false), false, 'nothing is selected');
-  assert.equal(mayDrag(null, 'ID_1', false), false, 'the finger is not on a node');
-  assert.equal(mayDrag('ID_1', 'ID_1', true), false, 'a text is being edited');
+test('any node can be moved, selected or not, but never while a text is edited', () => {
+  assert.equal(mayDrag('ID_1', false), true);
+  assert.equal(mayDrag(null, false), false, 'the finger is not on a node');
+  assert.equal(mayDrag('ID_1', true), false, 'a text is being edited');
 });
 
 test('a finger is still within a few pixels, in any direction', () => {
@@ -70,12 +68,12 @@ class FakePlugin implements DragPlugin {
   }
 }
 
-/** The selected node ID_1 under one or two fingers, with timers fired by hand. */
+/** The node ID_1 under one or two fingers, with timers fired by hand. */
 function setup() {
   const plugin = new FakePlugin();
   let pending: (() => void) | null = null;
   const gestures = new TouchGestures(
-    { get_selected_node: () => ({ id: 'ID_1' }), view: { zoom_current: 1, opts: { zoom: { min: 0.5, max: 2 } }, is_editing: () => false } },
+    { view: { zoom_current: 1, opts: { zoom: { min: 0.5, max: 2 } }, is_editing: () => false } },
     { set: (callback) => (pending = callback), clear: () => (pending = null) },
   );
   const holdElapses = () => {
@@ -115,7 +113,7 @@ test('a dragging finger is given to the edge zone as the event position', () => 
   assert.equal(prevented, true, 'the page still does not scroll by itself');
 });
 
-test('a finger resting on the selected node moves it; the plugin applies the move when it is lifted', () => {
+test('a finger resting on a node moves it; the plugin applies the move when it is lifted', () => {
   const { plugin, holdElapses, touchStart, touchMove, touchEnd } = setup();
   touchStart([A]);
   holdElapses();
@@ -125,7 +123,7 @@ test('a finger resting on the selected node moves it; the plugin applies the mov
   assert.equal(plugin.movesApplied, 1);
 });
 
-test('two fingers on the selected node zoom, and never start a move', () => {
+test('two fingers on a node zoom, and never start a move', () => {
   const { plugin, holdElapses, touchStart, touchMove, touchEnd } = setup();
   touchStart([A]);
   touchStart([A, B]); // the second finger arrives before the hold elapses
