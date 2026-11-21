@@ -167,7 +167,7 @@ Sets the link of node `id` as the user typed it, or removes it with `null` or a 
 Editing commands from the native menu. Each names its target node, `id`, taken from the latest `selectionChanged`: a selection change between the menu and the command cannot redirect it. They are ignored when the map is read-only. A command whose node no longer exists is refused with `OUTDATED_COMMAND`.
 
 - `editText` opens the text editor on the selected node, if its text can be edited.
-- `addChild` and `addSibling` add a node and open its editor at once. The node is created in the map only when its text is validated: validating the placeholder unchanged removes it, and the map stays unmodified.
+- `addChild` and `addSibling` add a node and open its editor at once. The node is created in the map only when its text is validated, with no text when its placeholder is validated untouched or emptied, as Freeplane allows; Escape removes it, and the map stays unmodified.
 - `deleteNode` removes the node and its whole branch, without asking: **the shell asks for confirmation first** when `selectionChanged` reports hidden content in the branch, with a summary such as "Delete this node, 3 sub-nodes, 1 note and 2 icons?". Deleting can be undone.
 - `deleteNode` also sends back the `revision` of the `selectionChanged` the decision was based on. If the map changed since (an undo may have put a note back into the branch, for instance), the deletion is refused with `OUTDATED_COMMAND`: the shell then uses the latest `selectionChanged` and asks again if needed. The check is deliberately strict: any change invalidates it.
 

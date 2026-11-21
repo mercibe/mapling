@@ -52,6 +52,15 @@ test('updateText escapes special characters as Freeplane does', () => {
   assert.match(map.serialize(), /TEXT="x &lt; y &amp; &quot;z&quot; &gt; w é&#xa0;!"/);
 });
 
+test('updateText and addNode accept an empty text, written TEXT="" as Freeplane does', () => {
+  const map = new MindMap(original);
+  assert.equal(map.updateText(A, '', NOW), true);
+  assert.match(map.serialize(), /TEXT="" /);
+  const added = map.addNode(A, 0, '', 'right', NOW);
+  assert.equal(map.text(added), '');
+  assert.equal(new MindMap(map.serialize()).text(added), '', 'read back without text');
+});
+
 test('updateText with the same text changes nothing', () => {
   const map = new MindMap(original);
   assert.equal(map.updateText(A, 'A : first level child', NOW), false);

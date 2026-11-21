@@ -55,6 +55,9 @@ jmnode.root, jmnode.root:hover {
   background: #fff;
   transform: none;
 }
+/* A node without text, as Freeplane allows: about an icon wide and a line high, so that it
+   can still be touched, and its underline seen. */
+jmnode:empty { min-width: 1.5em; min-height: 1.25em; }
 /* The node dragged has no link of its own: it keeps an underline. */
 jmnode.jsmind-draggable-shadow-node { border-bottom: 2px solid #555; }
 

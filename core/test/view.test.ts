@@ -3,7 +3,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { edgeSibling, scrollToShow, shortcutOf, shownText, textOffsetAt } from '../src/jsmind-view.ts';
+import { edgeSibling, leftEmpty, PLACEHOLDER, scrollToShow, shortcutOf, shownText, textOffsetAt } from '../src/jsmind-view.ts';
 
 const area = { left: 0, top: 100, right: 400, bottom: 500 };
 const box = (left: number, top: number, width: number, height: number) => ({ left, top, right: left + width, bottom: top + height });
@@ -146,4 +146,18 @@ test('other keys, and these keys with other modifiers, are not shortcuts', () =>
   assert.equal(press('ArrowUp', { ctrl: true, shift: true }), null);
   assert.equal(press('ArrowLeft', { alt: true }), null);
   assert.equal(press('s'), null);
+});
+
+// ---------- nodes without text ----------
+
+test('a blank text leaves a node without text, as Freeplane allows', () => {
+  for (const value of ['', '  ', '\n', ' \n ']) assert.equal(leftEmpty(value, false), true, JSON.stringify(value));
+  assert.equal(leftEmpty('a', false), false);
+  assert.equal(leftEmpty(PLACEHOLDER, false), false, 'an existing node may hold "…"');
+});
+
+test('a new node validated untouched has no text: Enter, Enter… lists points to deal with', () => {
+  assert.equal(leftEmpty(PLACEHOLDER, true), true);
+  assert.equal(leftEmpty('', true), true);
+  assert.equal(leftEmpty('a', true), false);
 });

@@ -63,6 +63,7 @@ interface JsMindInstance extends TouchMap {
     get_binded_nodeid(element: EventTarget | null): string | null;
     editing_node: JmNode | null;
     edit_node_end(): void;
+    render_node(element: HTMLElement, node: JmNode): void;
     opts: { hmargin: number; vmargin: number };
     expand_size(): void;
     relayout(): void;
@@ -115,6 +116,7 @@ const PENDING_ID = '_pending';
 export class JsMindView implements View {
   private readonly jm: JsMindInstance;
   private bridge: Bridge | null = null;
+  private cancelled = false; // Escape: the edit ending now changes nothing
   /** Where the next editing puts the caret: set by a double tap, else the text's end. */
   private caretAt: number | null = null;
 
@@ -495,7 +497,15 @@ export class JsMindView implements View {
       const caretAt = this.caretAt;
       this.caretAt = null;
       if (!node || node.data.readOnly) return;
+      // jsMind does not edit a node without text (it takes it for an image): given a space
+      // to begin with, it opens the editor, emptied at once.
+      const empty = node.topic === '';
+      if (empty) node.topic = ' ';
       beginEdit(node); // the node itself: given its id, jsMind would call this function again
+      if (empty) {
+        node.topic = '';
+        editor.value = '';
+      }
       // jsMind empties the node for its editor: the icons go back in front of it.
       const link = node.data.link as string | undefined;
       if (link && editor.parentElement) editor.before(this.icons(link));
@@ -513,14 +523,24 @@ export class JsMindView implements View {
     view.edit_node_end = () => {
       const node = view.editing_node;
       if (!node) return editNodeEnd(); // also the blur that removing the editor sets off
+      // jsMind keeps the old text when the new one is blank: an emptied node, or a new one
+      // validated untouched ("…"), gets its empty text here, as in Freeplane.
+      const value = view.e_editor.value;
+      const empty = !this.cancelled && leftEmpty(value, node.id === PENDING_ID);
+      this.cancelled = false;
       this.keepStill(node, () => {
         editNodeEnd();
+        if (empty && node.topic !== '') {
+          node.topic = '';
+          view.render_node(node._data.view.element as HTMLElement, node);
+        }
         // A changed text is measured and laid out by jsMind; an unchanged one only drawn again.
-        // A new node left unchanged is removed next: jsMind then lays out, keeping its parent still.
+        // A new node cancelled is removed next: jsMind then lays out, keeping its parent still.
         const dropped = node.id === PENDING_ID && node.topic === PLACEHOLDER;
         if (this.resized(node) && !dropped) this.layOut(node);
       });
       if (node.id === PENDING_ID) this.completeNewNode(node);
+      else if (empty) this.apply((map) => map.updateText(node.id, ''));
     };
     const selectClear = jm.select_clear.bind(jm);
     jm.select_clear = () => {
@@ -602,7 +622,7 @@ export class JsMindView implements View {
     // `key`, not only the legacy keyCode 13 jsMind checks: virtual keyboards (Android) and
     // synthetic events may leave it at 0 or 229.
     // Escape cancels, as in Freeplane: the editor gets the node's text back, and jsMind
-    // changes nothing for an unchanged text (a new node's placeholder: no node is added).
+    // changes nothing for an unchanged text (a new node: no node is added).
     editor.addEventListener('keydown', (event) => {
       const escape = event.key === 'Escape';
       const enter = event.key === 'Enter' || event.keyCode === 13;
@@ -610,7 +630,10 @@ export class JsMindView implements View {
       if ((!escape && !enter) || newLine) return; // a new line: the text area inserts it
       event.preventDefault();
       event.stopPropagation();
-      if (escape && view.editing_node) editor.value = view.editing_node.topic;
+      if (escape && view.editing_node) {
+        editor.value = view.editing_node.topic;
+        this.cancelled = true;
+      }
       view.edit_node_end();
     });
     // A virtual keyboard that sends no Enter key, only the line break: it validates too.
@@ -669,7 +692,7 @@ export class JsMindView implements View {
     const parent = node.parent as JmNode;
     const text = node.topic;
     if (text === PLACEHOLDER) {
-      // Validated unchanged (or emptied, which jsMind refuses): nothing to add.
+      // Cancelled (Escape): nothing to add.
       this.jm.remove_node(PENDING_ID);
       this.jm.select_node(parent.id);
       return;
@@ -720,6 +743,11 @@ export class JsMindView implements View {
     element.classList.toggle('mapling-hidden-content', !!node.data.hidden);
     return true;
   }
+}
+
+/** Whether an edit leaves the node without text: blank, or a new node's "…" validated untouched. */
+export function leftEmpty(value: string, isNew: boolean): boolean {
+  return value.trim() === '' || (isNew && value === PLACEHOLDER);
 }
 
 /**
