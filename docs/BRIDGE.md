@@ -20,7 +20,7 @@ The shell never reads or parses the file's content.
 
 ## 2. Protocol principles
 
-- **JSON messages**, in both directions, for everything that reads or changes the map. This works the same way with `addJavascriptInterface` or `WebMessagePort` (Android), `WKScriptMessageHandler` (iOS) and a plain function call (Web). The one exception is a pure function the core also provides, `MindCore.webLink` (section 3): it reads and changes nothing, and only applies the core's rule for links to a text.
+- **JSON messages**, in both directions, for everything that reads or changes the map. This works the same way with `addJavascriptInterface` or `WebMessagePort` (Android), `WKScriptMessageHandler` (iOS) and a plain function call (Web). The one exception is two pure functions the core also provides, `MindCore.webLink` and `MindCore.typedLink` (section 3): they read and change nothing, and only apply the core's rules for links to a text.
 - **Everything is asynchronous.** A request from the shell carries a `requestId`; the core's response repeats the same `requestId`.
 - **Bytes in base64.** File content travels as base64 of the raw bytes, never as a decoded string. The core decodes and encodes them: it supports UTF-8, which Freeplane writes, and keeps a byte order mark if there is one. A file declaring another encoding, in UTF-16 or with invalid UTF-8 is refused with `UNSUPPORTED_ENCODING`.
 - Every message carries `"v": 1` (protocol version).
@@ -36,13 +36,14 @@ The core exposes one global function for the messages:
 window.MindCore.receive(messageJson: string)
 ```
 
-and, outside the messages, one pure function, which reads and changes nothing:
+and, outside the messages, two pure functions, which read and change nothing:
 
 ```js
 window.MindCore.webLink(text: string): string | null
+window.MindCore.typedLink(text: string, current?: string | null): string
 ```
 
-It returns the address the core shows as a link for this text (`http` or `https` only, normalized by the standard URL parser), or `null`. A shell can thus tell beforehand, by the very same rule, whether a link it is about to set will be shown (see `setLink`).
+`webLink` returns the address the core shows as a link for this text (`http` or `https` only, normalized by the standard URL parser), or `null`. `typedLink` returns the link `setLink` writes for a text the user typed, `current` being the node's link (see `setLink`). A shell can thus tell beforehand, by the very same rules, whether a link the user types will be shown: `webLink(typedLink(text, link))`.
 
 ### Core → shell
 
@@ -154,7 +155,7 @@ Nothing happens when the node cannot move (the root, or no sibling to go to). An
 { "v": 1, "type": "setLink", "id": "ID_1964929139", "link": null }
 ```
 
-Sets the link of node `id` as the user typed it (not checked: a text that is not a web address is kept too, and simply not shown as a link), or removes it with `null` or a blank text. A new link is written right after `MODIFIED`, as Freeplane 1.12 does, and `MODIFIED` changes. An edit like the others: undone with `undo`, and reported by `dirtyChanged` and `selectionChanged`. Ignored on a read-only map; refused with `OUTDATED_COMMAND` when the node no longer exists. The shell offers it from `selectionChanged`: its `link` to modify, or its `textLink` to start from.
+Sets the link of node `id` as the user typed it, or removes it with `null` or a blank text. An address typed without a scheme (`example.com`, `www.example.com/page`) is written with `https://`, since Freeplane reads a link without one as a file next to the map; a map's name (`notes.mm`, `notes.mm#ID_123`) stays such a file. Any other text is kept as typed (not checked: a text that is not a web address is simply not shown as a link). The current link typed again is unchanged, even one without a scheme. A new link is written right after `MODIFIED`, as Freeplane 1.12 does, and `MODIFIED` changes. An edit like the others: undone with `undo`, and reported by `dirtyChanged` and `selectionChanged`. Ignored on a read-only map; refused with `OUTDATED_COMMAND` when the node no longer exists. The shell offers it from `selectionChanged`: its `link` to modify, or its `textLink` to start from.
 
 ### `editText` / `addChild` / `addSibling` / `deleteNode`
 
@@ -250,7 +251,7 @@ The current state of the loaded map, to be kept as a local draft (see section 6)
 ```json
 { "v": 1, "type": "selectionChanged", "node": {
     "id": "ID_1964929139", "revision": 12, "root": false, "textEditable": true,
-    "link": null, "textLink": "https://www.freeplane.org/",
+    "link": null, "linkAsTyped": null, "textLink": "https://www.freeplane.org/",
     "hidden": { "note": 1 },
     "branch": { "descendants": 3, "hidden": { "note": 1, "icon": 2 } } } }
 { "v": 1, "type": "selectionChanged", "node": null }
@@ -265,6 +266,7 @@ Sent whenever what the shell knows about the selected node changes: another node
 | `root` | The root cannot be deleted, and has no siblings: disable Delete and Add sibling |
 | `textEditable` | Enable Edit text (false for rich text, or a read-only map; a text on several lines is editable). In an editable map, false means the node shows a lock: explain it while it is selected (its text can only be edited in Freeplane; the node can still be moved or deleted) |
 | `link` | The node's link as written, whatever its kind (`null`: none). Offer to modify or remove it (`setLink`) |
+| `linkAsTyped` | The same link as offered for editing: without the `https://` that `setLink` adds back (`example.com` for `https://example.com`), else as written (`null`: none) |
 | `textLink` | The first web address written in the node's text, as written (`null`: none). Offer it as the link to add |
 | `hidden` | Content of the node itself that is not displayed, by kind: what its dot stands for. Explain it while the node is selected (e.g. "1 note, 2 icons, kept") |
 | `branch.descendants` | Number of nodes under the selected one, removed with it |

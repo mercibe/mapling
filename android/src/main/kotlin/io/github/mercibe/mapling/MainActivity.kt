@@ -753,21 +753,21 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * The selected node's link, as the user types it: offered from its current link, or else
-     * from the first web address in its text. Kept as typed; a text that is not a web address
-     * is said so, as it will not be shown as a link: the core tells, by the rule it shows links
-     * with (MindCore.webLink), so that the note says exactly that. Removing it is offered when
-     * there is one.
+     * The selected node's link, as the user types it: offered from its current link (without
+     * the https:// the core adds back), or else from the first web address in its text. A text
+     * that is not a web address is said so, as it will not be shown as a link: the core tells,
+     * by its own rules (MindCore.typedLink, MindCore.webLink), so that the note says exactly
+     * that. Removing it is offered when there is one.
      */
     private fun editLink(node: JSONObject) {
         val id = node.getString("id")
         val current = if (node.isNull("link")) null else node.getString("link")
-        val offered = current ?: if (node.isNull("textLink")) "" else node.getString("textLink")
+        val offered = if (current != null) node.getString("linkAsTyped") else if (node.isNull("textLink")) "" else node.getString("textLink")
         val field = android.widget.EditText(this).apply {
             setText(offered)
             setSingleLine()
             inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_URI
-            hint = "https://"
+            hint = "example.com" // an address needs no scheme: the core adds https://
             selectAll()
         }
         val note = TextView(this).apply {
@@ -784,7 +784,7 @@ class MainActivity : AppCompatActivity() {
                 note.visibility = View.GONE
                 return
             }
-            webView.evaluateJavascript("MindCore.webLink(${JSONObject.quote(text)})") { shown ->
+            webView.evaluateJavascript("MindCore.webLink(MindCore.typedLink(${JSONObject.quote(text)}, ${current?.let(JSONObject::quote)}))") { shown ->
                 if (text == asked) note.visibility = if (shown == "null") View.VISIBLE else View.GONE
             }
         }

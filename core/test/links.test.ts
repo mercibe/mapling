@@ -4,7 +4,7 @@
 import { fixture } from './setup.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Bridge, MindMap, webLink } from '../src/index.ts';
+import { Bridge, MindMap, linkAsTyped, typedLink, webLink } from '../src/index.ts';
 
 test('only http and https addresses are followed', () => {
   assert.equal(webLink('https://www.google.com'), 'https://www.google.com/');
@@ -54,9 +54,9 @@ test('a new link is written right after MODIFIED, as Freeplane 1.12 does, and MO
 
 test('a link is replaced in place, removed when blank or null, and kept as typed', () => {
   const map = new MindMap(ONE(' LINK="https://old.org" STYLE="x"'));
-  map.setLink('ID_1', 'www.example.com', 5); // not a web address: kept anyway, as typed
-  assert.match(map.serialize(), /LINK="www.example.com" STYLE="x"/);
-  assert.equal(map.link('ID_1'), 'www.example.com');
+  map.setLink('ID_1', 'my site', 5); // not a web address: kept anyway, as typed
+  assert.match(map.serialize(), /LINK="my site" STYLE="x"/);
+  assert.equal(map.link('ID_1'), 'my site');
   map.setLink('ID_1', '   ', 6);
   assert.equal(map.link('ID_1'), null);
   assert.doesNotMatch(map.serialize(), /LINK=/);
@@ -114,4 +114,59 @@ test('a value the core does not show as a link is still kept, trimmed, with diac
   map.setLink('ID_1', '  https://exa mple.org/clé  ', 5);
   assert.equal(map.link('ID_1'), 'https://exa mple.org/clé');
   assert.equal(map.toView().children[0].link, undefined); // no icon
+});
+
+// ---------- a link typed without a scheme ----------
+
+test('an address typed without a scheme is written with https://, as Freeplane needs', () => {
+  assert.equal(typedLink('example.com'), 'https://example.com');
+  assert.equal(typedLink(' www.exemple.com/page?a=1#b '), 'https://www.exemple.com/page?a=1#b');
+  assert.equal(typedLink('example.com:8080/a'), 'https://example.com:8080/a');
+  assert.equal(typedLink('éditeur.fr'), 'https://éditeur.fr');
+  assert.equal(webLink(typedLink('example.com')), 'https://example.com/'); // shown as a link
+});
+
+test('a scheme typed is kept, and so is a text that is not an address', () => {
+  for (const text of ['http://example.com', 'HTTPS://example.org', 'mailto:a@b.c', 'execute:_x',
+    '#ID_123', 'my site', 'localhost', 'localhost:8080', 'dossier/notes', '',
+    '..a', '.a', 'a..b', 'a.', 'a./chemin']) { // dots: only between names
+    assert.equal(typedLink(text), text);
+  }
+});
+
+test('a map\'s name stays a link to that map, next to this one, as in Freeplane', () => {
+  assert.equal(typedLink('fixture01.mm'), 'fixture01.mm');
+  assert.equal(typedLink('Rencontre%20Martin.MM'), 'Rencontre%20Martin.MM');
+  assert.equal(typedLink('dossier/notes.mm'), 'dossier/notes.mm');
+  assert.equal(typedLink('notes.mm#ID_123'), 'notes.mm#ID_123'); // one of its nodes
+});
+
+test('a link is offered for editing without the https:// the core would add back', () => {
+  assert.equal(linkAsTyped('https://example.com'), 'example.com');
+  assert.equal(linkAsTyped('https://www.exemple.com/page'), 'www.exemple.com/page');
+  assert.equal(linkAsTyped('https://notes.mm'), 'https://notes.mm'); // without it, a map's name
+  assert.equal(linkAsTyped('https://localhost:8080'), 'https://localhost:8080');
+  assert.equal(linkAsTyped('HTTPS://example.org'), 'HTTPS://example.org'); // typed so: kept so
+  assert.equal(linkAsTyped('http://example.com'), 'http://example.com');
+  assert.equal(linkAsTyped('fixture01.mm'), 'fixture01.mm');
+});
+
+test('a link written without a scheme, by Freeplane, is not changed when typed again', () => {
+  const map = new MindMap(ONE(' LINK="example.com"'));
+  assert.equal(map.setLink('ID_1', 'example.com', 5), false);
+  assert.match(map.serialize(), /MODIFIED="2" LINK="example.com"/);
+  assert.equal(map.setLink('ID_1', 'example.org', 6), true); // changed: written as an address
+  assert.equal(map.link('ID_1'), 'https://example.org');
+});
+
+test('the link dialog is told the same: the current link typed again is not a web link', () => {
+  assert.equal(typedLink(' example.com ', 'example.com'), 'example.com');
+  assert.equal(webLink(typedLink('example.com', 'example.com')), null); // noted: no icon
+  assert.equal(typedLink('example.org', 'example.com'), 'https://example.org');
+});
+
+test('a link offered without its scheme and confirmed as it is stays unchanged', () => {
+  const map = new MindMap(ONE(' LINK="https://example.com"'));
+  assert.equal(map.setLink('ID_1', linkAsTyped('https://example.com'), 5), false);
+  assert.match(map.serialize(), /MODIFIED="2"/);
 });

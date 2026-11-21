@@ -63,6 +63,28 @@ export function webLink(value: string | null): string | null {
   }
 }
 
+// A host of dot-separated names (and maybe a port), then nothing or a path:
+// "example.com", "example.com:8080/a"; not "a..b".
+const ADDRESS_WITHOUT_SCHEME = /^[^\s/:?#.]+(\.[^\s/:?#.]+)+(:\d+)?([/?#]\S*)?$/;
+
+/**
+ * The link to write for a text the user typed: an address typed without a scheme gets
+ * https://, since Freeplane reads a link without one as a file next to the map. A map's name
+ * (*.mm, maybe with #ID_… of a node) stays such a file; the node's `current` link typed again
+ * stays as it is; any other text is kept as typed, trimmed.
+ */
+export function typedLink(text: string, current: string | null = null): string {
+  const value = text.trim();
+  if (value === current) return value;
+  return ADDRESS_WITHOUT_SCHEME.test(value) && !/\.mm(#.*)?$/i.test(value) ? `https://${value}` : value;
+}
+
+/** The link as the user would type it: without the https:// that typedLink would add back. */
+export function linkAsTyped(link: string): string {
+  const typed = link.slice('https://'.length);
+  return link.startsWith('https://') && typedLink(typed) === link ? typed : link;
+}
+
 const ELEMENT_NODE = 1;
 const TEXT_NODE = 3;
 
@@ -248,13 +270,13 @@ export class MindMap {
   }
 
   /**
-   * Sets the node's link (LINK) as given, or removes it (null or blank). A new link goes
-   * right after MODIFIED, where Freeplane 1.12 writes it. Returns false when unchanged.
+   * Sets the node's link (LINK) as typed (see typedLink), or removes it (null or blank). A new
+   * link goes right after MODIFIED, where Freeplane 1.12 writes it. Returns false when unchanged.
    */
   setLink(key: string, link: string | null, now = Date.now()): boolean {
     this.checkMapEditable();
     const el = this.element(key);
-    const value = link?.trim() || null;
+    const value = link?.trim() ? typedLink(link, this.link(key)) : null;
     if (value === this.link(key)) return false;
     this.ensureId(el);
     el.setAttribute('MODIFIED', String(now));

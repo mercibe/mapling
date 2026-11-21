@@ -5,7 +5,7 @@
 // Platform-neutral: the shell's `send` function and the view are passed in.
 
 import { MapError } from './errors.ts';
-import type { BranchSummary, Direction, HiddenKind, MindMap, ViewNode } from './map.ts';
+import { linkAsTyped, type BranchSummary, type Direction, type HiddenKind, type MindMap, type ViewNode } from './map.ts';
 import { MapSession } from './session.ts';
 
 export const PROTOCOL_VERSION = 1;
@@ -41,6 +41,8 @@ export interface SelectedNode {
   textEditable: boolean;
   /** The node's link as written, whatever its kind (null: none); `setLink` changes it. */
   link: string | null;
+  /** The link as offered for editing: without the https:// that `setLink` adds back. */
+  linkAsTyped: string | null;
   /** The first web address in the node's text (null: none), to offer as its link. */
   textLink: string | null;
   /** Content of this node that is not displayed, by kind (what its dot stands for). */
@@ -432,12 +434,14 @@ export class Bridge {
     const key = this.selectedKey;
     if (!session || key === null || !session.map.has(key)) return null;
     const map = session.map;
+    const link = map.link(key);
     return {
       id: key,
       revision: session.revision,
       root: key === map.rootKey,
       textEditable: !this.readOnly && !map.isReadOnly(key),
-      link: map.link(key),
+      link,
+      linkAsTyped: link && linkAsTyped(link),
       textLink: map.textLink(key),
       hidden: map.nodeHidden(key),
       branch: map.branchSummary(key),

@@ -326,22 +326,23 @@ function fileSize(bytes) {
 }
 
 /**
- * Adds, changes or removes the selected node's link. A web address found in its text is
- * offered as the link to add. A text that is not a web address is kept, but the user is
- * told it will not be shown as a link, by the core's own rule (MindCore.webLink).
+ * Adds, changes or removes the selected node's link, offered without the https:// the core
+ * adds back. A web address found in its text is offered as the link to add. A text that is
+ * not a web address is kept, but the user is told it will not be shown as a link, by the
+ * core's own rules (MindCore.typedLink, MindCore.webLink).
  */
 function editLink() {
-  const { id, link, textLink } = state.selection;
+  const { id, link, linkAsTyped, textLink } = state.selection;
   const dialog = document.getElementById('link');
   const field = document.getElementById('link-field');
   const note = document.getElementById('link-note');
   const check = () => {
     const text = field.value.trim();
-    note.hidden = !text || window.MindCore.webLink(text) !== null;
+    note.hidden = !text || window.MindCore.webLink(window.MindCore.typedLink(text, link)) !== null;
   };
   dialog.querySelector('h2').textContent = t(link === null ? 'link.addTitle' : 'link.editTitle');
   document.getElementById('link-remove').hidden = link === null;
-  field.value = link ?? textLink ?? '';
+  field.value = linkAsTyped ?? textLink ?? '';
   field.oninput = check;
   // Enter confirms (the form's first button is Remove).
   field.onkeydown = (event) => {
