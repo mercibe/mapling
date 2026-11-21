@@ -7,7 +7,8 @@
 // Browser only (needs jsMind and a DOM to draw in); verified end to end in a browser.
 
 import type { Bridge, Command, Shortcut, View } from './bridge.ts';
-import type { Direction, MindMap, Side, ViewNode } from './map.ts';
+import { webLink, type Direction, type MindMap, type Note, type Side, type ViewNode } from './map.ts';
+import { copySafeHtml } from './note.ts';
 import { DoubleTap, installTouchGestures, type TouchMap } from './touch.ts';
 
 // ---------- the parts of jsMind 0.9.1 used here (checked in its source) ----------
@@ -115,6 +116,8 @@ const PENDING_ID = '_pending';
 
 export class JsMindView implements View {
   private readonly jm: JsMindInstance;
+  /** Where a note is shown, over the map (see notePanel). */
+  private readonly notePanel: HTMLElement;
   private bridge: Bridge | null = null;
   private cancelled = false; // Escape: the edit ending now changes nothing
   /** Where the next editing puts the caret: set by a double tap, else the text's end. */
@@ -171,6 +174,7 @@ export class JsMindView implements View {
     linksUnderNodes(this.jm);
     installTouchGestures(this.jm);
     this.jm.add_event_listener((type, event) => this.onJsMindEvent(type, event));
+    this.notePanel = this.createNotePanel();
   }
 
   /** Connects the view to the bridge it reports to (they need each other). */
@@ -257,6 +261,30 @@ export class JsMindView implements View {
     panel.scrollTop += node.top + node.height / 2 - (view.top + view.height / 2);
   }
 
+  /**
+   * Shows a note over the whole map, or closes it (null). HTML is shown as safe HTML
+   * (copySafeHtml), plain text (Markdown…) as it is written. While it is shown, the keys
+   * act on it, not on the map.
+   */
+  showNote(note: Note | null): void {
+    const panel = this.notePanel;
+    panel.textContent = '';
+    panel.hidden = !note;
+    if (!note) {
+      this.jm.view.e_panel.focus({ preventScroll: true });
+      return;
+    }
+    const content = document.createElement('div');
+    if ('html' in note) copySafeHtml(note.html, content);
+    else {
+      content.className = 'mapling-note-text';
+      content.textContent = note.text;
+    }
+    panel.append(content);
+    panel.scrollTop = 0;
+    panel.focus({ preventScroll: true });
+  }
+
   /** One step of jsMind's zoom, around the middle of the map (no point given). */
   zoom(direction: 'in' | 'out'): void {
     if (direction === 'in') this.jm.view.zoom_in();
@@ -300,24 +328,54 @@ export class JsMindView implements View {
   }
 
   /**
-   * The icons before a node's text: today the link's only, room for more (task icons…).
-   * As in Freeplane, touching them opens the link; it neither selects the node nor starts
-   * a gesture on it.
+   * The icons before a node's text: its web link's and its note's, room for more (task
+   * icons…). Touching one opens what it stands for, as in Freeplane; it neither selects the
+   * node nor starts a gesture on it.
    */
-  private icons(link: string): HTMLElement {
+  private icons(node: JmNode): HTMLElement {
     const icons = document.createElement('span');
     icons.className = 'mapling-icons';
-    const icon = document.createElement('span');
-    icon.className = 'mapling-link-icon';
-    icon.title = link;
-    icons.append(icon);
-    const keep = (event: Event) => event.stopPropagation();
-    for (const type of ['mousedown', 'touchstart', 'dblclick']) icons.addEventListener(type, keep);
-    icons.addEventListener('click', (event) => {
-      event.stopPropagation();
-      this.bridge?.openLink(link);
-    });
+    const icon = (className: string, open: () => void) => {
+      const element = document.createElement('span');
+      element.className = className;
+      const keep = (event: Event) => event.stopPropagation();
+      for (const type of ['mousedown', 'touchstart', 'dblclick']) element.addEventListener(type, keep);
+      element.addEventListener('click', (event) => {
+        event.stopPropagation();
+        open();
+      });
+      icons.append(element);
+      return element;
+    };
+    const link = node.data.link as string | undefined;
+    if (link) icon('mapling-link-icon', () => this.bridge?.openLink(link)).title = link;
+    if (node.data.note) icon('mapling-note-icon', () => this.bridge?.openNote(node.id));
     return icons;
+  }
+
+  /**
+   * The panel a note is shown in, over the map, scrolled on its own. Escape closes it, as
+   * the shell's back does; its web links open apart, through the shell.
+   */
+  private createNotePanel(): HTMLElement {
+    const panel = document.createElement('div');
+    panel.className = 'mapling-note';
+    panel.tabIndex = -1; // takes the focus, so that the keys reach it
+    panel.hidden = true;
+    panel.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      this.bridge?.closeNote();
+    });
+    panel.addEventListener('click', (event) => {
+      const anchor = (event.target as Element).closest('a');
+      if (!anchor) return;
+      event.preventDefault();
+      const url = webLink(anchor.getAttribute('href'));
+      if (url) this.bridge?.openLink(url);
+    });
+    (this.jm.view.e_panel.parentElement as HTMLElement).append(panel);
+    return panel;
   }
 
   /**
@@ -507,8 +565,7 @@ export class JsMindView implements View {
         editor.value = '';
       }
       // jsMind empties the node for its editor: the icons go back in front of it.
-      const link = node.data.link as string | undefined;
-      if (link && editor.parentElement) editor.before(this.icons(link));
+      if (hasIcons(node) && editor.parentElement) editor.before(this.icons(node));
       if (editor.parentElement) editor.after(this.newlineButton(editor));
       // jsMind selects the whole text. Only a new node keeps it so, its "…" replaced by the
       // first key; any other text gets the caret where it was tapped, or at its end.
@@ -727,15 +784,15 @@ export class JsMindView implements View {
 
   /** Icons, then the text, plus marks for CSS: lock (text not editable), dot (hidden content). */
   private render(element: HTMLElement, node: JmNode): boolean {
-    const link = node.data.link as string | undefined;
-    element.classList.toggle('mapling-with-icons', !!link);
-    if (link) {
+    const withIcons = hasIcons(node);
+    element.classList.toggle('mapling-with-icons', withIcons);
+    if (withIcons) {
       // Icons on the left, the text as a block beside them, as in Freeplane.
       const text = document.createElement('span');
       text.className = 'mapling-text';
       text.textContent = shownText(node.topic);
       element.textContent = ''; // not replaceChildren: Chromium 86, one past the minimum
-      element.append(this.icons(link), text);
+      element.append(this.icons(node), text);
     } else {
       element.textContent = shownText(node.topic);
     }
@@ -743,6 +800,11 @@ export class JsMindView implements View {
     element.classList.toggle('mapling-hidden-content', !!node.data.hidden);
     return true;
   }
+}
+
+/** Whether the node shows icons before its text (see JsMindView.icons). */
+function hasIcons(node: JmNode): boolean {
+  return !!node.data.link || !!node.data.note;
 }
 
 /** Whether an edit leaves the node without text: blank, or a new node's "…" validated untouched. */

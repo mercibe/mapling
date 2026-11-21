@@ -5,7 +5,7 @@
 // Platform-neutral: the shell's `send` function and the view are passed in.
 
 import { MapError } from './errors.ts';
-import { linkAsTyped, type BranchSummary, type Direction, type HiddenKind, type MindMap, type ViewNode } from './map.ts';
+import { linkAsTyped, type BranchSummary, type Direction, type HiddenKind, type MindMap, type Note, type ViewNode } from './map.ts';
 import { MapSession } from './session.ts';
 
 export const PROTOCOL_VERSION = 1;
@@ -79,6 +79,7 @@ export type ShellMessage = { v: number; requestId?: string } & (
   | { type: 'moveNode'; id: string; direction: Direction }
   | { type: 'zoomIn' }
   | { type: 'zoomOut' }
+  | { type: 'closeNote' }
   | { type: Command; id: string; revision?: number }
 );
 
@@ -103,6 +104,7 @@ export type CoreMessage =
   | { type: 'historyChanged'; canUndo: boolean; canRedo: boolean }
   | { type: 'selectionChanged'; node: SelectedNode | null }
   | { type: 'openLink'; url: string }
+  | { type: 'noteChanged'; note: { id: string; title: string } | null }
   | ({ type: 'shortcut' } & Shortcut)
   | { type: 'error'; requestId?: string; code: BridgeErrorCode; message: string };
 
@@ -123,6 +125,8 @@ export interface View {
   zoom(direction: 'in' | 'out'): void;
   /** Whether a text is being typed, not validated yet: the map does not hold it. */
   editing(): boolean;
+  /** Shows a note over the map, or closes it (null). */
+  showNote(note: Note | null): void;
 }
 
 class BridgeError extends Error {
@@ -153,6 +157,8 @@ export class Bridge {
   /** Key of the node selected in the view, and what was last reported about it. */
   private selectedKey: string | null = null;
   private reportedSelection = 'null'; // as JSON, to compare with the next report
+  /** Key of the node whose note is shown over the map; null when none is. */
+  private noteKey: string | null = null;
 
   constructor(send: (json: string) => void, view: View) {
     this.send = send;
@@ -202,6 +208,24 @@ export class Bridge {
   /** A web link touched in the view (http or https, see webLink): the shell opens it. */
   openLink(url: string): void {
     this.post({ type: 'openLink', url });
+  }
+
+  /** A note's icon touched in the view: the note is shown over the map, and the shell told. */
+  openNote(key: string): void {
+    const map = this.session?.map;
+    const note = map?.has(key) ? map.note(key) : null;
+    if (!map || !note) return;
+    this.noteKey = key;
+    this.view.showNote(note);
+    this.post({ type: 'noteChanged', note: { id: key, title: map.text(key, this.locale) } });
+  }
+
+  /** Closes the note shown over the map, if any (the shell's back, or Escape in the view). */
+  closeNote(): void {
+    if (this.noteKey === null) return;
+    this.noteKey = null;
+    this.view.showNote(null);
+    this.post({ type: 'noteChanged', note: null });
   }
 
   /** A key pressed on the map, outside a text being edited: the shell runs the command, if it can. */
@@ -258,6 +282,8 @@ export class Bridge {
         // Not an edit: also available on a read-only map.
         if (this.session) this.view.zoom(message.type === 'zoomIn' ? 'in' : 'out');
         return;
+      case 'closeNote':
+        return this.closeNote();
       case 'editText':
       case 'addChild':
       case 'addSibling':
@@ -319,6 +345,7 @@ export class Bridge {
     // The new map starts with no selection, even if it shares IDs with the previous one;
     // the view reports its own once the map is shown (its root, after `loaded`).
     this.selectedKey = null;
+    this.closeNote(); // it belonged to the previous map
     this.view.show(map.toView(this.locale), this.readOnly, false);
     this.reportedTitle = map.text(map.rootKey, this.locale);
     this.post({
@@ -418,6 +445,7 @@ export class Bridge {
     }
     this.updateDraft();
     this.reportSelection();
+    if (this.noteKey !== null && !session?.map.has(this.noteKey)) this.closeNote(); // its node is gone
   }
 
   /** Sends selectionChanged when what the shell knows about the selection changes. */

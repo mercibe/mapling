@@ -122,6 +122,8 @@ class MainActivity : AppCompatActivity() {
     private var canUndo = false
     private var canRedo = false
     private var selection: JSONObject? = null
+    /** The note shown over the map (core's `noteChanged`: its node's `id` and `title`), else null. */
+    private var note: JSONObject? = null
 
     /**
      * Leaving the map once a given save has been written (Save in leaveMap): tied to that
@@ -139,6 +141,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** "Back" closes the drawer first, when it is open. */
+    /** "Back" while a note is shown goes back to the map. */
+    private val backClosesNote = object : OnBackPressedCallback(false) {
+        override fun handleOnBackPressed() = sendToCore(JSONObject().put("type", "closeNote"))
+    }
+
     private val backClosesDrawer = object : OnBackPressedCallback(false) {
         override fun handleOnBackPressed() = drawer.closeDrawer(GravityCompat.START)
     }
@@ -347,11 +354,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun setUpToolbar() {
         val toolbar = findViewById<Toolbar>(R.id.toolbar)
-        setSupportActionBar(toolbar)
-        supportActionBar?.setDisplayShowTitleEnabled(false)
-        toolbar.setNavigationIcon(R.drawable.ic_menu)
-        toolbar.setNavigationContentDescription(R.string.menu)
-        toolbar.setNavigationOnClickListener { openDrawer() }
+        setSupportActionBar(toolbar) // its ☰, or a note's back arrow: renderToolbar
         drawer = findViewById(R.id.drawer)
         // The drawer opens from ☰ only, which fills it: a swipe from the edge would show it
         // empty or out of date (with button navigation; with gestures, that swipe is "back").
@@ -370,6 +373,7 @@ class MainActivity : AppCompatActivity() {
         })
         // The last added runs first: an open drawer closes before anything else.
         onBackPressedDispatcher.addCallback(this, backWhileModified)
+        onBackPressedDispatcher.addCallback(this, backClosesNote)
         onBackPressedDispatcher.addCallback(this, backClosesDrawer)
     }
 
@@ -387,7 +391,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onPrepareOptionsMenu(menu: Menu): Boolean {
-        val open = document != null
+        val open = document != null && note == null // a note shows only its way back
         for ((id, _, _) in TOOLBAR_ACTIONS) menu.findItem(id).isVisible = open
         menu.findItem(MENU_UNDO).isEnabled = canUndo
         menu.findItem(MENU_REDO).isEnabled = canRedo
@@ -398,6 +402,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        if (note != null && item.itemId in listOf(MENU_UNDO, MENU_REDO, MENU_SAVE)) return true // hidden meanwhile
         when (item.itemId) {
             MENU_UNDO -> sendToCore(JSONObject().put("type", "undo"))
             MENU_REDO -> sendToCore(JSONObject().put("type", "redo"))
@@ -882,6 +887,7 @@ class MainActivity : AppCompatActivity() {
      * command runs only when its button or menu entry could be used now, as on the web.
      */
     private fun runShortcut(command: String, direction: String) {
+        if (note != null) return // only the way back while a note is shown
         val node = selection.takeIf { !mapReadOnly }
         val notRoot = node != null && !node.getBoolean("root")
         when (command) {
@@ -948,7 +954,8 @@ class MainActivity : AppCompatActivity() {
         if (!open) renderHome()
         // Shown whenever a map is open (its ⋮ applies to read-only maps too), so that the map
         // does not jump at each selection.
-        nodeBar.visibility = if (open) View.VISIBLE else View.GONE
+        nodeBar.visibility = if (open && note == null) View.VISIBLE else View.GONE
+        renderToolbar()
         val node = selection.takeIf { !mapReadOnly }
         val root = node?.getBoolean("root") ?: true
         findViewById<View>(R.id.edit_link).apply {
@@ -963,7 +970,21 @@ class MainActivity : AppCompatActivity() {
         renderMessages()
         renderHints()
         backWhileModified.isEnabled = dirty && document != null
+        backClosesNote.isEnabled = note != null
         invalidateOptionsMenu()
+    }
+
+    /** ☰ for the drawer; while a note is shown, a back arrow and its node's text instead. */
+    private fun renderToolbar() {
+        val toolbar = findViewById<Toolbar>(R.id.toolbar)
+        val shown = note
+        supportActionBar?.setDisplayShowTitleEnabled(shown != null)
+        toolbar.title = shown?.let { oneLine(it.optString("title")) }
+        toolbar.setNavigationIcon(if (shown != null) R.drawable.ic_arrow_back else R.drawable.ic_menu)
+        toolbar.setNavigationContentDescription(if (shown != null) R.string.close_note else R.string.menu)
+        toolbar.setNavigationOnClickListener {
+            if (note != null) sendToCore(JSONObject().put("type", "closeNote")) else openDrawer()
+        }
     }
 
     /** Open, new, and the recent maps: one gesture to go back to a map. */
@@ -1080,6 +1101,7 @@ class MainActivity : AppCompatActivity() {
     private fun renderHints() {
         val hints = findViewById<LinearLayout>(R.id.hints)
         hints.removeAllViews()
+        if (note != null) return // the map is behind the note
         val node = selection ?: return
         if (!node.getBoolean("textEditable") && !mapReadOnly) {
             hints.addView(hint(getString(R.string.hint_locked), R.drawable.mark_lock))
@@ -1575,6 +1597,7 @@ class MainActivity : AppCompatActivity() {
         documentName = ""
         documentTitle = ""
         selection = null
+        note = null // the core closes it with the next map
         readOnlyReasons = listOf()
         hiddenNotice = null
         render()
@@ -1891,6 +1914,10 @@ class MainActivity : AppCompatActivity() {
             }
             "selectionChanged" -> {
                 selection = message.optJSONObject("node")
+                render()
+            }
+            "noteChanged" -> {
+                note = message.optJSONObject("note")
                 render()
             }
             "error" -> {

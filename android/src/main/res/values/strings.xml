@@ -26,6 +26,7 @@ SPDX-License-Identifier: GPL-3.0-or-later
     <string name="delete_node">Delete</string>
     <string name="center">Center</string>
     <string name="menu">Menu</string>
+    <string name="close_note">Back to the map</string>
     <string name="close">Close</string>
     <string name="open_map">Open a map</string>
     <!-- %1$s: what the branch holds, e.g. "3 sub-nodes, 1 note and 2 icons" -->

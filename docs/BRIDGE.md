@@ -134,6 +134,14 @@ Scrolls the map so that the selected node, or the root when nothing is selected,
 
 Zooms in or out by one step, around the middle of the view (Freeplane's Alt+Up and Alt+Down). Not an edit: also available on a read-only map.
 
+### `closeNote`
+
+```json
+{ "v": 1, "type": "closeNote" }
+```
+
+Closes the note shown over the map (see `noteChanged`), typically from the shell's back arrow or its system "back". Ignored when no note is shown.
+
 ### `moveNode`
 
 ```json
@@ -187,14 +195,14 @@ The shell sends no message before `ready`.
 { "v": 1, "type": "loaded", "requestId": "r1",
   "nodeCount": 412, "readOnlyNodes": 7, "readOnly": false,
   "mapVersion": "freeplane 1.12.15", "title": "Team meeting",
-  "hiddenContent": ["note", "icon"], "warnings": [] }
+  "hiddenContent": ["details", "icon"], "warnings": [] }
 ```
 
 - `readOnlyNodes`: number of nodes whose **text** cannot be edited (rich text, or no text at all). These nodes can still be moved, deleted, or given children.
 - `readOnly`: whether the **whole map** is read-only: nothing can be changed, either because the shell asked for it in `load` or because of its format version (see below).
 - `mapVersion`: the `version` attribute of `<map>`, as found in the file.
 - `title`: the root's text as displayed (plain text, possibly on several lines; a text Freeplane provides, such as a new map's root, in the user's language). Shells show it with the file's name, so that the user sees both what the map is about and which file holds it. Kept up to date by `titleChanged`.
-- `hiddenContent`: kinds of content present in the map but not displayed by Mapling, and kept intact. The shell tells the user once when opening the map (e.g. "This map contains notes and icons that are not shown. They are kept."). Kinds, always in this order: `note`, `details`, `attribute`, `link`, `icon`, `connector`, `image`. A node's web link (http or https) is displayed (see `openLink`), so it is not counted; its other links are (inside the map, to another map, mail). Images and link targets inside rich text count too, since rich text is shown as plain text. Formatting (fonts, colors, clouds, edge styles) is not reported.
+- `hiddenContent`: kinds of content present in the map but not displayed by Mapling, and kept intact. The shell tells the user once when opening the map (e.g. "This map contains details and icons that are not shown. They are kept."). Kinds, always in this order: `note`, `details`, `attribute`, `link`, `icon`, `connector`, `image`. A node's web link (http or https) is displayed (see `openLink`), so it is not counted; its other links are (inside the map, to another map, mail). A note is displayed on demand (see `noteChanged`), so it is not counted either; images inside it are, since a note is shown without them, and so are its links other than web ones, which cannot be followed from it. Images and link targets inside rich text count too, since rich text is shown as plain text. `note` appears only in `branch.hidden` (see `selectionChanged`). Formatting (fonts, colors, clouds, edge styles) is not reported.
 - `warnings`: non-blocking notices, each an object with a stable `code`. The shell displays them translated from the `code`.
 
 | Warning code | Meaning | Effect |
@@ -252,8 +260,8 @@ The current state of the loaded map, to be kept as a local draft (see section 6)
 { "v": 1, "type": "selectionChanged", "node": {
     "id": "ID_1964929139", "revision": 12, "root": false, "textEditable": true,
     "link": null, "linkAsTyped": null, "textLink": "https://www.freeplane.org/",
-    "hidden": { "note": 1 },
-    "branch": { "descendants": 3, "hidden": { "note": 1, "icon": 2 } } } }
+    "hidden": { "details": 1, "icon": 2 },
+    "branch": { "descendants": 3, "hidden": { "note": 1, "details": 1, "icon": 2 } } } }
 { "v": 1, "type": "selectionChanged", "node": null }
 ```
 
@@ -268,9 +276,9 @@ Sent whenever what the shell knows about the selected node changes: another node
 | `link` | The node's link as written, whatever its kind (`null`: none). Offer to modify or remove it (`setLink`) |
 | `linkAsTyped` | The same link as offered for editing: without the `https://` that `setLink` adds back (`example.com` for `https://example.com`), else as written (`null`: none) |
 | `textLink` | The first web address written in the node's text, as written (`null`: none). Offer it as the link to add |
-| `hidden` | Content of the node itself that is not displayed, by kind: what its dot stands for. Explain it while the node is selected (e.g. "1 note, 2 icons, kept") |
+| `hidden` | Content of the node itself that is not displayed, by kind (as in `hiddenContent`: never `note`): what its dot stands for. Explain it while the node is selected (e.g. "1 details, 2 icons, kept") |
 | `branch.descendants` | Number of nodes under the selected one, removed with it |
-| `branch.hidden` | Content of the branch that is not displayed, by kind (same kinds as `hiddenContent`), including connectors from elsewhere pointing into the branch. Ask for confirmation before `deleteNode` when it is not empty |
+| `branch.hidden` | Content of the branch that is not displayed, by kind (same kinds as `hiddenContent`), including connectors from elsewhere pointing into the branch, and its notes: shown only on demand, they would go unseen. Ask for confirmation before `deleteNode` when it is not empty |
 
 ### `historyChanged`
 
@@ -287,6 +295,15 @@ Emitted whenever the possibility to undo or redo changes. The shell uses it to e
 ```
 
 The user touched the icon of a node's web link. The shell opens the address apart from the map: the system's browser on a phone, a new tab on the web. The core sends only `http` and `https` addresses; Freeplane commands (`execute:`, `menuitem:`…) are never sent. The shell may check the scheme again.
+
+### `noteChanged`
+
+```json
+{ "v": 1, "type": "noteChanged", "note": { "id": "ID_1964929139", "title": "Budget" } }
+{ "v": 1, "type": "noteChanged", "note": null }
+```
+
+A note is now shown over the whole map, or closed (`null`). The user touched the note icon of a node; the core shows the note itself, read-only: HTML without what could run code, reach the network or leave the note's area (scripts, event attributes, images, links other than `http` and `https`, styles other than text, colors, sizes and boxes), plain text (Markdown…) as written. `title` is the node's text as displayed (plain text, possibly on several lines, possibly empty). While a note is shown, the shell shows `title` in its title bar with a way back (back arrow, system "back") that sends `closeNote`, and hides its commands on the map and the node. The core also closes the note on its own (Escape, another map loaded, the node removed): the shell follows `noteChanged` only.
 
 ### `shortcut`
 
@@ -385,6 +402,7 @@ A mobile system may kill a backgrounded app without notice, and a phone may cras
 - [ ] Enable the Undo and Redo commands according to `historyChanged`, and the editing commands according to `selectionChanged`.
 - [ ] While a node with a lock or a dot is selected, explain what the mark means (`textEditable`, `hidden`), without taking room otherwise. The core's stylesheet offers the same marks for that (`.mapling-lock-mark`, `.mapling-dot-mark`).
 - [ ] Run a `shortcut` as the matching command, only when that command is enabled.
+- [ ] While `noteChanged` reports a note, show its `title` with a way back that sends `closeNote`, and hide the map's and the node's commands.
 - [ ] Ask for confirmation before `deleteNode` when the selected branch holds hidden content, with a translated summary; send the node's `id` and the `revision` the confirmation was based on, and ask again on `OUTDATED_COMMAND`.
 - [ ] Serve the core's resources locally; no network access.
 

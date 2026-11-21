@@ -9,6 +9,7 @@ assembles it in web/dist.
 
 It looks like the Android shell (android/src/main/res/layout/main.xml): toolbar with ☰,
 undo, redo and save (here also the map's title); the map, or the home screen; the node bar with ⋮; the ☰ drawer.
+While a note is shown over the map: a back arrow and the node's text, no other commands.
 It takes the whole window, as on a tablet.
 -->
 <html>
@@ -110,11 +111,12 @@ It takes the whole window, as on a tablet.
 <body>
 <div id="app">
   <div id="toolbar">
-    <button class="icon-button" data-action="menu"><svg class="icon"><use href="icons.svg#menu"/></svg></button>
+    <button class="icon-button" data-action="menu" data-without-note><svg class="icon"><use href="icons.svg#menu"/></svg></button>
+    <button class="icon-button" data-action="closeNote" data-with-note><svg class="icon"><use href="icons.svg#arrow_back"/></svg></button>
     <span id="map-title"></span>
-    <button class="icon-button" data-action="undo" data-with-map><svg class="icon"><use href="icons.svg#undo"/></svg></button>
-    <button class="icon-button" data-action="redo" data-with-map><svg class="icon"><use href="icons.svg#redo"/></svg></button>
-    <button class="icon-button" data-action="save" data-with-map><svg class="icon"><use href="icons.svg#save"/></svg></button>
+    <button class="icon-button" data-action="undo" data-with-map data-without-note><svg class="icon"><use href="icons.svg#undo"/></svg></button>
+    <button class="icon-button" data-action="redo" data-with-map data-without-note><svg class="icon"><use href="icons.svg#redo"/></svg></button>
+    <button class="icon-button" data-action="save" data-with-map data-without-note><svg class="icon"><use href="icons.svg#save"/></svg></button>
   </div>
   <div id="messages"></div>
   <div id="map-area">
@@ -126,8 +128,8 @@ It takes the whole window, as on a tablet.
       <p class="invite" data-text="home.invite"></p>
     </div>
   </div>
-  <div id="hints"></div>
-  <div id="node-bar" data-with-map>
+  <div id="hints" data-without-note></div>
+  <div id="node-bar" data-with-map data-without-note>
     <button class="icon-button" data-action="deleteNode"><svg class="icon"><use href="icons.svg#delete"/></svg></button>
     <button class="icon-button" data-action="editLink"><svg class="icon"><use href="icons.svg#link"/></svg></button>
     <button class="icon-button" data-action="addChild"><svg class="icon"><use href="icons.svg#subdirectory_arrow_right"/></svg></button>

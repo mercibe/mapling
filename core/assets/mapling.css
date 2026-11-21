@@ -10,6 +10,8 @@
   --mapling-dot-color: #4a7fd4;
   /* An arrow out of a box: "opens elsewhere" (drawn for Mapling). */
   --mapling-link: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23154d46' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 2.5H3.5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V9'/%3E%3Cpath d='M9.5 2.5h4v4M13.5 2.5 7 9'/%3E%3C/svg%3E");
+  /* A page with lines of text: "a note" (drawn for Mapling). */
+  --mapling-note: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23154d46' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 1.5h6l3 3v10h-9z'/%3E%3Cpath d='M6 7.5h4M6 10.5h4'/%3E%3C/svg%3E");
   /* A return arrow: "start a new line" (drawn for Mapling). */
   --mapling-newline: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23154d46' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M13 3v5a2 2 0 0 1-2 2H3'/%3E%3Cpath d='M6 7 3 10l3 3'/%3E%3C/svg%3E");
 }
@@ -18,7 +20,7 @@
    4 px apart), the node's padding (12 px) and a margin of 16 px on each side: 80 px in all. */
 :root { --mapling-editor-width: min(20em, calc(100vw - 80px)); }
 
-#mapling { width: 100%; height: 100%; }
+#mapling { position: relative; width: 100%; height: 100%; }
 
 /* Fingers scroll the map, but never zoom the whole page: pinching zooms the map
    itself (core/src/touch.ts). No callout menu when a finger rests on a node. */
@@ -149,7 +151,7 @@ jmnode.mapling-hidden-content::before,
   background: var(--mapling-dot-color);
 }
 
-/* Icons before the text: a web link today; touching them opens it (see JsMindView.icons). */
+/* Icons before the text: a web link, a note; touching one opens it (see JsMindView.icons). */
 jmnode.mapling-with-icons { display: flex; align-items: flex-start; }
 .mapling-icons { flex: none; display: flex; margin-right: 0.3em; padding-top: 0.1em; }
 .mapling-text { min-width: 0; }
@@ -160,3 +162,37 @@ jmnode.mapling-with-icons { display: flex; align-items: flex-start; }
   cursor: pointer;
   background: no-repeat center / contain var(--mapling-link);
 }
+.mapling-note-icon {
+  display: inline-block;
+  width: 1.1em;
+  height: 1.1em;
+  cursor: pointer;
+  background: no-repeat center / contain var(--mapling-note);
+}
+.mapling-icons > * + * { margin-left: 0.2em; }
+
+/* A note, over the whole map (JsMindView.showNote), above jsMind's nodes and links (z-index 7
+   at most). Freeplane's notes write widths and margins without a unit, which browsers ignore:
+   cells and paragraphs get their sizes here instead. */
+.mapling-note {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  overflow: auto;
+  padding: 16px;
+  box-sizing: border-box;
+  background: #fff;
+  font: 16px/1.4 system-ui, Roboto, "Segoe UI", sans-serif;
+  color: #222;
+  overflow-wrap: anywhere;
+  outline: none;
+}
+.mapling-note[hidden] { display: none; }
+/* An empty paragraph is a blank line, as in Freeplane: a line high at least. */
+.mapling-note p { margin: 0.25em 0; min-height: 1.4em; }
+.mapling-note table { border-collapse: collapse; }
+.mapling-note td, .mapling-note th { border-width: 1px; border-color: #999; padding: 2px 4px; }
+/* Only a web link can be followed: a link left without its address looks like text. */
+.mapling-note a[href] { color: #154d46; }
+/* Plain text (Markdown…): as written, its line breaks kept. */
+.mapling-note-text { white-space: pre-wrap; }

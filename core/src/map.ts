@@ -13,7 +13,10 @@ import { parseXml, serializeXml, type Envelope } from './xml.ts';
 export type Side = 'left' | 'right';
 export type Direction = 'up' | 'down' | 'left' | 'right';
 
-/** Kinds of content kept in the file but not displayed (formatting is not reported). */
+/**
+ * Kinds of content kept in the file but not displayed (formatting is not reported). A note is
+ * shown on demand: it counts only in what deleting a branch would remove (branchSummary).
+ */
 export type HiddenKind = 'note' | 'details' | 'attribute' | 'link' | 'icon' | 'connector' | 'image';
 
 /** All hidden kinds, in the order in which lists of kinds are given. */
@@ -45,8 +48,12 @@ export interface ViewNode {
   readOnly?: boolean; // the text cannot be edited; the node can still be moved or deleted
   hidden?: HiddenKind[]; // content of this node that is not displayed
   link?: string; // a web address (LINK), shown as an icon that opens it
+  note?: boolean; // the node has a note, shown as an icon that opens it
   children: ViewNode[];
 }
+
+/** A note as displayed: HTML (its <body>, or the whole content), or plain text as written. */
+export type Note = { html: Element } | { text: string };
 
 /**
  * The web address a node links to, if any: only http and https are followed. Other links
@@ -205,6 +212,7 @@ export class MindMap {
     if (this.isReadOnly(key)) view.readOnly = true;
     const link = webLink(el.getAttribute('LINK'));
     if (link) view.link = link;
+    if (this.noteElement(el)) view.note = true;
     const hidden = kinds(this.hiddenCounts([el]));
     if (hidden.length > 0) view.hidden = hidden;
     return view;
@@ -227,7 +235,7 @@ export class MindMap {
   branchSummary(key: string): BranchSummary {
     const el = this.element(key);
     const branch = [el, ...Array.from(el.getElementsByTagName('node'))];
-    const hidden = this.hiddenCounts(branch);
+    const hidden = this.hiddenCounts(branch, true);
     const ids = new Set(branch.map((n) => n.getAttribute('ID')).filter((id) => id));
     let incoming = 0;
     for (const link of Array.from(this.rootEl.getElementsByTagName('arrowlink'))) {
@@ -236,6 +244,21 @@ export class MindMap {
     }
     if (incoming > 0) hidden.connector = (hidden.connector ?? 0) + incoming;
     return { descendants: branch.length - 1, hidden: ordered(hidden) };
+  }
+
+  /**
+   * The node's note, null when it has none. Read as Freeplane writes it (NodeTextBuilder):
+   * HTML with no CONTENT-TYPE or "xml/html"; plain text in a <text> element with "plain/…"
+   * (Markdown, "auto"…).
+   */
+  note(key: string): Note | null {
+    const note = this.noteElement(this.element(key));
+    if (!note) return null;
+    const first = childElements(note, 'text')[0];
+    if ((note.getAttribute('CONTENT-TYPE') ?? '').startsWith('plain/') || first) {
+      return { text: (first ?? note).textContent ?? '' };
+    }
+    return { html: Array.from(note.getElementsByTagName('body'))[0] ?? note };
   }
 
   // ---------- operations ----------
@@ -450,15 +473,18 @@ export class MindMap {
     return key;
   }
 
-  /** Counts the hidden content carried by these nodes themselves (not their descendants). */
-  private hiddenCounts(nodes: Element[]): Partial<Record<HiddenKind, number>> {
+  /**
+   * Counts the hidden content carried by these nodes themselves (not their descendants); notes,
+   * shown on demand, only `withNotes`.
+   */
+  private hiddenCounts(nodes: Element[], withNotes = false): Partial<Record<HiddenKind, number>> {
     const counts: Partial<Record<HiddenKind, number>> = {};
     const add = (kind: HiddenKind, n: number) => {
       if (n > 0) counts[kind] = (counts[kind] ?? 0) + n;
     };
     for (const el of nodes) {
       const rich = (type: string) => childElements(el, 'richcontent').filter((r) => r.getAttribute('TYPE') === type).length;
-      add('note', rich('NOTE'));
+      if (withNotes) add('note', rich('NOTE'));
       add('details', rich('DETAILS'));
       add('attribute', childElements(el, 'attribute').length);
       add('link', el.hasAttribute('LINK') && !webLink(el.getAttribute('LINK')) ? 1 : 0); // web links are shown
@@ -471,12 +497,24 @@ export class MindMap {
         add('image', richText.getElementsByTagName('img').length);
         add('link', Array.from(richText.getElementsByTagName('a')).filter((a) => a.hasAttribute('href')).length);
       }
+      // A note is shown without its images (Mapling cannot reach them), and its links only
+      // to the web: the others (to another map, mail…) are not followed (see copySafeHtml).
+      const note = this.noteElement(el);
+      if (note) {
+        add('image', note.getElementsByTagName('img').length);
+        const notFollowed = (a: Element) => a.hasAttribute('href') && !webLink(a.getAttribute('href'));
+        add('link', Array.from(note.getElementsByTagName('a')).filter(notFollowed).length);
+      }
     }
     return counts;
   }
 
   private richContent(el: Element): Element | undefined {
     return childElements(el, 'richcontent').find((r) => r.getAttribute('TYPE') === 'NODE');
+  }
+
+  private noteElement(el: Element): Element | undefined {
+    return childElements(el, 'richcontent').find((r) => r.getAttribute('TYPE') === 'NOTE');
   }
 
   private isReadOnlyElement(el: Element): boolean {

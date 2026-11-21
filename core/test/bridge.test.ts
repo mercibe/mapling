@@ -54,7 +54,7 @@ test('ready, then load reports the map and shows it', () => {
   send({ type: 'load', requestId: 'r1', name: 'fixture01.mm', data: base64(original) });
   assert.deepEqual(take(), [{
     v: 1, type: 'loaded', requestId: 'r1', nodeCount: 8, readOnlyNodes: 1, readOnly: false,
-    mapVersion: 'freeplane 1.12.15', title: 'Root node', hiddenContent: ['note'], warnings: [],
+    mapVersion: 'freeplane 1.12.15', title: 'Root node', hiddenContent: [], warnings: [], // its note is shown
   }]);
   assert.equal(view.shown.length, 1);
   assert.equal(view.shown[0].topic, 'Root node');
@@ -291,7 +291,7 @@ test('selectionChanged tells the shell what it can do with the selected node', (
   bridge.select('ID_1964929139'); // D, which has a note
   assert.deepEqual(take(), [{ v: 1, type: 'selectionChanged', node: {
     id: 'ID_1964929139', revision: 0, root: false, textEditable: true, link: null, linkAsTyped: null, textLink: null,
-    hidden: { note: 1 }, branch: { descendants: 0, hidden: { note: 1 } },
+    hidden: {}, branch: { descendants: 0, hidden: { note: 1 } }, // a note is shown, but deleted with the node
   } }]);
   bridge.select('ID_1500080539'); // rich text: its text cannot be edited
   assert.equal(take()[0].node.textEditable, false);

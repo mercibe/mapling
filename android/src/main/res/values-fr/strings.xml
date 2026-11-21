@@ -24,6 +24,7 @@ SPDX-License-Identifier: GPL-3.0-or-later
     <string name="delete_node">Supprimer</string>
     <string name="center">Recentrer</string>
     <string name="menu">Menu</string>
+    <string name="close_note">Retour à la carte</string>
     <string name="close">Fermer</string>
     <string name="open_map">Ouvrir une carte</string>
     <string name="confirm_delete">Supprimer ce nœud, avec %1$s ?</string>

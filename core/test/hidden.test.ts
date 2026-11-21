@@ -28,15 +28,15 @@ test('each node reports its own hidden content; formatting is not reported', () 
   assert.equal(view.hidden, undefined);
   const [branch, other, plain] = view.children;
   assert.deepEqual(branch.hidden, ['link', 'icon']);
-  assert.deepEqual(branch.children[0].hidden, ['note', 'details', 'attribute', 'connector', 'image']);
+  assert.deepEqual(branch.children[0].hidden, ['details', 'attribute', 'connector', 'image']); // its note is shown
   assert.deepEqual(other.hidden, ['connector']);
   assert.equal(plain.hidden, undefined);
 });
 
 test('the map lists every kind of hidden content it holds', () => {
   assert.deepEqual(new MindMap(MAP).hiddenContent(),
-    ['note', 'details', 'attribute', 'link', 'icon', 'connector', 'image']);
-  assert.deepEqual(new MindMap(fixture('fixture01.mm')).hiddenContent(), ['note']);
+    ['details', 'attribute', 'link', 'icon', 'connector', 'image']);
+  assert.deepEqual(new MindMap(fixture('fixture01.mm')).hiddenContent(), [], 'its note is shown');
   assert.deepEqual(new MindMap(fixture('fixture02-specialChars.mm')).hiddenContent(), []);
 });
 
@@ -64,5 +64,19 @@ test('images and link targets inside rich text are reported, as they are not dis
   assert.equal(rich.topic, 'see this\nnot a link');
   assert.deepEqual(rich.hidden, ['link', 'image']);
   assert.deepEqual(map.branchSummary('ID_1').hidden, { link: 1, image: 2 });
-  assert.deepEqual(withNote.hidden, ['note']); // the note covers what it contains
+  assert.deepEqual(withNote.hidden, ['image']); // the note is shown, not its image
+  assert.deepEqual(map.branchSummary('ID_2').hidden, { note: 1, image: 1 });
+});
+
+test('links of a note that do not go to the web are reported, as they cannot be followed', () => {
+  const map = new MindMap(
+    '<map version="freeplane 1.12.15">\n<node TEXT="r" ID="ID_0">\n' +
+    '<node TEXT="with note" ID="ID_1"><richcontent TYPE="NOTE"><html><body>' +
+    '<p><a href="other.mm#ID_1">other map</a> <a href="mailto:a@example.org">mail</a></p>' +
+    '<p><a href="https://example.org">web</a> <a name="anchor">not a link</a></p>' +
+    '</body></html></richcontent>\n</node>\n' +
+    '</node>\n</map>\n');
+  assert.deepEqual(map.nodeHidden('ID_1'), { link: 2 }); // the web link is shown, and followed
+  assert.deepEqual(map.hiddenContent(), ['link']);
+  assert.deepEqual(map.branchSummary('ID_1').hidden, { note: 1, link: 2 });
 });

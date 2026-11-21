@@ -22,6 +22,7 @@ const state = {
   dirty: false,
   history: { canUndo: false, canRedo: false },
   selection: null, // node reported by selectionChanged
+  note: null, // { id, title } of the note shown over the map (noteChanged), else null
   messages: [], // { kind: 'info' | 'warning' | 'error', text: () => string }
   draftFailed: false,
   downloadToConfirm: null, // saveId of the last copy downloaded, until the user confirms it
@@ -105,6 +106,9 @@ function receive(message) {
       break;
     case 'selectionChanged':
       state.selection = message.node;
+      break;
+    case 'noteChanged':
+      state.note = message.note;
       break;
     case 'titleChanged':
       if (state.map) state.map.title = message.title;
@@ -230,7 +234,7 @@ async function closeMap() {
   if (state.dirty) deleteDraft(storage, state.map.draftKey);
   // The core keeps the map until the next one is loaded: drafts it may still send
   // concern no open map, and are ignored (see draftData).
-  Object.assign(state, { map: null, dirty: false, history: { canUndo: false, canRedo: false }, selection: null, messages: [], downloadToConfirm: null });
+  Object.assign(state, { map: null, dirty: false, history: { canUndo: false, canRedo: false }, selection: null, note: null, messages: [], downloadToConfirm: null });
   render();
 }
 
@@ -384,6 +388,7 @@ more.addEventListener('click', (event) => {
 
 const actions = {
   menu: openDrawer,
+  closeNote: () => send({ type: 'closeNote' }),
   open: openFile,
   newMap,
   close: closeMap,
@@ -445,7 +450,11 @@ async function deleteNode() {
 function enabled(action) {
   const editable = !!state.map && !state.map.readOnly;
   const node = state.selection;
+  // A note shown over the map: only the way back, whatever is selected behind it.
+  if (state.note) return action === 'closeNote';
   switch (action) {
+    case 'closeNote':
+      return false;
     case 'menu':
     case 'open':
     case 'newMap':
@@ -563,11 +572,16 @@ function render() {
   const version = document.getElementById('about-version');
   version.hidden = !version.dataset.version;
   version.textContent = t('about.version', { version: version.dataset.version });
-  for (const element of document.querySelectorAll('[data-with-map]')) element.hidden = !map;
+  // A note shown over the map: only the way back, and the node's text as the title.
+  for (const element of document.querySelectorAll('[data-with-map], [data-without-note], [data-with-note]')) {
+    element.hidden = (element.hasAttribute('data-with-map') && !map)
+      || (element.hasAttribute('data-without-note') && !!state.note)
+      || (element.hasAttribute('data-with-note') && !state.note);
+  }
   document.getElementById('home').hidden = !!map;
   document.getElementById('mapling').style.visibility = map ? '' : 'hidden';
   document.title = map ? `${oneLine(map.title) || map.name} – Mapling` : 'Mapling';
-  document.getElementById('map-title').textContent = map ? oneLine(map.title) || map.name : '';
+  document.getElementById('map-title').textContent = state.note ? oneLine(state.note.title) : map ? oneLine(map.title) || map.name : '';
 
   // The drawer's header: the root's text, then the file.
   const header = document.getElementById('drawer-header');
