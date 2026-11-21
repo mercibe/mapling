@@ -623,7 +623,7 @@ class MainActivity : AppCompatActivity() {
     // ---------- commands on the selected node ----------
 
     private fun setUpNodeBar() {
-        findViewById<ImageButton>(R.id.edit_text).setOnClickListener { nodeCommand("editText") }
+        findViewById<ImageButton>(R.id.edit_link).setOnClickListener { selection?.takeIf { !mapReadOnly }?.let(::editLink) }
         findViewById<ImageButton>(R.id.add_child).setOnClickListener { nodeCommand("addChild") }
         findViewById<ImageButton>(R.id.add_sibling).setOnClickListener { nodeCommand("addSibling") }
         findViewById<ImageButton>(R.id.delete_node).setOnClickListener { deleteSelected() }
@@ -857,17 +857,8 @@ class MainActivity : AppCompatActivity() {
             }
         })
         // Centers the selected node, or the root: always at hand to find the map again.
-        val center = { sendToCore(JSONObject().put("type", "center")) }
-        val node = selection
-        if (node != null) {
-            title(R.string.more_node)
-            entry(R.string.center, R.drawable.ic_filter_center_focus, center)
-            if (!mapReadOnly) {
-                entry(if (node.isNull("link")) R.string.add_link else R.string.edit_link, R.drawable.ic_link) { editLink(node) }
-            }
-        }
         title(R.string.more_map)
-        if (selection == null) entry(R.string.center, R.drawable.ic_filter_center_focus, center)
+        entry(R.string.center, R.drawable.ic_filter_center_focus) { sendToCore(JSONObject().put("type", "center")) }
         entry(R.string.map_info, R.drawable.ic_info) { showMapInfo() }
         // A new map has no file yet: nothing to read again.
         if (uri != NEW_MAP) entry(R.string.reload, R.drawable.ic_refresh) { leaveMap { open(uri) } }
@@ -960,7 +951,12 @@ class MainActivity : AppCompatActivity() {
         nodeBar.visibility = if (open) View.VISIBLE else View.GONE
         val node = selection.takeIf { !mapReadOnly }
         val root = node?.getBoolean("root") ?: true
-        findViewById<View>(R.id.edit_text).isEnabled = node?.getBoolean("textEditable") ?: false
+        findViewById<View>(R.id.edit_link).apply {
+            isEnabled = node != null
+            val label = getString(if (node == null || node.isNull("link")) R.string.add_link else R.string.edit_link)
+            contentDescription = label
+            tooltipText = label
+        }
         findViewById<View>(R.id.add_child).isEnabled = node != null
         findViewById<View>(R.id.add_sibling).isEnabled = !root
         findViewById<View>(R.id.delete_node).isEnabled = !root

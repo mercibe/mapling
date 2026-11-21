@@ -19,7 +19,6 @@ SPDX-License-Identifier: GPL-3.0-or-later
     <string name="drafts_not_protected">Les modifications non enregistrées ne sont pas protégées : impossible d’écrire le brouillon.</string>
     <string name="undo">Annuler</string>
     <string name="redo">Rétablir</string>
-    <string name="edit_text">Modifier le texte</string>
     <string name="add_child">Ajouter un enfant</string>
     <string name="add_sibling">Ajouter un frère</string>
     <string name="delete_node">Supprimer</string>
@@ -142,7 +141,6 @@ SPDX-License-Identifier: GPL-3.0-or-later
     <string name="info_not_saved">Pas encore enregistrée : l’emplacement et le nom du fichier sont demandés au premier enregistrement.</string>
     <string name="info_not_deletable">Sa source ne permet pas à Mapling de la supprimer.</string>
     <string name="more">Plus</string>
-    <string name="more_node">Nœud sélectionné</string>
     <string name="more_map">Carte</string>
     <string name="save_as">Enregistrer sous…</string>
     <string name="rename">Renommer…</string>

@@ -136,15 +136,16 @@ SPDX-License-Identifier: GPL-3.0-or-later
             android:layout_marginEnd="@dimen/node_button_width"
             android:orientation="horizontal">
 
+            <!-- Its description says add or edit, by the node (render). -->
             <ImageButton
-                android:id="@+id/edit_text"
+                android:id="@+id/edit_link"
                 style="?android:attr/borderlessButtonStyle"
                 android:layout_width="@dimen/node_button_width"
                 android:layout_height="48dp"
-                android:contentDescription="@string/edit_text"
-                android:src="@drawable/ic_edit"
+                android:contentDescription="@string/add_link"
+                android:src="@drawable/ic_link"
                 app:tint="@color/node_icon"
-                android:tooltipText="@string/edit_text" />
+                android:tooltipText="@string/add_link" />
 
             <ImageButton
                 android:id="@+id/add_child"

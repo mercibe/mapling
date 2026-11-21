@@ -21,7 +21,6 @@ SPDX-License-Identifier: GPL-3.0-or-later
     <string name="drafts_not_protected">Unsaved changes are not protected: drafts cannot be written.</string>
     <string name="undo">Undo</string>
     <string name="redo">Redo</string>
-    <string name="edit_text">Edit text</string>
     <string name="add_child">Add child</string>
     <string name="add_sibling">Add sibling</string>
     <string name="delete_node">Delete</string>
@@ -149,7 +148,6 @@ SPDX-License-Identifier: GPL-3.0-or-later
     <string name="info_not_saved">Not saved yet: where to keep it and under which name are asked at the first save.</string>
     <string name="info_not_deletable">Its source does not let Mapling delete it.</string>
     <string name="more">More</string>
-    <string name="more_node">Selected node</string>
     <string name="more_map">Map</string>
     <string name="save_as">Save as…</string>
     <string name="rename">Rename…</string>

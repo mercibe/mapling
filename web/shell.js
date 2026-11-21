@@ -391,7 +391,6 @@ const actions = {
   saveCopy: () => request({ type: 'save' }),
   undo: () => send({ type: 'undo' }),
   redo: () => send({ type: 'redo' }),
-  editText: () => send({ type: 'editText', id: state.selection.id }),
   addChild: () => send({ type: 'addChild', id: state.selection.id }),
   addSibling: () => send({ type: 'addSibling', id: state.selection.id }),
   deleteNode,
@@ -469,8 +468,6 @@ function enabled(action) {
       return state.history.canUndo;
     case 'redo':
       return state.history.canRedo;
-    case 'editText':
-      return editable && !!node && node.textEditable;
     case 'addChild':
     case 'editLink':
       return editable && !!node;
@@ -554,7 +551,8 @@ function render() {
   for (const button of document.querySelectorAll('[data-action]')) {
     button.disabled = !enabled(button.dataset.action);
     if (button.classList.contains('icon-button')) {
-      button.title = t(`action.${button.dataset.action}`);
+      const action = button.dataset.action === 'editLink' && state.selection?.link == null ? 'addLink' : button.dataset.action;
+      button.title = t(`action.${action}`);
       button.setAttribute('aria-label', button.title);
     }
   }
@@ -575,13 +573,6 @@ function render() {
   const header = document.getElementById('drawer-header');
   header.querySelector('strong').textContent = map ? oneLine(map.title) || map.name : '';
   header.querySelector('span').textContent = map && oneLine(map.title) ? map.name : '';
-
-  // The ⋮ menu: the selected node's commands only with one; Center then goes with them.
-  const node = state.selection;
-  document.getElementById('more-node').hidden = !node;
-  document.getElementById('center-map').hidden = !!node;
-  document.querySelector('[data-action="editLink"]').hidden = !enabled('editLink');
-  document.getElementById('link-entry').textContent = t(node?.link == null ? 'action.addLink' : 'action.editLink');
 
   const messages = [...state.messages];
   if (state.draftFailed) messages.push({ kind: 'warning', text: () => t('draft.failed') });

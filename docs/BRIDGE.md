@@ -264,7 +264,7 @@ Sent whenever what the shell knows about the selected node changes: another node
 | `id` | Target of the editing commands |
 | `revision` | Revision of the map described here; sent back with `deleteNode` |
 | `root` | The root cannot be deleted, and has no siblings: disable Delete and Add sibling |
-| `textEditable` | Enable Edit text (false for rich text, or a read-only map; a text on several lines is editable). In an editable map, false means the node shows a lock: explain it while it is selected (its text can only be edited in Freeplane; the node can still be moved or deleted) |
+| `textEditable` | Whether the text can be edited, by a double tap or `editText` (false for rich text, or a read-only map; a text on several lines is editable). In an editable map, false means the node shows a lock: explain it while it is selected (its text can only be edited in Freeplane; the node can still be moved or deleted) |
 | `link` | The node's link as written, whatever its kind (`null`: none). Offer to modify or remove it (`setLink`) |
 | `linkAsTyped` | The same link as offered for editing: without the `https://` that `setLink` adds back (`example.com` for `https://example.com`), else as written (`null`: none) |
 | `textLink` | The first web address written in the node's text, as written (`null`: none). Offer it as the link to add |
