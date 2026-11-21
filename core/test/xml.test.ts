@@ -23,6 +23,18 @@ test('the Freeplane rules still apply to text and attributes', () => {
   assert.equal(new MindMap(text).serialize(), text);
 });
 
+test('quotation marks in the text of notes are written as Freeplane does', () => {
+  // As in fixture10, written by Freeplane 1.13.5: `&quot;` in text, apostrophe as is,
+  // in an HTML note and in a Markdown one; comments and CDATA stay verbatim.
+  const text =
+    '<map version="freeplane 1.12.15">\n' +
+    '<node TEXT="r" ID="ID_1"><richcontent TYPE="NOTE"><html><body><p>It\'s &quot;nice&quot;</p></body></html></richcontent>\n' +
+    '<node TEXT="m" ID="ID_2"><richcontent TYPE="NOTE" CONTENT-TYPE="plain/markdown">\n<text>a &lt; b &amp; c &gt; &quot;d&quot;</text></richcontent>\n' +
+    '<!-- "quoted" --><richcontent TYPE="DETAILS"><![CDATA["kept"]]></richcontent>\n</node>\n' +
+    '</node>\n</map>\n';
+  assert.equal(new MindMap(text).serialize(), text);
+});
+
 // Freeplane up to 1.11 wrote the HTML entity `&nbsp;` in rich text; browsers reject it in XML.
 const withNbsp =
   '<map version="freeplane 1.9.13">\n' +

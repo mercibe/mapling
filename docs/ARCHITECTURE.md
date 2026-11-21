@@ -28,7 +28,7 @@ This page describes the inside of the core (`core/`). To write a shell, read [BR
 
 | Module | Role |
 |---|---|
-| `xml.ts` | Parses with the platform `DOMParser` and serializes with `XMLSerializer`, plus the few rules that make the output identical to Freeplane's (no-break space; line breaks and apostrophes in attributes; text around the root element). Comments, CDATA and processing instructions are left untouched. |
+| `xml.ts` | Parses with the platform `DOMParser` and serializes with `XMLSerializer`, plus the few rules that make the output identical to Freeplane's (no-break space; line breaks and apostrophes in attributes; quotation marks in text; text around the root element). Comments, CDATA and processing instructions are left untouched. |
 | `format.ts` | Classifies the `<map version>`: only Freeplane versions covered by a fixture are editable; older (FreeMind included) and newer ones open read-only. |
 | `map.ts` | `MindMap`: indexes `<node>` elements by `ID` (or by an in-memory key for nodes without one), projects them for the view, detects hidden content, and implements the operations: edit text, add, remove, move. |
 | `html-text.ts` | Plain-text rendering of rich (HTML) nodes, for display only. |

@@ -40,14 +40,15 @@ export function parseXml(text: string): { doc: Document; envelope: Envelope } {
 // CDATA sections and processing instructions are written verbatim and must stay
 // so; element tags hold the attribute values. Since `<` and `>` are always
 // escaped elsewhere (in text and attribute values), these parts are found reliably.
-const PARTS = /(<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>|<\?[\s\S]*?\?>)|(<[A-Za-z][^>]*>)|\u00a0/g;
+const PARTS = /(<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>|<\?[\s\S]*?\?>)|(<[A-Za-z][^>]*>)|[\u00a0"]/g;
 
 /**
  * Serializes the document the way Freeplane does. Verified byte for byte on the
  * fixtures: XMLSerializer differs from Freeplane only by these rules:
  * - in attribute values, a line break is written `&#xa;` (not `&#10;`) and an
- *   apostrophe `&apos;` (whether Freeplane also escapes apostrophes in text,
- *   e.g. in the HTML of notes, is not known yet: no fixture has one);
+ *   apostrophe `&apos;`;
+ * - in text (notes, in HTML or Markdown), a quotation mark is written `&quot;`;
+ *   an apostrophe stays as is;
  * - everywhere, the no-break space is written `&#xa0;` (other characters stay as is).
  */
 export function serializeXml(doc: Document, envelope: Envelope): string {
@@ -57,7 +58,7 @@ export function serializeXml(doc: Document, envelope: Envelope): string {
     .replace(PARTS, (match: string, verbatim?: string, tag?: string) => {
       if (verbatim) return verbatim;
       if (tag) return tag.replace(/&#10;/g, '&#xa;').replace(/'/g, '&apos;').replace(/\u00a0/g, '&#xa0;');
-      return '&#xa0;';
+      return match === '"' ? '&quot;' : '&#xa0;';
     });
   return envelope.prolog + body + envelope.tail;
 }
