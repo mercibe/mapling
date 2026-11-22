@@ -117,6 +117,9 @@ It takes the whole window, as on a tablet.
     <button class="icon-button" data-action="menu" data-without-note><svg class="icon"><use href="icons.svg#menu"/></svg></button>
     <button class="icon-button" data-action="closeNote" data-with-note><svg class="icon"><use href="icons.svg#arrow_back"/></svg></button>
     <span id="map-title"></span>
+    <button class="icon-button" data-action="previousNote" data-with-note><svg class="icon"><use href="icons.svg#chevron_left"/></svg></button>
+    <button class="icon-button" data-action="nextNote" data-with-note><svg class="icon"><use href="icons.svg#chevron_right"/></svg></button>
+    <button class="icon-button" data-action="editNote" data-with-note><svg class="icon"><use id="edit-note-icon" href="icons.svg#edit"/></svg></button>
     <button class="icon-button" data-action="undo" data-with-map data-without-note><svg class="icon"><use href="icons.svg#undo"/></svg></button>
     <button class="icon-button" data-action="redo" data-with-map data-without-note><svg class="icon"><use href="icons.svg#redo"/></svg></button>
     <button class="icon-button" data-action="save" data-with-map data-without-note><svg class="icon"><use href="icons.svg#save"/></svg></button>
@@ -142,7 +145,7 @@ It takes the whole window, as on a tablet.
   </div>
 
   <!-- While a Markdown note is edited: its formats, in place of the node bar. -->
-  <div id="format-bar" data-with-editable-note>
+  <div id="format-bar" data-with-edited-note>
     <button class="icon-button" data-action="bold"><svg class="icon"><use href="icons.svg#format_bold"/></svg></button>
     <button class="icon-button" data-action="italic"><svg class="icon"><use href="icons.svg#format_italic"/></svg></button>
     <button class="icon-button" data-action="heading"><svg class="icon"><use href="icons.svg#title"/></svg></button>

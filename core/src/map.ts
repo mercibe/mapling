@@ -204,6 +204,11 @@ export class MindMap {
     return childElements(this.element(key), 'node').map((el) => this.key(el));
   }
 
+  /** Every node of the map in pre-order: the root, then each child's branch in document order. */
+  nodeKeys(key: string = this.rootKey): string[] {
+    return [key, ...this.childKeys(key).flatMap((child) => this.nodeKeys(child))];
+  }
+
   /** Projection for the view; FOLDED gives the folding (written by setFolded). */
   toView(locale = 'en', key: string = this.rootKey): ViewNode {
     const el = this.element(key);

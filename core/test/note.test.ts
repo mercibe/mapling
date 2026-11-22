@@ -15,6 +15,8 @@ const HTML = 'ID_174053484'; // node1: HTML, no CONTENT-TYPE
 const XML_HTML = 'ID_173224275'; // children 2: CONTENT-TYPE="xml/html"
 const MARKDOWN = 'ID_1048198066'; // CONTENT-TYPE="plain/markdown"
 const NO_NOTE = 'ID_823833465'; // right node
+const ROOT = 'ID_452131666'; // fixture10, without a note
+const LEFT = 'ID_1768884868'; // left node, the last one: HTML note
 
 function html(note: Note | null): Element {
   assert.ok(note && 'html' in note, 'an HTML note');
@@ -142,12 +144,14 @@ function setup(readOnly = false) {
   const sent: any[] = [];
   const shown: [Note | null, boolean][] = [];
   const formats: string[] = [];
+  const revealed: string[] = [];
   let typed: string | null = null;
   const bridge = new Bridge((json) => sent.push(JSON.parse(json)), {
     show() {}, setReadOnly() {}, command() {}, center() {}, zoom() {}, editing: () => false,
-    showNote: (note, editable) => {
-      shown.push([note, editable]);
-      typed = note && editable && 'text' in note ? note.text : null;
+    reveal: (key) => revealed.push(key),
+    showNote: (note, editing) => {
+      shown.push([note, editing]);
+      typed = note && editing && 'text' in note ? note.text : null;
     },
     noteText: () => typed,
     formatNote: (format) => formats.push(format),
@@ -157,48 +161,99 @@ function setup(readOnly = false) {
   send({ type: 'load', requestId: 'r1', name: 'notes.mm', data, readOnly });
   const take = () => sent.splice(0).filter((m) => m.type === 'noteChanged');
   take();
-  return { bridge, send, take, shown, formats, data, type: (text: string) => (typed = text), sent };
+  /** Opens the note of `key`, then edits it. */
+  const edit = (key: string) => {
+    send({ type: 'openNote', id: key });
+    send({ type: 'editNote', editing: true });
+  };
+  return { bridge, send, take, shown, formats, revealed, data, edit, type: (text: string) => (typed = text), sent };
 }
 
-test('a note opens over the map, with its node text for the shell, and closes', () => {
-  const { send, take, shown } = setup();
+/** What noteChanged tells of a note shown, read and editable unless said otherwise. */
+function shownNote(id: string, title: string, previous: string | null, next: string | null, more: object = {}) {
+  return { v: 1, type: 'noteChanged', note: { id, title, editable: true, editing: false, previous, next, ...more } };
+}
+
+test('the nodes of a map are in pre-order: the root, then each branch in document order', () => {
+  assert.deepEqual(new MindMap(notes).nodeKeys(), [ROOT, HTML, 'ID_192583075', XML_HTML, MARKDOWN, NO_NOTE, LEFT]);
+});
+
+test('a note opens read over the map, its node selected, with its neighbours, and closes', () => {
+  const { send, take, shown, revealed } = setup();
   send({ type: 'openNote', id: MARKDOWN });
-  assert.deepEqual(take(), [{ v: 1, type: 'noteChanged', note: { id: MARKDOWN, title: 'Children with Markdown note', editable: true } }]);
+  assert.deepEqual(take(), [shownNote(MARKDOWN, 'Children with Markdown note', XML_HTML, NO_NOTE)]);
   assert.ok(shown[0][0] && 'text' in shown[0][0]);
+  assert.equal(shown[0][1], false, 'read, not edited');
+  assert.deepEqual(revealed, [MARKDOWN]);
   send({ type: 'closeNote' });
   assert.deepEqual(take(), [{ v: 1, type: 'noteChanged', note: null }]);
   assert.deepEqual(shown[1], [null, false]);
+  assert.deepEqual(revealed, [MARKDOWN, MARKDOWN], 'shown on the map again');
   send({ type: 'closeNote' });
   assert.deepEqual(take(), [], 'already closed');
 });
 
-test('a Markdown note typed is kept on closing, as one edit undone like the others', () => {
-  const { bridge, send, take, type } = setup();
+test('the first and last nodes have no previous or next; stepping goes from one to the other', () => {
+  const { bridge, send, take, revealed } = setup();
+  send({ type: 'openNote', id: ROOT });
+  assert.deepEqual(take(), [shownNote(ROOT, 'fixture10', null, HTML)]);
+  bridge.stepNote(-1);
+  assert.deepEqual(take(), [], 'nothing before the root');
+  bridge.stepNote(1);
+  assert.equal(take()[0].note.id, HTML);
+  send({ type: 'openNote', id: LEFT });
+  assert.deepEqual(take(), [shownNote(LEFT, 'left node', NO_NOTE, null, { editable: false })]);
+  bridge.stepNote(1);
+  assert.deepEqual(take(), [], 'nothing after the last node');
+  assert.deepEqual(revealed, [ROOT, HTML, LEFT]);
+});
+
+test('a Markdown note is edited on demand, then read again, as one edit undone like the others', () => {
+  const { bridge, send, take, shown, type } = setup();
   send({ type: 'openNote', id: MARKDOWN });
+  send({ type: 'editNote', editing: true });
+  assert.deepEqual(take().at(-1), shownNote(MARKDOWN, 'Children with Markdown note', XML_HTML, NO_NOTE, { editing: true }));
+  assert.equal(shown.at(-1)?.[1], true, 'in a text area');
   type('changed');
-  send({ type: 'closeNote' });
+  send({ type: 'editNote', editing: false });
+  assert.deepEqual(take(), [shownNote(MARKDOWN, 'Children with Markdown note', XML_HTML, NO_NOTE)]);
+  assert.deepEqual(shown.at(-1), [{ text: 'changed', markdown: true }, false], 'read as written');
   assert.deepEqual(bridge.current?.map.note(MARKDOWN), { text: 'changed', markdown: true });
   send({ type: 'undo' });
   assert.match((bridge.current?.map.note(MARKDOWN) as { text: string }).text, /^# Main title/);
-  take();
 });
 
-test('a node without a note opens a new one, written only once something is typed', () => {
-  const { bridge, send, take, type } = setup();
+test('a note typed is kept on closing, or on going to another node, which is then read', () => {
+  const { bridge, send, take, shown, edit, type } = setup();
+  edit(MARKDOWN);
+  type('closed');
+  send({ type: 'closeNote' });
+  assert.deepEqual(bridge.current?.map.note(MARKDOWN), { text: 'closed', markdown: true });
+  assert.deepEqual(take().at(-1), { v: 1, type: 'noteChanged', note: null }, 'closed at once');
+  edit(MARKDOWN);
+  type('stepped');
   send({ type: 'openNote', id: NO_NOTE });
-  assert.deepEqual(take(), [{ v: 1, type: 'noteChanged', note: { id: NO_NOTE, title: 'right node', editable: true } }]);
+  assert.deepEqual(bridge.current?.map.note(MARKDOWN), { text: 'stepped', markdown: true });
+  assert.deepEqual(take().at(-1), shownNote(NO_NOTE, 'right node', MARKDOWN, LEFT));
+  assert.deepEqual(shown.at(-1), [{ text: '', markdown: true }, false], 'no note yet: empty, read');
+});
+
+test('a node without a note opens empty; a note is written only once something is typed', () => {
+  const { bridge, send, take, edit, type } = setup();
+  edit(NO_NOTE);
   send({ type: 'closeNote' });
   assert.equal(bridge.current?.map.note(NO_NOTE), null, 'left empty: no note');
   assert.equal(bridge.current?.dirty, false);
-  send({ type: 'openNote', id: NO_NOTE });
+  edit(NO_NOTE);
   type('A **new** note');
   send({ type: 'closeNote' });
   assert.deepEqual(bridge.current?.map.note(NO_NOTE), { text: 'A **new** note', markdown: true });
+  take();
 });
 
 test('a note being typed is in the drafts and the saves, without being closed', () => {
-  const { bridge, send, take, type, sent } = setup();
-  send({ type: 'openNote', id: NO_NOTE });
+  const { bridge, send, take, edit, type, sent } = setup();
+  edit(NO_NOTE);
   type('draft');
   send({ type: 'flushDraft' });
   const draft = sent.find((m) => m.type === 'draftData');
@@ -211,20 +266,22 @@ test('a note being typed is in the drafts and the saves, without being closed', 
   assert.equal(bridge.current?.map.note(NO_NOTE) !== null, true);
 });
 
-test('an HTML note, or any note of a read-only map, is only shown; formats reach an edited note only', () => {
-  const { send, take, formats } = setup();
-  send({ type: 'openNote', id: HTML });
-  assert.equal(take()[0].note.editable, false);
+test('an HTML note, or any note of a read-only map, is only read; formats reach an edited note only', () => {
+  const { send, take, formats, edit } = setup();
+  edit(HTML);
+  assert.deepEqual(take().map((m) => [m.note.editable, m.note.editing]), [[false, false]], 'editNote ignored');
   send({ type: 'formatNote', format: 'bold' });
-  assert.deepEqual(formats, []);
   send({ type: 'openNote', id: MARKDOWN });
+  send({ type: 'formatNote', format: 'bold' });
+  assert.deepEqual(formats, [], 'read, not edited');
+  send({ type: 'editNote', editing: true });
   send({ type: 'formatNote', format: 'bold' });
   assert.deepEqual(formats, ['bold']);
   const readOnly = setup(true);
-  readOnly.send({ type: 'openNote', id: MARKDOWN });
-  assert.equal(readOnly.take()[0].note.editable, false);
+  readOnly.edit(MARKDOWN);
+  assert.deepEqual(readOnly.take().map((m) => [m.note.editable, m.note.editing]), [[false, false]]);
   readOnly.send({ type: 'openNote', id: NO_NOTE });
-  assert.deepEqual(readOnly.take().filter((m) => m.note), [], 'no new note on a read-only map');
+  assert.deepEqual(readOnly.take(), [shownNote(NO_NOTE, 'right node', MARKDOWN, LEFT, { editable: false })], 'empty, read');
 });
 
 test('a note closes with its map or its node; an unknown node is an outdated command', () => {
@@ -241,25 +298,24 @@ test('a note closes with its map or its node; an unknown node is an outdated com
   assert.deepEqual(take(), [{ v: 1, type: 'noteChanged', note: null }], 'its node removed');
 });
 
-test('a note being typed is kept when the map becomes read-only, then shown read-only', () => {
-  const { bridge, send, take, type } = setup();
-  send({ type: 'openNote', id: NO_NOTE });
+test('a note being typed is kept when the map becomes read-only, then read; editable again after', () => {
+  const { bridge, send, take, edit, type } = setup();
+  edit(NO_NOTE);
   take();
   type('kept');
   send({ type: 'setReadOnly', readOnly: true });
   assert.deepEqual(bridge.current?.map.note(NO_NOTE), { text: 'kept', markdown: true });
-  assert.deepEqual(take().at(-1), { v: 1, type: 'noteChanged', note: { id: NO_NOTE, title: 'right node', editable: false } });
-  send({ type: 'closeNote' });
-  assert.deepEqual(bridge.current?.map.note(NO_NOTE), { text: 'kept', markdown: true });
-  send({ type: 'openNote', id: NO_NOTE });
-  take();
+  assert.deepEqual(take(), [shownNote(NO_NOTE, 'right node', MARKDOWN, LEFT, { editable: false })]);
   send({ type: 'setReadOnly', readOnly: false });
-  assert.equal(take().at(-1).note.editable, true, 'edited again once the map is editable');
+  assert.deepEqual(take(), [shownNote(NO_NOTE, 'right node', MARKDOWN, LEFT)], 'still read, editable again');
+  send({ type: 'editNote', editing: true });
+  send({ type: 'setReadOnly', readOnly: false });
+  assert.equal(take().at(-1).note.editing, true, 'an editable map leaves the note edited');
 });
 
 test('a note kept on loading another map does not lend its revision to the new map', () => {
-  const { bridge, send, type, data, sent } = setup();
-  send({ type: 'openNote', id: NO_NOTE });
+  const { bridge, send, type, data, sent, edit } = setup();
+  edit(NO_NOTE);
   type('typed');
   const previous = bridge.current!;
   send({ type: 'load', requestId: 'bad', name: 'x.mm', data: Buffer.from('not a map').toString('base64') });

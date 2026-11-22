@@ -22,7 +22,7 @@ const state = {
   dirty: false,
   history: { canUndo: false, canRedo: false },
   selection: null, // node reported by selectionChanged
-  note: null, // { id, title, editable } of the note shown over the map (noteChanged), else null
+  note: null, // the note shown over the map (noteChanged: id, title, editable, editing, previous, next), else null
   messages: [], // { kind: 'info' | 'warning' | 'error', text: () => string }
   draftFailed: false,
   downloadToConfirm: null, // saveId of the last copy downloaded, until the user confirms it
@@ -393,6 +393,9 @@ const actions = {
   menu: openDrawer,
   closeNote: () => send({ type: 'closeNote' }),
   openNote: () => send({ type: 'openNote', id: state.selection.id }),
+  previousNote: () => send({ type: 'openNote', id: state.note.previous }),
+  nextNote: () => send({ type: 'openNote', id: state.note.next }),
+  editNote: () => send({ type: 'editNote', editing: !state.note.editing }),
   ...Object.fromEntries(FORMATS.map((format) => [format, () => send({ type: 'formatNote', format })])),
   open: openFile,
   newMap,
@@ -455,10 +458,20 @@ async function deleteNode() {
 function enabled(action) {
   const editable = !!state.map && !state.map.readOnly;
   const node = state.selection;
-  // A note shown over the map: only the way back, and the formats of a note being edited.
-  if (state.note) return action === 'closeNote' || (state.note.editable && FORMATS.includes(action));
+  // A note shown over the map: the way back, the nodes before and after it, editing it or
+  // reading it again, and the formats of a note being edited.
+  const note = state.note;
+  if (note) {
+    if (action === 'previousNote') return note.previous !== null;
+    if (action === 'nextNote') return note.next !== null;
+    if (action === 'editNote') return note.editing || note.editable;
+    return action === 'closeNote' || (note.editing && FORMATS.includes(action));
+  }
   switch (action) {
     case 'closeNote':
+    case 'previousNote':
+    case 'nextNote':
+    case 'editNote':
       return false;
     case 'menu':
     case 'open':
@@ -486,7 +499,7 @@ function enabled(action) {
     case 'editLink':
       return editable && !!node;
     case 'openNote':
-      return !!node && (node.note || editable); // a new note needs an editable map
+      return !!node; // read on any node, even without a note
     case 'addSibling':
     case 'deleteNode':
     case 'moveNode':
@@ -570,7 +583,7 @@ function render() {
     if (button.classList.contains('icon-button')) {
       let action = button.dataset.action;
       if (action === 'editLink' && state.selection?.link == null) action = 'addLink';
-      if (action === 'openNote' && !state.selection?.note) action = 'addNote';
+      if (action === 'editNote' && state.note?.editing) action = 'readNote';
       button.title = t(`action.${action}`);
       button.setAttribute('aria-label', button.title);
     }
@@ -583,12 +596,14 @@ function render() {
   version.hidden = !version.dataset.version;
   version.textContent = t('about.version', { version: version.dataset.version });
   // A note shown over the map: only the way back, and the node's text as the title.
-  for (const element of document.querySelectorAll('[data-with-map], [data-without-note], [data-with-note], [data-with-editable-note]')) {
+  for (const element of document.querySelectorAll('[data-with-map], [data-without-note], [data-with-note], [data-with-edited-note]')) {
     element.hidden = (element.hasAttribute('data-with-map') && !map)
       || (element.hasAttribute('data-without-note') && !!state.note)
       || (element.hasAttribute('data-with-note') && !state.note)
-      || (element.hasAttribute('data-with-editable-note') && !state.note?.editable);
+      || (element.hasAttribute('data-with-edited-note') && !state.note?.editing);
   }
+  // A pencil to edit the note read, an eye to read the note edited.
+  document.getElementById('edit-note-icon').setAttribute('href', `icons.svg#${state.note?.editing ? 'visibility' : 'edit'}`);
   document.getElementById('home').hidden = !!map;
   document.getElementById('mapling').style.visibility = map ? '' : 'hidden';
   document.title = map ? `${oneLine(map.title) || map.name} – Mapling` : 'Mapling';

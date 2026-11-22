@@ -138,6 +138,14 @@ test('Ctrl (or Cmd) with S, Z, Y, K and Enter: save, undo, redo, link', () => {
   assert.deepEqual(press('Enter', { ctrl: true }), { command: 'followLink' });
 });
 
+test('Ctrl+< and Ctrl+> open the note, with Shift too (> needs it on some keyboards)', () => {
+  assert.deepEqual(press('<', { ctrl: true }), { command: 'openNote' });
+  assert.deepEqual(press('>', { ctrl: true, shift: true }), { command: 'openNote' });
+  assert.deepEqual(press('>', { meta: true }), { command: 'openNote' });
+  assert.equal(press('<'), null);
+  assert.equal(press('<', { ctrl: true, alt: true }), null);
+});
+
 test('other keys, and these keys with other modifiers, are not shortcuts', () => {
   assert.equal(press('a'), null);
   assert.equal(press('ArrowUp'), null); // jsMind's: select the node above

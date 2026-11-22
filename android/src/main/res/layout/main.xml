@@ -147,16 +147,15 @@ SPDX-License-Identifier: GPL-3.0-or-later
                 app:tint="@color/node_icon"
                 android:tooltipText="@string/add_link" />
 
-            <!-- Its description says add or open, by the node (render). -->
             <ImageButton
                 android:id="@+id/open_note"
                 style="?android:attr/borderlessButtonStyle"
                 android:layout_width="@dimen/node_button_width"
                 android:layout_height="48dp"
-                android:contentDescription="@string/add_note"
+                android:contentDescription="@string/open_note"
                 android:src="@drawable/ic_description"
                 app:tint="@color/node_icon"
-                android:tooltipText="@string/add_note" />
+                android:tooltipText="@string/open_note" />
 
             <ImageButton
                 android:id="@+id/add_child"

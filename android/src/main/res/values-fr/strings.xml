@@ -24,8 +24,11 @@ SPDX-License-Identifier: GPL-3.0-or-later
     <string name="delete_node">Supprimer</string>
     <string name="center">Recentrer</string>
     <string name="menu">Menu</string>
-    <string name="add_note">Ajouter une note</string>
     <string name="open_note">Ouvrir la note</string>
+    <string name="previous_node">Nœud précédent</string>
+    <string name="next_node">Nœud suivant</string>
+    <string name="edit_note">Modifier la note</string>
+    <string name="read_note">Lire la note</string>
     <string name="format_bold">Gras</string>
     <string name="format_italic">Italique</string>
     <string name="format_heading">Titre</string>

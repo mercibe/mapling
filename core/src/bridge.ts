@@ -56,9 +56,26 @@ export interface SelectedNode {
 /** A key of the map for one of the shell's commands (see shortcutOf); `direction` for moveNode only. */
 export type Shortcut = {
   command: 'addChild' | 'addSibling' | 'deleteNode' | 'moveNode' | 'undo' | 'redo' | 'save'
-    | 'zoomIn' | 'zoomOut' | 'editLink' | 'followLink';
+    | 'zoomIn' | 'zoomOut' | 'editLink' | 'followLink' | 'openNote';
   direction?: Direction;
 };
+
+/** The note shown over the map, as told to the shell (noteChanged). */
+export interface ShownNote {
+  id: string;
+  /** The node's text, as displayed. */
+  title: string;
+  /** Whether it can be edited now (editNote): a Markdown note, or none yet, in an editable map. */
+  editable: boolean;
+  /** Whether it is being edited, in a text area; else it is read. */
+  editing: boolean;
+  /** The nodes before and after it in the map's pre-order (MindMap.nodeKeys); null at either end. */
+  previous: string | null;
+  next: string | null;
+}
+
+/** Shown for a node without a note: an empty Markdown note, written only once something is typed. */
+const NO_NOTE: Note = { text: '', markdown: true };
 
 /** Messages from the shell. */
 export type ShellMessage = { v: number; requestId?: string } & (
@@ -83,6 +100,7 @@ export type ShellMessage = { v: number; requestId?: string } & (
   | { type: 'zoomIn' }
   | { type: 'zoomOut' }
   | { type: 'openNote'; id: string }
+  | { type: 'editNote'; editing: boolean }
   | { type: 'formatNote'; format: NoteFormat }
   | { type: 'closeNote' }
   | { type: Command; id: string; revision?: number }
@@ -109,7 +127,7 @@ export type CoreMessage =
   | { type: 'historyChanged'; canUndo: boolean; canRedo: boolean }
   | { type: 'selectionChanged'; node: SelectedNode | null }
   | { type: 'openLink'; url: string }
-  | { type: 'noteChanged'; note: { id: string; title: string; editable: boolean } | null }
+  | { type: 'noteChanged'; note: ShownNote | null }
   | ({ type: 'shortcut' } & Shortcut)
   | { type: 'error'; requestId?: string; code: BridgeErrorCode; message: string };
 
@@ -126,12 +144,14 @@ export interface View {
   command(name: Command, key: string): void;
   /** Scrolls so that this node, or the root when null, is in the middle of the view. */
   center(key: string | null): void;
+  /** Selects this node, or its nearest ancestor shown when it is folded away, and centers it. */
+  reveal(key: string): void;
   /** Zooms in or out by one step, around the middle of the view. */
   zoom(direction: 'in' | 'out'): void;
   /** Whether a text is being typed, not validated yet: the map does not hold it. */
   editing(): boolean;
-  /** Shows a note over the map, `editable` or not, or closes it (null). */
-  showNote(note: Note | null, editable: boolean): void;
+  /** Shows a note over the map, read or `editing` in a text area, or closes it (null). */
+  showNote(note: Note | null, editing: boolean): void;
   /** The text of the note being edited; null when none is. */
   noteText(): string | null;
   /** Applies a Markdown format to the selection of the note being edited. */
@@ -168,7 +188,7 @@ export class Bridge {
   private reportedSelection = 'null'; // as JSON, to compare with the next report
   /** Key of the node whose note is shown over the map (null when none is), and whether it is edited. */
   private noteKey: string | null = null;
-  private noteEditable = false;
+  private noteEditing = false;
 
   constructor(send: (json: string) => void, view: View) {
     this.send = send;
@@ -221,41 +241,94 @@ export class Bridge {
   }
 
   /**
-   * Shows the node's note over the map, and tells the shell. A Markdown note, or a new one
-   * on a node without a note, is edited when the map is editable; any other is only shown.
+   * Shows the note of any node over the map, read, and tells the shell: on a node without a
+   * note, an empty one. The node is selected and centered, so that the map shows it once the
+   * note is closed. A note being edited, of this node or another, is written first.
    */
   openNote(key: string): void {
-    const map = this.session?.map;
-    if (!map?.has(key)) return;
-    const note = map.note(key);
-    const editable = !this.readOnly && (!note || ('markdown' in note && note.markdown));
-    if (!note && !editable) return;
-    this.closeNote();
+    if (!this.session?.map.has(key)) return;
+    this.stopEditingNote();
     this.noteKey = key;
-    this.noteEditable = editable;
-    this.view.showNote(note ?? { text: '', markdown: true }, editable);
-    this.post({ type: 'noteChanged', note: { id: key, title: map.text(key, this.locale), editable } });
+    this.showNote(false);
+    this.view.reveal(key);
+  }
+
+  /** Shows the note before or after the one shown, in the map's pre-order (PageUp, PageDown). */
+  stepNote(offset: -1 | 1): void {
+    const target = this.shownNote()?.[offset < 0 ? 'previous' : 'next'];
+    if (target) this.openNote(target);
+  }
+
+  /** Shows the note shown again, read or edited, and tells the shell. */
+  private showNote(editing: boolean): void {
+    const key = this.noteKey as string;
+    this.noteEditing = editing;
+    this.view.showNote((this.session as MapSession).map.note(key) ?? NO_NOTE, editing);
+    this.post({ type: 'noteChanged', note: this.shownNote() });
+  }
+
+  /** What the shell is told about the note shown; null when none is. */
+  private shownNote(): ShownNote | null {
+    const key = this.noteKey;
+    const map = this.session?.map;
+    if (key === null || !map?.has(key)) return null;
+    const keys = map.nodeKeys();
+    const index = keys.indexOf(key);
+    return {
+      id: key,
+      title: map.text(key, this.locale),
+      editable: this.noteEditable(key),
+      editing: this.noteEditing,
+      previous: keys[index - 1] ?? null,
+      next: keys[index + 1] ?? null,
+    };
+  }
+
+  /** A Markdown note, or none yet, can be edited in an editable map; any other is only read. */
+  private noteEditable(key: string): boolean {
+    const note = (this.session as MapSession).map.note(key);
+    return !this.readOnly && (!note || ('markdown' in note && note.markdown));
+  }
+
+  /** Starts or stops editing the note shown (the shell's pencil and eye); ignored when nothing changes. */
+  private editNote(editing: boolean): void {
+    const key = this.noteKey;
+    if (key === null || editing === this.noteEditing || (editing && !this.noteEditable(key))) return;
+    this.stopEditingNote();
+    this.showNote(editing);
   }
 
   /** Writes the text of the note being edited into the map: an edit, undone like the others. */
   private commitNote(): void {
     const key = this.noteKey;
-    const text = this.noteEditable ? this.view.noteText() : null;
+    const text = this.noteEditing ? this.view.noteText() : null;
     if (key === null || text === null || this.readOnly || !this.session?.map.has(key)) return;
     this.edit((map) => map.setNote(key, text));
   }
 
-  /** Closes the note shown over the map, if any, keeping what was typed (the shell's back, Escape). */
-  closeNote(): void {
-    if (this.noteKey === null) return;
-    const edited = this.noteEditable;
+  /**
+   * Stops editing the note, if it is edited, keeping what was typed; the map is drawn again,
+   * since its node may have got or lost its note icon.
+   */
+  private stopEditingNote(): void {
+    if (!this.noteEditing) return;
     this.commitNote();
+    this.noteEditing = false;
+    if (this.session) this.view.show(this.session.map.toView(this.locale), this.readOnly, true);
+  }
+
+  /**
+   * Closes the note shown over the map, if any, keeping what was typed (the shell's back,
+   * Escape); the map shows its node again.
+   */
+  closeNote(): void {
+    const key = this.noteKey;
+    if (key === null) return;
+    this.stopEditingNote();
     this.noteKey = null;
-    this.noteEditable = false;
     this.view.showNote(null, false);
+    if (this.session?.map.has(key)) this.view.reveal(key);
     this.post({ type: 'noteChanged', note: null });
-    // The node may have got or lost its note: its icon is drawn again.
-    if (edited && this.session) this.view.show(this.session.map.toView(this.locale), this.readOnly, true);
   }
 
   /** A key pressed on the map, outside a text being edited: the shell runs the command, if it can. */
@@ -294,14 +367,15 @@ export class Bridge {
       case 'saved':
         return this.saved(message.saveId);
       case 'setReadOnly': {
-        this.commitNote(); // what was typed is kept before the map is locked
+        // A note being typed is kept, then read, before the map is locked.
+        const editing = this.noteEditing;
+        if (message.readOnly) this.stopEditingNote();
         this.shellReadOnly = !!message.readOnly;
         if (this.session) this.view.setReadOnly(this.readOnly);
-        // A note shown is shown again, edited or not as the map now allows.
-        const note = this.noteKey;
-        if (note !== null) {
-          this.closeNote();
-          this.openNote(note);
+        // The shell learns whether the note shown can be edited now.
+        if (this.noteKey !== null) {
+          if (editing !== this.noteEditing) this.showNote(false);
+          else this.post({ type: 'noteChanged', note: this.shownNote() });
         }
         return;
       }
@@ -325,8 +399,10 @@ export class Bridge {
         if (!this.session) throw new BridgeError('NO_MAP_LOADED', 'No map loaded');
         if (!this.session.map.has(message.id)) throw new BridgeError('OUTDATED_COMMAND', `Unknown node: ${message.id}`);
         return this.openNote(message.id);
+      case 'editNote':
+        return this.editNote(!!message.editing);
       case 'formatNote':
-        if (this.noteEditable) this.view.formatNote(message.format);
+        if (this.noteEditing) this.view.formatNote(message.format);
         return;
       case 'closeNote':
         return this.closeNote();

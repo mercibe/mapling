@@ -263,12 +263,24 @@ export class JsMindView implements View {
   }
 
   /**
-   * Shows a note over the whole map, or closes it (null). HTML is shown as safe HTML
-   * (copySafeHtml), plain text (Markdown…) as it is written; an `editable` note in a text
-   * area, focused when empty so that the keyboard comes at once. While it is shown, the keys
-   * act on it, not on the map.
+   * Selects the node and centers it. jsMind selects no node folded away: its nearest ancestor
+   * shown is, so that the map is not unfolded, which would change it.
    */
-  showNote(note: Note | null, editable: boolean): void {
+  reveal(key: string): void {
+    let node = this.jm.get_node(key);
+    while (node?.parent && !this.jm.layout.is_visible(node)) node = node.parent;
+    if (!node) return;
+    this.jm.select_node(node.id);
+    this.center(node.id);
+  }
+
+  /**
+   * Shows a note over the whole map, or closes it (null). HTML is shown as safe HTML
+   * (copySafeHtml), plain text (Markdown…) as it is written; a note being `editing` in a text
+   * area, focused so that the keyboard comes at once: the user just asked to edit it. While it
+   * is shown, the keys act on it, not on the map.
+   */
+  showNote(note: Note | null, editing: boolean): void {
     const panel = this.notePanel;
     panel.textContent = '';
     panel.hidden = !note;
@@ -277,14 +289,13 @@ export class JsMindView implements View {
       this.jm.view.e_panel.focus({ preventScroll: true });
       return;
     }
-    if ('text' in note && editable) {
+    if ('text' in note && editing) {
       const editor = document.createElement('textarea');
       editor.className = 'mapling-note-editor';
       editor.value = note.text;
       panel.append(editor);
       this.noteEditor = editor;
-      if (note.text === '') editor.focus();
-      else panel.focus({ preventScroll: true });
+      editor.focus();
       return;
     }
     const content = document.createElement('div');
@@ -387,8 +398,10 @@ export class JsMindView implements View {
   }
 
   /**
-   * The panel a note is shown in, over the map, scrolled on its own. Escape closes it, as
-   * the shell's back does; its web links open apart, through the shell.
+   * The panel a note is shown in, over the map, scrolled on its own. Escape, or Ctrl+< and
+   * Ctrl+> which opened it, close it, as the shell's back does; while it is read, PageUp and
+   * PageDown show the previous and next node's note (in the editor, they keep their role).
+   * Its web links open apart, through the shell.
    */
   private createNotePanel(): HTMLElement {
     const panel = document.createElement('div');
@@ -396,9 +409,12 @@ export class JsMindView implements View {
     panel.tabIndex = -1; // takes the focus, so that the keys reach it
     panel.hidden = true;
     panel.addEventListener('keydown', (event) => {
-      if (event.key !== 'Escape') return;
+      const plain = !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey;
+      if (event.key === 'Escape' || shortcutOf(event)?.command === 'openNote') this.bridge?.closeNote();
+      else if (plain && !this.noteEditor && event.key === 'PageUp') this.bridge?.stepNote(-1);
+      else if (plain && !this.noteEditor && event.key === 'PageDown') this.bridge?.stepNote(1);
+      else return;
       event.preventDefault();
-      this.bridge?.closeNote();
     });
     panel.addEventListener('click', (event) => {
       const anchor = (event.target as Element).closest('a');
@@ -973,7 +989,8 @@ const ARROWS: Record<string, Direction> = { ArrowUp: 'up', ArrowDown: 'down', Ar
 /**
  * The shell's command for a key, as in Freeplane (read in its menus, mindmapmodemenu.xml);
  * null for any other key. Ctrl+arrows move the node, Alt+Up and Alt+Down zoom; Tab adds a
- * child, as Insert does.
+ * child, as Insert does. Ctrl+< and Ctrl+> open the note, with or without Shift, which some
+ * keyboards need for > (or <).
  */
 export function shortcutOf(event: Pick<KeyboardEvent, 'key' | 'ctrlKey' | 'metaKey' | 'altKey' | 'shiftKey'>): Shortcut | null {
   const ctrl = event.ctrlKey || event.metaKey;
@@ -983,6 +1000,7 @@ export function shortcutOf(event: Pick<KeyboardEvent, 'key' | 'ctrlKey' | 'metaK
   if (ctrl && !event.altKey && !event.shiftKey && arrow) return { command: 'moveNode', direction: arrow };
   if (event.altKey && !ctrl && !event.shiftKey && arrow === 'up') return { command: 'zoomIn' };
   if (event.altKey && !ctrl && !event.shiftKey && arrow === 'down') return { command: 'zoomOut' };
+  if (ctrl && !event.altKey && (event.key === '<' || event.key === '>')) return { command: 'openNote' };
   if (ctrl && key === 'k') return { command: 'editLink' };
   if (ctrl && event.key === 'Enter') return { command: 'followLink' };
   if (ctrl && key === 's') return { command: 'save' };

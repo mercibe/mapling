@@ -29,6 +29,7 @@ import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
+import android.view.inputmethod.InputMethodManager
 import android.webkit.ConsoleMessage
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
@@ -122,7 +123,7 @@ class MainActivity : AppCompatActivity() {
     private var canUndo = false
     private var canRedo = false
     private var selection: JSONObject? = null
-    /** The note shown over the map (core's `noteChanged`: its node's `id` and `title`), else null. */
+    /** The note shown over the map (core's `noteChanged`: `id`, `title`, `editable`, `editing`, `previous`, `next`), else null. */
     private var note: JSONObject? = null
 
     /**
@@ -377,10 +378,10 @@ class MainActivity : AppCompatActivity() {
         onBackPressedDispatcher.addCallback(this, backClosesDrawer)
     }
 
-    /** Undo, redo and save, always at hand. */
+    /** Undo, redo and save, always at hand; while a note is shown, the nodes around it and editing it. */
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         val tint = getColorStateList(R.color.toolbar_icon)
-        for ((id, title, icon) in TOOLBAR_ACTIONS) {
+        for ((id, title, icon) in TOOLBAR_ACTIONS + NOTE_ACTIONS) {
             menu.add(Menu.NONE, id, Menu.NONE, title).apply {
                 setIcon(icon)
                 iconTintList = tint
@@ -391,7 +392,20 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onPrepareOptionsMenu(menu: Menu): Boolean {
-        val open = document != null && note == null // a note shows only its way back
+        val shown = note
+        for ((id, _, _) in NOTE_ACTIONS) menu.findItem(id).isVisible = shown != null
+        if (shown != null) {
+            menu.findItem(MENU_PREVIOUS_NOTE).isEnabled = !shown.isNull("previous")
+            menu.findItem(MENU_NEXT_NOTE).isEnabled = !shown.isNull("next")
+            // A pencil to edit the note read, an eye to read the note edited.
+            val editing = shown.optBoolean("editing")
+            menu.findItem(MENU_EDIT_NOTE).apply {
+                isEnabled = editing || shown.optBoolean("editable")
+                setIcon(if (editing) R.drawable.ic_visibility else R.drawable.ic_edit)
+                setTitle(if (editing) R.string.read_note else R.string.edit_note)
+            }
+        }
+        val open = document != null && shown == null // a note hides the map's commands
         for ((id, _, _) in TOOLBAR_ACTIONS) menu.findItem(id).isVisible = open
         menu.findItem(MENU_UNDO).isEnabled = canUndo
         menu.findItem(MENU_REDO).isEnabled = canRedo
@@ -402,8 +416,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        if (note != null && item.itemId in listOf(MENU_UNDO, MENU_REDO, MENU_SAVE)) return true // hidden meanwhile
+        val shown = note
+        if (shown != null && item.itemId in listOf(MENU_UNDO, MENU_REDO, MENU_SAVE)) return true // hidden meanwhile
+        if (shown == null && item.itemId in NOTE_ACTIONS.map { it.first }) return true // hidden meanwhile
         when (item.itemId) {
+            MENU_PREVIOUS_NOTE -> openNote(shown!!.optString("previous"))
+            MENU_NEXT_NOTE -> openNote(shown!!.optString("next"))
+            MENU_EDIT_NOTE -> sendToCore(JSONObject().put("type", "editNote").put("editing", !shown!!.optBoolean("editing")))
             MENU_UNDO -> sendToCore(JSONObject().put("type", "undo"))
             MENU_REDO -> sendToCore(JSONObject().put("type", "redo"))
             MENU_SAVE -> save()
@@ -633,10 +652,8 @@ class MainActivity : AppCompatActivity() {
         findViewById<ImageButton>(R.id.add_sibling).setOnClickListener { nodeCommand("addSibling") }
         findViewById<ImageButton>(R.id.delete_node).setOnClickListener { deleteSelected() }
         findViewById<ImageButton>(R.id.more).setOnClickListener { showMore() }
-        // A new note needs an editable map; an existing one opens in any map.
-        findViewById<ImageButton>(R.id.open_note).setOnClickListener {
-            selection?.let { sendToCore(JSONObject().put("type", "openNote").put("id", it.getString("id"))) }
-        }
+        // Any node's note is read, even on a node without one or in a read-only map.
+        findViewById<ImageButton>(R.id.open_note).setOnClickListener { selection?.let { openNote(it.getString("id")) } }
         for ((id, format) in FORMAT_BUTTONS) {
             findViewById<ImageButton>(id).setOnClickListener {
                 sendToCore(JSONObject().put("type", "formatNote").put("format", format))
@@ -896,7 +913,7 @@ class MainActivity : AppCompatActivity() {
      * command runs only when its button or menu entry could be used now, as on the web.
      */
     private fun runShortcut(command: String, direction: String) {
-        if (note != null) return // only the way back while a note is shown
+        if (note != null) return // the note's own keys are read by the core
         val node = selection.takeIf { !mapReadOnly }
         val notRoot = node != null && !node.getBoolean("root")
         when (command) {
@@ -910,7 +927,13 @@ class MainActivity : AppCompatActivity() {
             "zoomIn", "zoomOut" -> sendToCore(JSONObject().put("type", command))
             "editLink" -> if (node != null) editLink(node)
             "followLink" -> selection?.takeIf { !it.isNull("link") }?.let { followLink(it.getString("link")) }
+            "openNote" -> selection?.let { openNote(it.getString("id")) }
         }
+    }
+
+    /** Shows a node's note, read, over the map; the core selects the node and centers it. */
+    private fun openNote(id: String) {
+        if (id.isNotEmpty()) sendToCore(JSONObject().put("type", "openNote").put("id", id))
     }
 
     /**
@@ -964,7 +987,7 @@ class MainActivity : AppCompatActivity() {
         // Shown whenever a map is open (its ⋮ applies to read-only maps too), so that the map
         // does not jump at each selection.
         nodeBar.visibility = if (open && note == null) View.VISIBLE else View.GONE
-        findViewById<View>(R.id.format_bar).visibility = if (note?.optBoolean("editable") == true) View.VISIBLE else View.GONE
+        findViewById<View>(R.id.format_bar).visibility = if (note?.optBoolean("editing") == true) View.VISIBLE else View.GONE
         renderToolbar()
         val node = selection.takeIf { !mapReadOnly }
         val root = node?.getBoolean("root") ?: true
@@ -974,13 +997,7 @@ class MainActivity : AppCompatActivity() {
             contentDescription = label
             tooltipText = label
         }
-        findViewById<View>(R.id.open_note).apply {
-            val hasNote = selection?.optBoolean("note") == true
-            isEnabled = selection != null && (hasNote || !mapReadOnly)
-            val label = getString(if (hasNote) R.string.open_note else R.string.add_note)
-            contentDescription = label
-            tooltipText = label
-        }
+        findViewById<View>(R.id.open_note).isEnabled = selection != null
         findViewById<View>(R.id.add_child).isEnabled = node != null
         findViewById<View>(R.id.add_sibling).isEnabled = !root
         findViewById<View>(R.id.delete_node).isEnabled = !root
@@ -1934,7 +1951,13 @@ class MainActivity : AppCompatActivity() {
                 render()
             }
             "noteChanged" -> {
+                val wasEditing = note?.optBoolean("editing") == true
                 note = message.optJSONObject("note")
+                // The core focuses the note's text, but the WebView shows no keyboard for a focus
+                // that no touch in the page started (the pencil is native): it is asked for here.
+                if (!wasEditing && note?.optBoolean("editing") == true) {
+                    getSystemService(InputMethodManager::class.java).showSoftInput(webView, 0)
+                }
                 render()
             }
             "error" -> {
@@ -2015,11 +2038,21 @@ class MainActivity : AppCompatActivity() {
         const val ABOUT = 2
         const val MENU_UNDO = 4
         const val MENU_REDO = 5
+        const val MENU_PREVIOUS_NOTE = 6
+        const val MENU_NEXT_NOTE = 7
+        const val MENU_EDIT_NOTE = 8
 
         val TOOLBAR_ACTIONS = listOf(
             Triple(MENU_UNDO, R.string.undo, R.drawable.ic_undo),
             Triple(MENU_REDO, R.string.redo, R.drawable.ic_redo),
             Triple(MENU_SAVE, R.string.save, R.drawable.ic_save),
+        )
+
+        /** While a note is shown: the nodes before and after it in the map, and editing it or reading it again. */
+        val NOTE_ACTIONS = listOf(
+            Triple(MENU_PREVIOUS_NOTE, R.string.previous_node, R.drawable.ic_chevron_left),
+            Triple(MENU_NEXT_NOTE, R.string.next_node, R.drawable.ic_chevron_right),
+            Triple(MENU_EDIT_NOTE, R.string.edit_note, R.drawable.ic_edit),
         )
 
         /** The format bar's buttons, by the core's names of the formats (formatNote). */

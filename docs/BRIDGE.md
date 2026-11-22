@@ -98,7 +98,7 @@ Send only after a successful write, with the `saveId` of the `saveData` whose by
 { "v": 1, "type": "setReadOnly", "readOnly": true }
 ```
 
-Used for example after a detected conflict, to prevent further changes. `"readOnly": false` has no effect on a map that is read-only because of the file itself (format version or duplicate IDs, see `loaded`). A note being typed is written in the map first, so that nothing typed is lost; a note shown is then shown again (`noteChanged`), edited or not as the map now allows.
+Used for example after a detected conflict, to prevent further changes. `"readOnly": false` has no effect on a map that is read-only because of the file itself (format version or duplicate IDs, see `loaded`). A note being typed is written in the map first, so that nothing typed is lost, and is then read (`noteChanged`, `editing: false`); a note shown is reported again with its `editable` as the map now allows. Made editable again, the map leaves a note read until the shell sends `editNote`.
 
 ### `flushDraft`
 
@@ -140,7 +140,15 @@ Zooms in or out by one step, around the middle of the view (Freeplane's Alt+Up a
 { "v": 1, "type": "openNote", "id": "ID_1964929139" }
 ```
 
-Shows the note of node `id` over the map (see `noteChanged`), as touching its note icon does; on a node without a note, in an editable map, a new note, empty. A Markdown note, or a new one, is edited when the map is editable: plain text, written in the map when the note is closed, or before a draft (`flushDraft`) or a save (`save`), as one edit undone with `undo`. A new note is created only once something is typed, as Freeplane writes it (`CONTENT-TYPE="plain/markdown"`, its text in `<text>`, before the node's children), and a note left blank is removed, as in Freeplane; `MODIFIED` changes. Any other note (HTML, LaTeX…), or any note of a read-only map, is only shown. Refused with `OUTDATED_COMMAND` when the node no longer exists. The shell offers it from `selectionChanged`: `note` tells whether to open the node's note or to add one.
+Shows the note of node `id` over the map, read (see `noteChanged`), as touching its note icon does: any node, with or without a note, in any map; a node without a note shows an empty one. The node becomes the selected one and is centered, so that the map shows it once the note is closed (a node folded away cannot be selected: its nearest ancestor shown is). A note shown already, of this node or another, is replaced in one step; if it was being edited, what was typed is written first (see `editNote`). This is also how the shell goes to the previous or next node (`noteChanged`'s `previous` and `next`). Refused with `OUTDATED_COMMAND` when the node no longer exists. The shell offers it whenever a node is selected (`selectionChanged`).
+
+### `editNote`
+
+```json
+{ "v": 1, "type": "editNote", "editing": true }
+```
+
+Starts or stops editing the note shown (the shell's pencil and eye). `true` edits it as plain text, the text area focused, when it is `editable` (see `noteChanged`); ignored otherwise, or when no note is shown. `false` writes what was typed in the map, as one edit undone with `undo`, and shows the note read again: a new note is created only once something is typed, as Freeplane writes it (`CONTENT-TYPE="plain/markdown"`, its text in `<text>`, before the node's children), and a note left blank is removed, as in Freeplane; `MODIFIED` changes. What is typed is also written before a draft (`flushDraft`) or a save (`save`), without leaving the editor. Each change is told by `noteChanged`.
 
 ### `formatNote`
 
@@ -156,7 +164,7 @@ Applies a Markdown format to the selection of the note being edited: `bold` and 
 { "v": 1, "type": "closeNote" }
 ```
 
-Closes the note shown over the map (see `noteChanged`), typically from the shell's back arrow or its system "back", keeping what was typed. Ignored when no note is shown.
+Closes the note shown over the map (see `noteChanged`), typically from the shell's back arrow or its system "back", in one step whether it is read or edited: what was typed is written first (see `editNote`). The map shows its node again, selected and centered. Ignored when no note is shown.
 
 ### `moveNode`
 
@@ -292,7 +300,7 @@ Sent whenever what the shell knows about the selected node changes: another node
 | `link` | The node's link as written, whatever its kind (`null`: none). Offer to modify or remove it (`setLink`) |
 | `linkAsTyped` | The same link as offered for editing: without the `https://` that `setLink` adds back (`example.com` for `https://example.com`), else as written (`null`: none) |
 | `textLink` | The first web address written in the node's text, as written (`null`: none). Offer it as the link to add |
-| `note` | Whether the node has a note: offer to open it (`openNote`), or to add one when the map is editable |
+| `note` | Whether the node has a note (`openNote` shows any node's note, even none yet) |
 | `hidden` | Content of the node itself that is not displayed, by kind (as in `hiddenContent`: never `note`): what its dot stands for. Explain it while the node is selected (e.g. "1 details, 2 icons, kept") |
 | `branch.descendants` | Number of nodes under the selected one, removed with it |
 | `branch.hidden` | Content of the branch that is not displayed, by kind (same kinds as `hiddenContent`), including connectors from elsewhere pointing into the branch, and its notes: shown only on demand, they would go unseen. Ask for confirmation before `deleteNode` when it is not empty |
@@ -316,11 +324,22 @@ The user touched the icon of a node's web link. The shell opens the address apar
 ### `noteChanged`
 
 ```json
-{ "v": 1, "type": "noteChanged", "note": { "id": "ID_1964929139", "title": "Budget", "editable": true } }
+{ "v": 1, "type": "noteChanged", "note": {
+    "id": "ID_1964929139", "title": "Budget", "editable": true, "editing": false,
+    "previous": "ID_452131666", "next": "ID_173224275" } }
 { "v": 1, "type": "noteChanged", "note": null }
 ```
 
-A note is now shown over the whole map, or closed (`null`). The user touched the note icon of a node, or the shell sent `openNote`; the core shows the note itself. `editable`: a Markdown note, or a new one, is edited as plain text (see `openNote`); the shell then shows its format bar (`formatNote`) in place of its node commands. Any other note is shown read-only: HTML without what could run code, reach the network or leave the note's area (scripts, event attributes, images, links other than `http` and `https`, styles other than text, colors, sizes and boxes), plain text (Markdown…) as written. `title` is the node's text as displayed (plain text, possibly on several lines, possibly empty). While a note is shown, the shell shows `title` in its title bar with a way back (back arrow, system "back") that sends `closeNote`, and hides its commands on the map and the node. The core also closes the note on its own (Escape, which keeps what was typed too; another map loaded; the node removed): the shell follows `noteChanged` only.
+A note is now shown over the whole map, or closed (`null`). The user touched the note icon of a node, or the shell sent `openNote`; the core shows the note itself, read. Read, HTML is shown without what could run code, reach the network or leave the note's area (scripts, event attributes, images, links other than `http` and `https`, styles other than text, colors, sizes and boxes), plain text (Markdown…) as written.
+
+| Field | Meaning |
+|---|---|
+| `title` | The node's text as displayed (plain text, possibly on several lines, possibly empty) |
+| `editable` | Whether it can be edited (`editNote`): a Markdown note, or none yet, in an editable map. Any other note (HTML, LaTeX…), or any note of a read-only map, is only read |
+| `editing` | Whether it is being edited, as plain text; else it is read |
+| `previous`, `next` | The nodes before and after it, every node of the map in pre-order (the root, then each child's branch in document order); `null` on the root and on the last node |
+
+While a note is shown, the shell shows `title` in its title bar, with a way back (back arrow, system "back") that sends `closeNote`, buttons for the previous and next nodes (`openNote`), and a pencil (`editNote` with `true`, enabled when `editable`) that becomes an eye while `editing` (`editNote` with `false`); it hides its commands on the map and the node. While `editing`, it shows its format bar (`formatNote`) in place of the node's commands. The core reads the note's own keys: Escape, Ctrl+< or Ctrl+> close it (keeping what was typed), and while it is read, PageUp and PageDown show the previous and next node's note. The core also closes the note on its own (another map loaded; the node removed): the shell follows `noteChanged` only.
 
 ### `shortcut`
 
@@ -328,7 +347,7 @@ A note is now shown over the whole map, or closed (`null`). The user touched the
 { "v": 1, "type": "shortcut", "command": "moveNode", "direction": "up" }
 ```
 
-A key of one of the shell's commands was pressed on the map, outside a text being edited. The keys are Freeplane's: Enter `addSibling`, Insert or Tab `addChild`, Delete `deleteNode`, Ctrl+arrows `moveNode` (with its `direction`), Ctrl+Z `undo`, Ctrl+Y or Ctrl+Shift+Z `redo`, Ctrl+S `save`, Alt+Up `zoomIn`, Alt+Down `zoomOut`, Ctrl+K `editLink`, Ctrl+Enter `followLink` (open the selected node's web link). Cmd counts as Ctrl. The shell runs the command as its own button or menu entry would, only when that one could be used now, and with the same rules (the confirmation of a deletion); otherwise it ignores the key. The core reads the keys so that every shell has the same ones, and so that they never act while a text is typed.
+A key of one of the shell's commands was pressed on the map, outside a text being edited. The keys are Freeplane's: Enter `addSibling`, Insert or Tab `addChild`, Delete `deleteNode`, Ctrl+arrows `moveNode` (with its `direction`), Ctrl+Z `undo`, Ctrl+Y or Ctrl+Shift+Z `redo`, Ctrl+S `save`, Alt+Up `zoomIn`, Alt+Down `zoomOut`, Ctrl+K `editLink`, Ctrl+Enter `followLink` (open the selected node's web link), Ctrl+< or Ctrl+> `openNote` (with or without Shift, which some keyboards need for > or <). Cmd counts as Ctrl. The shell runs the command as its own button or menu entry would, only when that one could be used now, and with the same rules (the confirmation of a deletion); otherwise it ignores the key. The core reads the keys so that every shell has the same ones, and so that they never act while a text is typed.
 
 ### `error`
 
@@ -419,7 +438,7 @@ A mobile system may kill a backgrounded app without notice, and a phone may cras
 - [ ] Enable the Undo and Redo commands according to `historyChanged`, and the editing commands according to `selectionChanged`.
 - [ ] While a node with a lock or a dot is selected, explain what the mark means (`textEditable`, `hidden`), without taking room otherwise. The core's stylesheet offers the same marks for that (`.mapling-lock-mark`, `.mapling-dot-mark`).
 - [ ] Run a `shortcut` as the matching command, only when that command is enabled.
-- [ ] While `noteChanged` reports a note, show its `title` with a way back that sends `closeNote`, and hide the map's and the node's commands; while it is `editable`, offer its formats (`formatNote`) with buttons that do not take the focus.
+- [ ] While `noteChanged` reports a note, show its `title` with a way back that sends `closeNote`, the previous and next nodes (`openNote`) and a pencil or an eye (`editNote`), and hide the map's and the node's commands; while it is `editing`, offer its formats (`formatNote`) with buttons that do not take the focus.
 - [ ] Ask for confirmation before `deleteNode` when the selected branch holds hidden content, with a translated summary; send the node's `id` and the `revision` the confirmation was based on, and ask again on `OUTDATED_COMMAND`.
 - [ ] Serve the core's resources locally; no network access.
 
