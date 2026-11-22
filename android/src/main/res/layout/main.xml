@@ -147,6 +147,17 @@ SPDX-License-Identifier: GPL-3.0-or-later
                 app:tint="@color/node_icon"
                 android:tooltipText="@string/add_link" />
 
+            <!-- Its description says add or open, by the node (render). -->
+            <ImageButton
+                android:id="@+id/open_note"
+                style="?android:attr/borderlessButtonStyle"
+                android:layout_width="@dimen/node_button_width"
+                android:layout_height="48dp"
+                android:contentDescription="@string/add_note"
+                android:src="@drawable/ic_description"
+                app:tint="@color/node_icon"
+                android:tooltipText="@string/add_note" />
+
             <ImageButton
                 android:id="@+id/add_child"
                 style="?android:attr/borderlessButtonStyle"
@@ -179,6 +190,69 @@ SPDX-License-Identifier: GPL-3.0-or-later
             app:tint="@color/node_icon"
             android:tooltipText="@string/more" />
     </FrameLayout>
+
+    <!-- While a Markdown note is edited, in place of the node bar, above the keyboard: its
+         formats. Never focused, so that the note's text keeps the focus and the keyboard. -->
+    <LinearLayout
+        android:id="@+id/format_bar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/node_bar"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:visibility="gone">
+
+        <ImageButton
+            android:id="@+id/format_bold"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="@dimen/node_button_width"
+            android:layout_height="48dp"
+            android:contentDescription="@string/format_bold"
+            android:focusable="false"
+            android:src="@drawable/ic_format_bold"
+            app:tint="@color/node_icon"
+            android:tooltipText="@string/format_bold" />
+        <ImageButton
+            android:id="@+id/format_italic"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="@dimen/node_button_width"
+            android:layout_height="48dp"
+            android:contentDescription="@string/format_italic"
+            android:focusable="false"
+            android:src="@drawable/ic_format_italic"
+            app:tint="@color/node_icon"
+            android:tooltipText="@string/format_italic" />
+        <ImageButton
+            android:id="@+id/format_heading"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="@dimen/node_button_width"
+            android:layout_height="48dp"
+            android:contentDescription="@string/format_heading"
+            android:focusable="false"
+            android:src="@drawable/ic_title"
+            app:tint="@color/node_icon"
+            android:tooltipText="@string/format_heading" />
+        <ImageButton
+            android:id="@+id/format_bullet_list"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="@dimen/node_button_width"
+            android:layout_height="48dp"
+            android:contentDescription="@string/format_bullet_list"
+            android:focusable="false"
+            android:src="@drawable/ic_format_list_bulleted"
+            app:tint="@color/node_icon"
+            android:tooltipText="@string/format_bullet_list" />
+        <ImageButton
+            android:id="@+id/format_numbered_list"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="@dimen/node_button_width"
+            android:layout_height="48dp"
+            android:contentDescription="@string/format_numbered_list"
+            android:focusable="false"
+            android:src="@drawable/ic_format_list_numbered"
+            app:tint="@color/node_icon"
+            android:tooltipText="@string/format_numbered_list" />
+    </LinearLayout>
 </LinearLayout>
 
     <!-- The ☰ drawer: the open map (header), the commands, the recent maps, About. -->

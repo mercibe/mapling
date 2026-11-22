@@ -5,7 +5,8 @@
 // Platform-neutral: the shell's `send` function and the view are passed in.
 
 import { MapError } from './errors.ts';
-import { linkAsTyped, type BranchSummary, type Direction, type HiddenKind, type MindMap, type Note, type ViewNode } from './map.ts';
+import { linkAsTyped, MindMap, type BranchSummary, type Direction, type HiddenKind, type Note, type ViewNode } from './map.ts';
+import type { NoteFormat } from './note.ts';
 import { MapSession } from './session.ts';
 
 export const PROTOCOL_VERSION = 1;
@@ -45,6 +46,8 @@ export interface SelectedNode {
   linkAsTyped: string | null;
   /** The first web address in the node's text (null: none), to offer as its link. */
   textLink: string | null;
+  /** Whether the node has a note; `openNote` shows it, or a new one. */
+  note: boolean;
   /** Content of this node that is not displayed, by kind (what its dot stands for). */
   hidden: Partial<Record<HiddenKind, number>>;
   branch: BranchSummary;
@@ -79,6 +82,8 @@ export type ShellMessage = { v: number; requestId?: string } & (
   | { type: 'moveNode'; id: string; direction: Direction }
   | { type: 'zoomIn' }
   | { type: 'zoomOut' }
+  | { type: 'openNote'; id: string }
+  | { type: 'formatNote'; format: NoteFormat }
   | { type: 'closeNote' }
   | { type: Command; id: string; revision?: number }
 );
@@ -104,7 +109,7 @@ export type CoreMessage =
   | { type: 'historyChanged'; canUndo: boolean; canRedo: boolean }
   | { type: 'selectionChanged'; node: SelectedNode | null }
   | { type: 'openLink'; url: string }
-  | { type: 'noteChanged'; note: { id: string; title: string } | null }
+  | { type: 'noteChanged'; note: { id: string; title: string; editable: boolean } | null }
   | ({ type: 'shortcut' } & Shortcut)
   | { type: 'error'; requestId?: string; code: BridgeErrorCode; message: string };
 
@@ -125,8 +130,12 @@ export interface View {
   zoom(direction: 'in' | 'out'): void;
   /** Whether a text is being typed, not validated yet: the map does not hold it. */
   editing(): boolean;
-  /** Shows a note over the map, or closes it (null). */
-  showNote(note: Note | null): void;
+  /** Shows a note over the map, `editable` or not, or closes it (null). */
+  showNote(note: Note | null, editable: boolean): void;
+  /** The text of the note being edited; null when none is. */
+  noteText(): string | null;
+  /** Applies a Markdown format to the selection of the note being edited. */
+  formatNote(format: NoteFormat): void;
 }
 
 class BridgeError extends Error {
@@ -157,8 +166,9 @@ export class Bridge {
   /** Key of the node selected in the view, and what was last reported about it. */
   private selectedKey: string | null = null;
   private reportedSelection = 'null'; // as JSON, to compare with the next report
-  /** Key of the node whose note is shown over the map; null when none is. */
+  /** Key of the node whose note is shown over the map (null when none is), and whether it is edited. */
   private noteKey: string | null = null;
+  private noteEditable = false;
 
   constructor(send: (json: string) => void, view: View) {
     this.send = send;
@@ -210,22 +220,42 @@ export class Bridge {
     this.post({ type: 'openLink', url });
   }
 
-  /** A note's icon touched in the view: the note is shown over the map, and the shell told. */
+  /**
+   * Shows the node's note over the map, and tells the shell. A Markdown note, or a new one
+   * on a node without a note, is edited when the map is editable; any other is only shown.
+   */
   openNote(key: string): void {
     const map = this.session?.map;
-    const note = map?.has(key) ? map.note(key) : null;
-    if (!map || !note) return;
+    if (!map?.has(key)) return;
+    const note = map.note(key);
+    const editable = !this.readOnly && (!note || ('markdown' in note && note.markdown));
+    if (!note && !editable) return;
+    this.closeNote();
     this.noteKey = key;
-    this.view.showNote(note);
-    this.post({ type: 'noteChanged', note: { id: key, title: map.text(key, this.locale) } });
+    this.noteEditable = editable;
+    this.view.showNote(note ?? { text: '', markdown: true }, editable);
+    this.post({ type: 'noteChanged', note: { id: key, title: map.text(key, this.locale), editable } });
   }
 
-  /** Closes the note shown over the map, if any (the shell's back, or Escape in the view). */
+  /** Writes the text of the note being edited into the map: an edit, undone like the others. */
+  private commitNote(): void {
+    const key = this.noteKey;
+    const text = this.noteEditable ? this.view.noteText() : null;
+    if (key === null || text === null || this.readOnly || !this.session?.map.has(key)) return;
+    this.edit((map) => map.setNote(key, text));
+  }
+
+  /** Closes the note shown over the map, if any, keeping what was typed (the shell's back, Escape). */
   closeNote(): void {
     if (this.noteKey === null) return;
+    const edited = this.noteEditable;
+    this.commitNote();
     this.noteKey = null;
-    this.view.showNote(null);
+    this.noteEditable = false;
+    this.view.showNote(null, false);
     this.post({ type: 'noteChanged', note: null });
+    // The node may have got or lost its note: its icon is drawn again.
+    if (edited && this.session) this.view.show(this.session.map.toView(this.locale), this.readOnly, true);
   }
 
   /** A key pressed on the map, outside a text being edited: the shell runs the command, if it can. */
@@ -256,16 +286,25 @@ export class Bridge {
         return this.load(message.requestId, message.data, !!message.readOnly, !!message.restoredDraft, message.locale);
       case 'flushDraft':
         // Always answered: the core cannot know whether the last draft reached the disk.
+        this.commitNote(); // a note being typed is in the map, and so in the draft
         if (this.session) this.sendDraft();
         return;
       case 'save':
         return this.save(message.requestId);
       case 'saved':
         return this.saved(message.saveId);
-      case 'setReadOnly':
+      case 'setReadOnly': {
+        this.commitNote(); // what was typed is kept before the map is locked
         this.shellReadOnly = !!message.readOnly;
         if (this.session) this.view.setReadOnly(this.readOnly);
+        // A note shown is shown again, edited or not as the map now allows.
+        const note = this.noteKey;
+        if (note !== null) {
+          this.closeNote();
+          this.openNote(note);
+        }
         return;
+      }
       case 'undo':
       case 'redo':
         return this.history(message.type);
@@ -281,6 +320,13 @@ export class Bridge {
       case 'zoomOut':
         // Not an edit: also available on a read-only map.
         if (this.session) this.view.zoom(message.type === 'zoomIn' ? 'in' : 'out');
+        return;
+      case 'openNote':
+        if (!this.session) throw new BridgeError('NO_MAP_LOADED', 'No map loaded');
+        if (!this.session.map.has(message.id)) throw new BridgeError('OUTDATED_COMMAND', `Unknown node: ${message.id}`);
+        return this.openNote(message.id);
+      case 'formatNote':
+        if (this.noteEditable) this.view.formatNote(message.format);
         return;
       case 'closeNote':
         return this.closeNote();
@@ -302,6 +348,7 @@ export class Bridge {
   private loadIfUnmodified(message: ShellMessage & { type: 'load' }): void {
     setTimeout(() => {
       try {
+        this.commitNote(); // a note being typed counts as a change
         if (this.session?.dirty || this.view.editing()) {
           throw new BridgeError('MAP_MODIFIED', 'The open map is modified or a text is being edited');
         }
@@ -324,8 +371,11 @@ export class Bridge {
     // Revisions continue from the previous map: a revision then designates one map
     // and one state, so a deletion confirmed on a map cannot apply to its reloaded
     // version, even with the same IDs.
+    const text = decode(data);
+    new MindMap(text); // the file is checked before anything changes (PARSE_ERROR, NOT_A_MAP)
+    this.closeNote(); // kept in the previous map, which it belongs to: maybe a revision more
     const firstRevision = this.session ? this.session.lastCreatedRevision + 1 : 0;
-    const session = new MapSession(decode(data), firstRevision);
+    const session = new MapSession(text, firstRevision);
     this.session = session;
     this.shellReadOnly = readOnly;
     this.locale = locale ?? 'en';
@@ -345,7 +395,6 @@ export class Bridge {
     // The new map starts with no selection, even if it shares IDs with the previous one;
     // the view reports its own once the map is shown (its root, after `loaded`).
     this.selectedKey = null;
-    this.closeNote(); // it belonged to the previous map
     this.view.show(map.toView(this.locale), this.readOnly, false);
     this.reportedTitle = map.text(map.rootKey, this.locale);
     this.post({
@@ -363,6 +412,7 @@ export class Bridge {
 
   private save(requestId: string | undefined): void {
     if (!this.session) throw new BridgeError('NO_MAP_LOADED', 'No map loaded');
+    this.commitNote(); // a note being typed is saved too
     const data = encode(this.session.map.serialize());
     const saveId = ++this.lastSaveId;
     this.pendingSaves.set(saveId, this.session.revision);
@@ -471,6 +521,7 @@ export class Bridge {
       link,
       linkAsTyped: link && linkAsTyped(link),
       textLink: map.textLink(key),
+      note: map.note(key) !== null,
       hidden: map.nodeHidden(key),
       branch: map.branchSummary(key),
     };

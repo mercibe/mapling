@@ -98,7 +98,7 @@ Send only after a successful write, with the `saveId` of the `saveData` whose by
 { "v": 1, "type": "setReadOnly", "readOnly": true }
 ```
 
-Used for example after a detected conflict, to prevent further changes. `"readOnly": false` has no effect on a map that is read-only because of the file itself (format version or duplicate IDs, see `loaded`).
+Used for example after a detected conflict, to prevent further changes. `"readOnly": false` has no effect on a map that is read-only because of the file itself (format version or duplicate IDs, see `loaded`). A note being typed is written in the map first, so that nothing typed is lost; a note shown is then shown again (`noteChanged`), edited or not as the map now allows.
 
 ### `flushDraft`
 
@@ -134,13 +134,29 @@ Scrolls the map so that the selected node, or the root when nothing is selected,
 
 Zooms in or out by one step, around the middle of the view (Freeplane's Alt+Up and Alt+Down). Not an edit: also available on a read-only map.
 
+### `openNote`
+
+```json
+{ "v": 1, "type": "openNote", "id": "ID_1964929139" }
+```
+
+Shows the note of node `id` over the map (see `noteChanged`), as touching its note icon does; on a node without a note, in an editable map, a new note, empty. A Markdown note, or a new one, is edited when the map is editable: plain text, written in the map when the note is closed, or before a draft (`flushDraft`) or a save (`save`), as one edit undone with `undo`. A new note is created only once something is typed, as Freeplane writes it (`CONTENT-TYPE="plain/markdown"`, its text in `<text>`, before the node's children), and a note left blank is removed, as in Freeplane; `MODIFIED` changes. Any other note (HTML, LaTeX…), or any note of a read-only map, is only shown. Refused with `OUTDATED_COMMAND` when the node no longer exists. The shell offers it from `selectionChanged`: `note` tells whether to open the node's note or to add one.
+
+### `formatNote`
+
+```json
+{ "v": 1, "type": "formatNote", "format": "bold" }
+```
+
+Applies a Markdown format to the selection of the note being edited: `bold` and `italic` surround it with `**` or `*` (an empty selection gets the caret between them); `heading`, `bulletList` and `numberedList` put `# `, `- ` or `1. `, `2. `… at the start of each line it touches. The editor's own undo takes it back. Ignored when no note is edited. The shell's buttons must not take the focus from the note's text, so that the keyboard stays open.
+
 ### `closeNote`
 
 ```json
 { "v": 1, "type": "closeNote" }
 ```
 
-Closes the note shown over the map (see `noteChanged`), typically from the shell's back arrow or its system "back". Ignored when no note is shown.
+Closes the note shown over the map (see `noteChanged`), typically from the shell's back arrow or its system "back", keeping what was typed. Ignored when no note is shown.
 
 ### `moveNode`
 
@@ -259,7 +275,7 @@ The current state of the loaded map, to be kept as a local draft (see section 6)
 ```json
 { "v": 1, "type": "selectionChanged", "node": {
     "id": "ID_1964929139", "revision": 12, "root": false, "textEditable": true,
-    "link": null, "linkAsTyped": null, "textLink": "https://www.freeplane.org/",
+    "link": null, "linkAsTyped": null, "textLink": "https://www.freeplane.org/", "note": false,
     "hidden": { "details": 1, "icon": 2 },
     "branch": { "descendants": 3, "hidden": { "note": 1, "details": 1, "icon": 2 } } } }
 { "v": 1, "type": "selectionChanged", "node": null }
@@ -276,6 +292,7 @@ Sent whenever what the shell knows about the selected node changes: another node
 | `link` | The node's link as written, whatever its kind (`null`: none). Offer to modify or remove it (`setLink`) |
 | `linkAsTyped` | The same link as offered for editing: without the `https://` that `setLink` adds back (`example.com` for `https://example.com`), else as written (`null`: none) |
 | `textLink` | The first web address written in the node's text, as written (`null`: none). Offer it as the link to add |
+| `note` | Whether the node has a note: offer to open it (`openNote`), or to add one when the map is editable |
 | `hidden` | Content of the node itself that is not displayed, by kind (as in `hiddenContent`: never `note`): what its dot stands for. Explain it while the node is selected (e.g. "1 details, 2 icons, kept") |
 | `branch.descendants` | Number of nodes under the selected one, removed with it |
 | `branch.hidden` | Content of the branch that is not displayed, by kind (same kinds as `hiddenContent`), including connectors from elsewhere pointing into the branch, and its notes: shown only on demand, they would go unseen. Ask for confirmation before `deleteNode` when it is not empty |
@@ -299,11 +316,11 @@ The user touched the icon of a node's web link. The shell opens the address apar
 ### `noteChanged`
 
 ```json
-{ "v": 1, "type": "noteChanged", "note": { "id": "ID_1964929139", "title": "Budget" } }
+{ "v": 1, "type": "noteChanged", "note": { "id": "ID_1964929139", "title": "Budget", "editable": true } }
 { "v": 1, "type": "noteChanged", "note": null }
 ```
 
-A note is now shown over the whole map, or closed (`null`). The user touched the note icon of a node; the core shows the note itself, read-only: HTML without what could run code, reach the network or leave the note's area (scripts, event attributes, images, links other than `http` and `https`, styles other than text, colors, sizes and boxes), plain text (Markdown…) as written. `title` is the node's text as displayed (plain text, possibly on several lines, possibly empty). While a note is shown, the shell shows `title` in its title bar with a way back (back arrow, system "back") that sends `closeNote`, and hides its commands on the map and the node. The core also closes the note on its own (Escape, another map loaded, the node removed): the shell follows `noteChanged` only.
+A note is now shown over the whole map, or closed (`null`). The user touched the note icon of a node, or the shell sent `openNote`; the core shows the note itself. `editable`: a Markdown note, or a new one, is edited as plain text (see `openNote`); the shell then shows its format bar (`formatNote`) in place of its node commands. Any other note is shown read-only: HTML without what could run code, reach the network or leave the note's area (scripts, event attributes, images, links other than `http` and `https`, styles other than text, colors, sizes and boxes), plain text (Markdown…) as written. `title` is the node's text as displayed (plain text, possibly on several lines, possibly empty). While a note is shown, the shell shows `title` in its title bar with a way back (back arrow, system "back") that sends `closeNote`, and hides its commands on the map and the node. The core also closes the note on its own (Escape, which keeps what was typed too; another map loaded; the node removed): the shell follows `noteChanged` only.
 
 ### `shortcut`
 
@@ -402,7 +419,7 @@ A mobile system may kill a backgrounded app without notice, and a phone may cras
 - [ ] Enable the Undo and Redo commands according to `historyChanged`, and the editing commands according to `selectionChanged`.
 - [ ] While a node with a lock or a dot is selected, explain what the mark means (`textEditable`, `hidden`), without taking room otherwise. The core's stylesheet offers the same marks for that (`.mapling-lock-mark`, `.mapling-dot-mark`).
 - [ ] Run a `shortcut` as the matching command, only when that command is enabled.
-- [ ] While `noteChanged` reports a note, show its `title` with a way back that sends `closeNote`, and hide the map's and the node's commands.
+- [ ] While `noteChanged` reports a note, show its `title` with a way back that sends `closeNote`, and hide the map's and the node's commands; while it is `editable`, offer its formats (`formatNote`) with buttons that do not take the focus.
 - [ ] Ask for confirmation before `deleteNode` when the selected branch holds hidden content, with a translated summary; send the node's `id` and the `revision` the confirmation was based on, and ask again on `OUTDATED_COMMAND`.
 - [ ] Serve the core's resources locally; no network access.
 

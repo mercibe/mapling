@@ -8,7 +8,7 @@
 
 import type { Bridge, Command, Shortcut, View } from './bridge.ts';
 import { webLink, type Direction, type MindMap, type Note, type Side, type ViewNode } from './map.ts';
-import { copySafeHtml } from './note.ts';
+import { copySafeHtml, formatMarkdown, type NoteFormat } from './note.ts';
 import { DoubleTap, installTouchGestures, type TouchMap } from './touch.ts';
 
 // ---------- the parts of jsMind 0.9.1 used here (checked in its source) ----------
@@ -116,8 +116,9 @@ const PENDING_ID = '_pending';
 
 export class JsMindView implements View {
   private readonly jm: JsMindInstance;
-  /** Where a note is shown, over the map (see notePanel). */
+  /** Where a note is shown, over the map (see createNotePanel), and its editor while one is edited. */
   private readonly notePanel: HTMLElement;
+  private noteEditor: HTMLTextAreaElement | null = null;
   private bridge: Bridge | null = null;
   private cancelled = false; // Escape: the edit ending now changes nothing
   /** Where the next editing puts the caret: set by a double tap, else the text's end. */
@@ -263,15 +264,27 @@ export class JsMindView implements View {
 
   /**
    * Shows a note over the whole map, or closes it (null). HTML is shown as safe HTML
-   * (copySafeHtml), plain text (Markdown…) as it is written. While it is shown, the keys
+   * (copySafeHtml), plain text (Markdown…) as it is written; an `editable` note in a text
+   * area, focused when empty so that the keyboard comes at once. While it is shown, the keys
    * act on it, not on the map.
    */
-  showNote(note: Note | null): void {
+  showNote(note: Note | null, editable: boolean): void {
     const panel = this.notePanel;
     panel.textContent = '';
     panel.hidden = !note;
+    this.noteEditor = null;
     if (!note) {
       this.jm.view.e_panel.focus({ preventScroll: true });
+      return;
+    }
+    if ('text' in note && editable) {
+      const editor = document.createElement('textarea');
+      editor.className = 'mapling-note-editor';
+      editor.value = note.text;
+      panel.append(editor);
+      this.noteEditor = editor;
+      if (note.text === '') editor.focus();
+      else panel.focus({ preventScroll: true });
       return;
     }
     const content = document.createElement('div');
@@ -283,6 +296,26 @@ export class JsMindView implements View {
     panel.append(content);
     panel.scrollTop = 0;
     panel.focus({ preventScroll: true });
+  }
+
+  noteText(): string | null {
+    return this.noteEditor?.value ?? null;
+  }
+
+  /**
+   * Applies a Markdown format to the editor's selection (formatMarkdown), through the
+   * browser's editing so that the editor's own undo takes it back.
+   */
+  formatNote(format: NoteFormat): void {
+    const editor = this.noteEditor;
+    if (!editor) return;
+    const change = formatMarkdown(editor.value, editor.selectionStart, editor.selectionEnd, format);
+    editor.focus();
+    editor.setSelectionRange(change.from, change.to);
+    if (!document.execCommand('insertText', false, change.insert)) {
+      editor.setRangeText(change.insert, change.from, change.to);
+    }
+    editor.setSelectionRange(change.start, change.end);
   }
 
   /** One step of jsMind's zoom, around the middle of the map (no point given). */

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+SPDX-FileCopyrightText: 2026 Benoit Mercier
+SPDX-License-Identifier: GPL-3.0-or-later
+-->
+<resources>
+    <!-- From 360 dp wide, the bottom bar's buttons get Material's 56 dp (values/dimens.xml). -->
+    <dimen name="node_button_width">56dp</dimen>
+</resources>

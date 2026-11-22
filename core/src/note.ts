@@ -79,3 +79,36 @@ export function copySafeHtml(source: Element, target: Element): void {
     target.appendChild(copy);
   }
 }
+
+/** The formats of the Markdown bar (docs/BRIDGE.md, formatNote). */
+export type NoteFormat = 'bold' | 'italic' | 'heading' | 'bulletList' | 'numberedList';
+
+/** A change of a text: [from, to) replaced by `insert`, then [start, end) selected. */
+export interface TextChange {
+  from: number;
+  to: number;
+  insert: string;
+  start: number;
+  end: number;
+}
+
+/**
+ * Markdown for `format` on the selection [start, end) of `text`: bold and italic surround it
+ * (an empty selection gets the caret between the marks); a heading or a list mark goes at the
+ * start of each line it touches, lists numbered from 1.
+ */
+export function formatMarkdown(text: string, start: number, end: number, format: NoteFormat): TextChange {
+  if (format === 'bold' || format === 'italic') {
+    const mark = format === 'bold' ? '**' : '*';
+    const insert = mark + text.slice(start, end) + mark;
+    return { from: start, to: end, insert, start: start + mark.length, end: end + mark.length };
+  }
+  const from = start === 0 ? 0 : text.lastIndexOf('\n', start - 1) + 1;
+  // `end` is excluded: a selection ending with a line break does not touch the next line.
+  const lineEnd = text.indexOf('\n', end > start ? end - 1 : end);
+  const to = lineEnd === -1 ? text.length : lineEnd;
+  const lines = text.slice(from, to).split('\n');
+  const mark = (i: number) => (format === 'heading' ? '# ' : format === 'bulletList' ? '- ' : `${i + 1}. `);
+  const insert = lines.map((line, i) => mark(i) + line).join('\n');
+  return { from, to, insert, start: start + mark(0).length, end: end + insert.length - (to - from) };
+}

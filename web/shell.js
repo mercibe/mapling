@@ -22,12 +22,15 @@ const state = {
   dirty: false,
   history: { canUndo: false, canRedo: false },
   selection: null, // node reported by selectionChanged
-  note: null, // { id, title } of the note shown over the map (noteChanged), else null
+  note: null, // { id, title, editable } of the note shown over the map (noteChanged), else null
   messages: [], // { kind: 'info' | 'warning' | 'error', text: () => string }
   draftFailed: false,
   downloadToConfirm: null, // saveId of the last copy downloaded, until the user confirms it
 };
 let requestCount = 0;
+
+/** The buttons of the format bar, named as the core's formats (formatNote). */
+const FORMATS = ['bold', 'italic', 'heading', 'bulletList', 'numberedList'];
 
 // ---------- translation ----------
 
@@ -389,6 +392,8 @@ more.addEventListener('click', (event) => {
 const actions = {
   menu: openDrawer,
   closeNote: () => send({ type: 'closeNote' }),
+  openNote: () => send({ type: 'openNote', id: state.selection.id }),
+  ...Object.fromEntries(FORMATS.map((format) => [format, () => send({ type: 'formatNote', format })])),
   open: openFile,
   newMap,
   close: closeMap,
@@ -450,8 +455,8 @@ async function deleteNode() {
 function enabled(action) {
   const editable = !!state.map && !state.map.readOnly;
   const node = state.selection;
-  // A note shown over the map: only the way back, whatever is selected behind it.
-  if (state.note) return action === 'closeNote';
+  // A note shown over the map: only the way back, and the formats of a note being edited.
+  if (state.note) return action === 'closeNote' || (state.note.editable && FORMATS.includes(action));
   switch (action) {
     case 'closeNote':
       return false;
@@ -480,6 +485,8 @@ function enabled(action) {
     case 'addChild':
     case 'editLink':
       return editable && !!node;
+    case 'openNote':
+      return !!node && (node.note || editable); // a new note needs an editable map
     case 'addSibling':
     case 'deleteNode':
     case 'moveNode':
@@ -494,9 +501,10 @@ function run(action, argument) {
 for (const button of document.querySelectorAll('[data-action]')) {
   // A click leaves the focus on the map, so that its keys keep acting (Enter would
   // otherwise click the button again); Tab still reaches the buttons. Not from a text being
-  // typed: leaving it validates it first, so that Save, for one, includes it.
+  // typed: leaving it validates it first, so that Save, for one, includes it. A format
+  // applies to the note being typed: its text keeps the focus.
   button.addEventListener('mousedown', (event) => {
-    if (!document.activeElement.matches('input, textarea')) event.preventDefault();
+    if (!document.activeElement.matches('input, textarea') || FORMATS.includes(button.dataset.action)) event.preventDefault();
   });
   button.addEventListener('click', () => {
     // An entry of the drawer or of the ⋮ menu closes it first.
@@ -560,7 +568,9 @@ function render() {
   for (const button of document.querySelectorAll('[data-action]')) {
     button.disabled = !enabled(button.dataset.action);
     if (button.classList.contains('icon-button')) {
-      const action = button.dataset.action === 'editLink' && state.selection?.link == null ? 'addLink' : button.dataset.action;
+      let action = button.dataset.action;
+      if (action === 'editLink' && state.selection?.link == null) action = 'addLink';
+      if (action === 'openNote' && !state.selection?.note) action = 'addNote';
       button.title = t(`action.${action}`);
       button.setAttribute('aria-label', button.title);
     }
@@ -573,10 +583,11 @@ function render() {
   version.hidden = !version.dataset.version;
   version.textContent = t('about.version', { version: version.dataset.version });
   // A note shown over the map: only the way back, and the node's text as the title.
-  for (const element of document.querySelectorAll('[data-with-map], [data-without-note], [data-with-note]')) {
+  for (const element of document.querySelectorAll('[data-with-map], [data-without-note], [data-with-note], [data-with-editable-note]')) {
     element.hidden = (element.hasAttribute('data-with-map') && !map)
       || (element.hasAttribute('data-without-note') && !!state.note)
-      || (element.hasAttribute('data-with-note') && !state.note);
+      || (element.hasAttribute('data-with-note') && !state.note)
+      || (element.hasAttribute('data-with-editable-note') && !state.note?.editable);
   }
   document.getElementById('home').hidden = !!map;
   document.getElementById('mapling').style.visibility = map ? '' : 'hidden';

@@ -30,9 +30,9 @@ This page describes the inside of the core (`core/`). To write a shell, read [BR
 |---|---|
 | `xml.ts` | Parses with the platform `DOMParser` and serializes with `XMLSerializer`, plus the few rules that make the output identical to Freeplane's (no-break space; line breaks and apostrophes in attributes; quotation marks in text; text around the root element). Comments, CDATA and processing instructions are left untouched. |
 | `format.ts` | Classifies the `<map version>`: only Freeplane versions covered by a fixture are editable; older (FreeMind included) and newer ones open read-only. |
-| `map.ts` | `MindMap`: indexes `<node>` elements by `ID` (or by an in-memory key for nodes without one), projects them for the view, reads their notes, detects hidden content, and implements the operations: edit text, add, remove, move. |
+| `map.ts` | `MindMap`: indexes `<node>` elements by `ID` (or by an in-memory key for nodes without one), projects them for the view, reads their notes, detects hidden content, and implements the operations: edit text, add, remove, move, set a Markdown note. |
 | `html-text.ts` | Plain-text rendering of rich (HTML) nodes, for display only. |
-| `note.ts` | The HTML of a note copied into the page to be shown, from lists of allowed elements, attributes and style declarations: nothing that could run code, reach the network or leave the note's panel. Notes are read in `map.ts` (HTML, or plain text such as Markdown) and shown over the map by the view. |
+| `note.ts` | The HTML of a note copied into the page to be shown, from lists of allowed elements, attributes and style declarations: nothing that could run code, reach the network or leave the note's panel. Also the Markdown bar's formats (`formatMarkdown`). Notes are read and set in `map.ts` (HTML, or plain text such as Markdown; only Markdown is edited) and shown or edited over the map by the view. |
 | `localized-text.ts` | Texts Freeplane provides itself (`LOCALIZED_TEXT`, e.g. the root of a new map), in the user's language. |
 | `jsmind-view.ts` | The view: displays the map with jsMind and turns gestures into operations (browser only). |
 | `touch.ts` | Touch gestures on top of jsMind: moving a node after a short hold; pinching to zoom the map (scaled and moved with the fingers while pinching, zoomed when they are lifted). |

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 export { linkAsTyped, MindMap, typedLink, webLink, type BranchSummary, type Direction, type HiddenKind, type Note, type Side, type ViewNode } from './map.ts';
-export { copySafeHtml } from './note.ts';
+export { copySafeHtml, formatMarkdown, type NoteFormat } from './note.ts';
 export { MapError, type ErrorCode } from './errors.ts';
 export { formatStatus, type FormatStatus } from './format.ts';
 export { MapSession, HISTORY_LIMIT } from './session.ts';

@@ -43,7 +43,7 @@ Then open <http://localhost:8765/web/>, and open a `.mm` file (for instance from
 
 - Select a node by clicking it, or with the arrows, PageUp and PageDown (first and last sibling); edit its text by double-clicking it (or F2, End, Home for the caret at the start), Enter to validate, Shift+Enter (or the ↵ button) for a new line; add, delete, undo and redo with the toolbar or Freeplane's keys (Enter for a sibling, Insert or Tab for a child, Delete, Ctrl+Z, Ctrl+Y, Ctrl+S; Ctrl+arrows move a node); drag a node onto another to move it.
 - A small lock marks a text that can only be edited in Freeplane (rich text); a small dot marks content that is kept but not shown (icons, attributes, links to other maps…). Select the node to see what it holds.
-- A small page before a node's text marks a note: touch it to read the note over the whole map (read-only), and the back arrow or Escape to return.
+- A small page before a node's text marks a note: touch it, or the Note button, to read the note over the whole map; the back arrow or Escape returns. Markdown notes, and new ones, are written in place, with a bar for bold, italic, headings and lists; HTML notes are read-only.
 - A browser cannot write to the file you opened: *Download a copy* saves the result, and the map counts as saved only once you confirm the copy is where you want it. Until then, unsaved changes are kept as a draft in the browser.
 
 ## Principles

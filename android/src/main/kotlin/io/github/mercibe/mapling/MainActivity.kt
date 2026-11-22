@@ -633,6 +633,15 @@ class MainActivity : AppCompatActivity() {
         findViewById<ImageButton>(R.id.add_sibling).setOnClickListener { nodeCommand("addSibling") }
         findViewById<ImageButton>(R.id.delete_node).setOnClickListener { deleteSelected() }
         findViewById<ImageButton>(R.id.more).setOnClickListener { showMore() }
+        // A new note needs an editable map; an existing one opens in any map.
+        findViewById<ImageButton>(R.id.open_note).setOnClickListener {
+            selection?.let { sendToCore(JSONObject().put("type", "openNote").put("id", it.getString("id"))) }
+        }
+        for ((id, format) in FORMAT_BUTTONS) {
+            findViewById<ImageButton>(id).setOnClickListener {
+                sendToCore(JSONObject().put("type", "formatNote").put("format", format))
+            }
+        }
     }
 
     /**
@@ -955,12 +964,20 @@ class MainActivity : AppCompatActivity() {
         // Shown whenever a map is open (its ⋮ applies to read-only maps too), so that the map
         // does not jump at each selection.
         nodeBar.visibility = if (open && note == null) View.VISIBLE else View.GONE
+        findViewById<View>(R.id.format_bar).visibility = if (note?.optBoolean("editable") == true) View.VISIBLE else View.GONE
         renderToolbar()
         val node = selection.takeIf { !mapReadOnly }
         val root = node?.getBoolean("root") ?: true
         findViewById<View>(R.id.edit_link).apply {
             isEnabled = node != null
             val label = getString(if (node == null || node.isNull("link")) R.string.add_link else R.string.edit_link)
+            contentDescription = label
+            tooltipText = label
+        }
+        findViewById<View>(R.id.open_note).apply {
+            val hasNote = selection?.optBoolean("note") == true
+            isEnabled = selection != null && (hasNote || !mapReadOnly)
+            val label = getString(if (hasNote) R.string.open_note else R.string.add_note)
             contentDescription = label
             tooltipText = label
         }
@@ -2003,6 +2020,15 @@ class MainActivity : AppCompatActivity() {
             Triple(MENU_UNDO, R.string.undo, R.drawable.ic_undo),
             Triple(MENU_REDO, R.string.redo, R.drawable.ic_redo),
             Triple(MENU_SAVE, R.string.save, R.drawable.ic_save),
+        )
+
+        /** The format bar's buttons, by the core's names of the formats (formatNote). */
+        val FORMAT_BUTTONS = listOf(
+            R.id.format_bold to "bold",
+            R.id.format_italic to "italic",
+            R.id.format_heading to "heading",
+            R.id.format_bullet_list to "bulletList",
+            R.id.format_numbered_list to "numberedList",
         )
 
         const val PREFERENCES = PreferencesActivity.STORE

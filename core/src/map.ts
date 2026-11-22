@@ -52,8 +52,13 @@ export interface ViewNode {
   children: ViewNode[];
 }
 
-/** A note as displayed: HTML (its <body>, or the whole content), or plain text as written. */
-export type Note = { html: Element } | { text: string };
+/**
+ * A note as displayed: HTML (its <body>, or the whole content), or plain text as written;
+ * `markdown` when it is Markdown, the only kind Mapling edits (setNote).
+ */
+export type Note = { html: Element } | { text: string; markdown: boolean };
+
+const MARKDOWN = 'plain/markdown';
 
 /**
  * The web address a node links to, if any: only http and https are followed. Other links
@@ -255,10 +260,58 @@ export class MindMap {
     const note = this.noteElement(this.element(key));
     if (!note) return null;
     const first = childElements(note, 'text')[0];
-    if ((note.getAttribute('CONTENT-TYPE') ?? '').startsWith('plain/') || first) {
-      return { text: (first ?? note).textContent ?? '' };
+    const type = note.getAttribute('CONTENT-TYPE') ?? '';
+    if (type.startsWith('plain/') || first) {
+      return { text: (first ?? note).textContent ?? '', markdown: type === MARKDOWN };
     }
     return { html: Array.from(note.getElementsByTagName('body'))[0] ?? note };
+  }
+
+  /**
+   * Sets the text of the node's Markdown note, as Freeplane does (MNoteController): a node
+   * without a note gets one, written as Freeplane writes it, before the node's children; a
+   * blank text removes the note. MODIFIED changes. Returns false when nothing changes. Only a
+   * Markdown note can be set: an HTML one is not changed.
+   */
+  setNote(key: string, text: string, now = Date.now()): boolean {
+    this.checkMapEditable();
+    const el = this.element(key);
+    const current = this.note(key);
+    if (current && !('markdown' in current && current.markdown)) {
+      throw new MapError('INVALID_OPERATION', 'Only a Markdown note can be set');
+    }
+    const value = text.replace(/\r\n?/g, '\n');
+    const blank = value.trim() === '';
+    if (current ? current.text === value : blank) return false;
+    this.ensureId(el);
+    el.setAttribute('MODIFIED', String(now));
+    const note = this.noteElement(el);
+    if (blank) {
+      this.detach(note as Element);
+      return true;
+    }
+    const textEl = this.doc.createElement('text');
+    textEl.appendChild(this.doc.createTextNode(value));
+    if (note) {
+      const old = childElements(note, 'text')[0];
+      if (old) note.replaceChild(textEl, old);
+      else {
+        // Text written without <text> (read as the note's whole content): replaced whole.
+        while (note.firstChild) note.removeChild(note.firstChild);
+        note.appendChild(textEl);
+      }
+      return true;
+    }
+    // <richcontent TYPE="NOTE" CONTENT-TYPE="plain/markdown">\n<text>…</text></richcontent>
+    const created = this.doc.createElement('richcontent');
+    created.setAttribute('TYPE', 'NOTE');
+    created.setAttribute('CONTENT-TYPE', MARKDOWN);
+    created.appendChild(this.doc.createTextNode('\n'));
+    created.appendChild(textEl);
+    const firstChild = childElements(el, 'node')[0] ?? null;
+    el.insertBefore(created, firstChild);
+    el.insertBefore(this.doc.createTextNode('\n'), firstChild);
+    return true;
   }
 
   // ---------- operations ----------

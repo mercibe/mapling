@@ -26,6 +26,13 @@ SPDX-License-Identifier: GPL-3.0-or-later
     <string name="delete_node">Delete</string>
     <string name="center">Center</string>
     <string name="menu">Menu</string>
+    <string name="add_note">Add a note</string>
+    <string name="open_note">Open the note</string>
+    <string name="format_bold">Bold</string>
+    <string name="format_italic">Italic</string>
+    <string name="format_heading">Heading</string>
+    <string name="format_bullet_list">Bulleted list</string>
+    <string name="format_numbered_list">Numbered list</string>
     <string name="close_note">Back to the map</string>
     <string name="close">Close</string>
     <string name="open_map">Open a map</string>

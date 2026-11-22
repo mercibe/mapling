@@ -24,6 +24,13 @@ SPDX-License-Identifier: GPL-3.0-or-later
     <string name="delete_node">Supprimer</string>
     <string name="center">Recentrer</string>
     <string name="menu">Menu</string>
+    <string name="add_note">Ajouter une note</string>
+    <string name="open_note">Ouvrir la note</string>
+    <string name="format_bold">Gras</string>
+    <string name="format_italic">Italique</string>
+    <string name="format_heading">Titre</string>
+    <string name="format_bullet_list">Liste à puces</string>
+    <string name="format_numbered_list">Liste numérotée</string>
     <string name="close_note">Retour à la carte</string>
     <string name="close">Fermer</string>
     <string name="open_map">Ouvrir une carte</string>

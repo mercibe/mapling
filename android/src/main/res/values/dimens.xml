@@ -4,7 +4,8 @@ SPDX-FileCopyrightText: 2026 Benoit Mercier
 SPDX-License-Identifier: GPL-3.0-or-later
 -->
 <resources>
-    <!-- Buttons of the bottom bar: Delete, 3 centered, ⋮. 5 × 56 dp fit 320 dp, the
-         narrowest screen, with 20 dp between Delete or ⋮ and the centered group. -->
-    <dimen name="node_button_width">56dp</dimen>
+    <!-- Buttons of the bottom bar: Delete, 4 centered, ⋮. 6 × 52 dp fit 320 dp, the
+         narrowest screen, each still wider than a finger's 48 dp; 56 dp from 360 dp
+         (values-w360dp). -->
+    <dimen name="node_button_width">52dp</dimen>
 </resources>
