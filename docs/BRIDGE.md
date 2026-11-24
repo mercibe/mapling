@@ -115,7 +115,7 @@ Asks for a draft of the current state right away, typically when the app goes to
 { "v": 1, "type": "redo" }
 ```
 
-Undoes or redoes the last change, typically from the native menu. Ignored when there is nothing to undo or redo (see `historyChanged`). Undoing back to the last saved state makes the map unmodified again (`dirtyChanged`).
+Undoes or redoes the last change, typically from the native menu. While a note is being edited (`noteChanged` with `editing: true`), it acts on the note's text in its editor only, without changing the map; otherwise (on the map, or while a note is read), it acts on the map, and a note shown is shown again (a note just deleted comes back). Ignored when there is nothing to undo or redo (see `historyChanged`). Undoing the map back to the last saved state makes it unmodified again (`dirtyChanged`).
 
 ### `center`
 
@@ -165,6 +165,14 @@ Applies a Markdown format to the selection of the note being edited: `bold` and 
 ```
 
 Closes the note shown over the map (see `noteChanged`), typically from the shell's back arrow or its system "back", in one step whether it is read or edited: what was typed is written first (see `editNote`). The map shows its node again, selected and centered. Ignored when no note is shown.
+
+### `deleteNote`
+
+```json
+{ "v": 1, "type": "deleteNote", "id": "ID_1964929139" }
+```
+
+Removes the note of node `id`, whatever its kind (Markdown, HTML…), without asking: **the shell asks for confirmation first** (e.g. "Delete this note?"). What was being typed in it is dropped. `MODIFIED` changes. An edit like the others: undone with `undo`. Shown over the map, the note stays shown on its node, now empty and read (`hasNote: false`, `editing: false`). Ignored on a read-only map, and on a node with no note in the map (a new note being typed is kept); refused with `OUTDATED_COMMAND` when the node no longer exists. The shell offers it while a note is shown (`noteChanged`'s `hasNote`).
 
 ### `moveNode`
 
@@ -311,7 +319,7 @@ Sent whenever what the shell knows about the selected node changes: another node
 { "v": 1, "type": "historyChanged", "canUndo": true, "canRedo": false }
 ```
 
-Emitted whenever the possibility to undo or redo changes. The shell uses it to enable its Undo and Redo commands. The history is cleared on every `load`.
+Emitted whenever the possibility to undo or redo changes: in the note's text editor while a note is being edited (`noteChanged` with `editing: true`), in the map otherwise. The shell uses it to enable its Undo and Redo commands. The map's history is cleared on every `load`.
 
 ### `openLink`
 
@@ -326,7 +334,7 @@ The user touched the icon of a node's web link. The shell opens the address apar
 ```json
 { "v": 1, "type": "noteChanged", "note": {
     "id": "ID_1964929139", "title": "Budget", "editable": true, "editing": false,
-    "previous": "ID_452131666", "next": "ID_173224275" } }
+    "hasNote": true, "previous": "ID_452131666", "next": "ID_173224275" } }
 { "v": 1, "type": "noteChanged", "note": null }
 ```
 
@@ -337,9 +345,10 @@ A note is now shown over the whole map, or closed (`null`). The user touched the
 | `title` | The node's text as displayed (plain text, possibly on several lines, possibly empty) |
 | `editable` | Whether it can be edited (`editNote`): a Markdown note, or none yet, in an editable map. Any other note (HTML, LaTeX…), or any note of a read-only map, is only read |
 | `editing` | Whether it is being edited, as plain text; else it is read |
+| `hasNote` | Whether the node has a note in the map (false on a node without one, even while a new note is being typed): offer to delete it (`deleteNote`) when the map is editable |
 | `previous`, `next` | The nodes before and after it, every node of the map in pre-order (the root, then each child's branch in document order); `null` on the root and on the last node |
 
-While a note is shown, the shell shows `title` in its title bar, with a way back (back arrow, system "back") that sends `closeNote`, buttons for the previous and next nodes (`openNote`), and a pencil (`editNote` with `true`, enabled when `editable`) that becomes an eye while `editing` (`editNote` with `false`); it hides its commands on the map and the node. While `editing`, it shows its format bar (`formatNote`) in place of the node's commands. The core reads the note's own keys: Escape, Ctrl+< or Ctrl+> close it (keeping what was typed), and while it is read, PageUp and PageDown show the previous and next node's note. The core also closes the note on its own (another map loaded; the node removed): the shell follows `noteChanged` only.
+While a note is shown, the shell shows `title` in its title bar, with a way back (back arrow, system "back") that sends `closeNote`, while keeping Undo, Redo and Save; in its bottom bar, in place of the node's commands, it offers to delete the note (`deleteNote`, with confirmation, enabled when `hasNote` in an editable map), the previous and next nodes (`openNote`), and between them a pencil (`editNote` with `true`, enabled when `editable`) that becomes an eye while `editing` (`editNote` with `false`); it disables commands on the map's nodes that are covered by the note (such as `center`). While `editing`, it shows its format bar (`formatNote`) above the bottom bar, and its Undo and Redo buttons must not take the focus from the note's text. The core reads the note's own keys: Escape, Ctrl+< or Ctrl+> close it (keeping what was typed), Ctrl+Z, Ctrl+Y (or Ctrl+Shift+Z) and Ctrl+S go to the shell as `shortcut` (`undo`, `redo`, `save`), and while it is read, PageUp and PageDown show the previous and next node's note. The core also closes the note on its own (another map loaded; the node removed): the shell follows `noteChanged` only.
 
 ### `shortcut`
 
@@ -438,7 +447,7 @@ A mobile system may kill a backgrounded app without notice, and a phone may cras
 - [ ] Enable the Undo and Redo commands according to `historyChanged`, and the editing commands according to `selectionChanged`.
 - [ ] While a node with a lock or a dot is selected, explain what the mark means (`textEditable`, `hidden`), without taking room otherwise. The core's stylesheet offers the same marks for that (`.mapling-lock-mark`, `.mapling-dot-mark`).
 - [ ] Run a `shortcut` as the matching command, only when that command is enabled.
-- [ ] While `noteChanged` reports a note, show its `title` with a way back that sends `closeNote`, the previous and next nodes (`openNote`) and a pencil or an eye (`editNote`), and hide the map's and the node's commands; while it is `editing`, offer its formats (`formatNote`) with buttons that do not take the focus.
+- [ ] While `noteChanged` reports a note, show its `title` with a way back that sends `closeNote`, offer in the bottom bar to delete the note (`deleteNote`, with confirmation), go to the previous and next nodes (`openNote`) and edit or read the note (`editNote`), and hide or disable the commands on the map's nodes; while it is `editing`, offer its formats (`formatNote`) above the bottom bar, with buttons (Undo and Redo included) that do not take the focus.
 - [ ] Ask for confirmation before `deleteNode` when the selected branch holds hidden content, with a translated summary; send the node's `id` and the `revision` the confirmation was based on, and ask again on `OUTDATED_COMMAND`.
 - [ ] Serve the core's resources locally; no network access.
 

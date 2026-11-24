@@ -69,6 +69,8 @@ export interface ShownNote {
   editable: boolean;
   /** Whether it is being edited, in a text area; else it is read. */
   editing: boolean;
+  /** Whether the node has a note in the map (deleteNote removes it); not while a new one is only typed. */
+  hasNote: boolean;
   /** The nodes before and after it in the map's pre-order (MindMap.nodeKeys); null at either end. */
   previous: string | null;
   next: string | null;
@@ -103,6 +105,7 @@ export type ShellMessage = { v: number; requestId?: string } & (
   | { type: 'editNote'; editing: boolean }
   | { type: 'formatNote'; format: NoteFormat }
   | { type: 'closeNote' }
+  | { type: 'deleteNote'; id: string }
   | { type: Command; id: string; revision?: number }
 );
 
@@ -156,6 +159,10 @@ export interface View {
   noteText(): string | null;
   /** Applies a Markdown format to the selection of the note being edited. */
   formatNote(format: NoteFormat): void;
+  /** Undoes or redoes a change of the note being edited, in its text area's own history. */
+  undoNote(direction: 'undo' | 'redo'): void;
+  /** What the note being edited can undo and redo; the view calls noteInput when this may change. */
+  noteHistory(): { canUndo: boolean; canRedo: boolean };
 }
 
 class BridgeError extends Error {
@@ -265,6 +272,7 @@ export class Bridge {
     this.noteEditing = editing;
     this.view.showNote((this.session as MapSession).map.note(key) ?? NO_NOTE, editing);
     this.post({ type: 'noteChanged', note: this.shownNote() });
+    this.reportState();
   }
 
   /** What the shell is told about the note shown; null when none is. */
@@ -279,6 +287,7 @@ export class Bridge {
       title: map.text(key, this.locale),
       editable: this.noteEditable(key),
       editing: this.noteEditing,
+      hasNote: map.note(key) !== null,
       previous: keys[index - 1] ?? null,
       next: keys[index + 1] ?? null,
     };
@@ -329,6 +338,30 @@ export class Bridge {
     this.view.showNote(null, false);
     if (this.session?.map.has(key)) this.view.reveal(key);
     this.post({ type: 'noteChanged', note: null });
+    this.reportState();
+  }
+
+  /**
+   * Removes the note of a node, whatever its kind, as one edit undone like the others; what is
+   * being typed in it is dropped. Shown, it stays shown, empty and read. Ignored on a node with
+   * no note in the map: a new note being typed is kept, as nothing could bring it back.
+   */
+  private deleteNote(key: string): void {
+    const session = this.session;
+    if (!session) throw new BridgeError('NO_MAP_LOADED', 'No map loaded');
+    if (this.readOnly) return;
+    if (!session.map.has(key)) throw new BridgeError('OUTDATED_COMMAND', `Unknown node: ${key}`);
+    if (!session.map.note(key)) return;
+    const shown = key === this.noteKey;
+    if (shown) this.noteEditing = false;
+    this.edit((map) => map.removeNote(key));
+    this.view.show(session.map.toView(this.locale), this.readOnly, true); // without its note icon
+    if (shown) this.showNote(false);
+  }
+
+  /** The note being edited changed, typed or undone: the shell learns what it can undo. */
+  noteInput(): void {
+    this.reportState();
   }
 
   /** A key pressed on the map, outside a text being edited: the shell runs the command, if it can. */
@@ -406,6 +439,8 @@ export class Bridge {
         return;
       case 'closeNote':
         return this.closeNote();
+      case 'deleteNote':
+        return this.deleteNote(message.id);
       case 'editText':
       case 'addChild':
       case 'addSibling':
@@ -542,22 +577,32 @@ export class Bridge {
     }
   }
 
+  /**
+   * Undoes or redoes in the note being edited, if one is; else in the map, whose note shown,
+   * read, is shown again (a note deleted comes back).
+   */
   private history(direction: 'undo' | 'redo'): void {
     const session = this.session;
     if (!session || this.readOnly) return;
+    if (this.noteEditing) return this.view.undoNote(direction);
     if (direction === 'undo' ? session.undo() : session.redo()) {
       this.view.show(session.map.toView(this.locale), this.readOnly, true);
+      if (this.noteKey !== null && session.map.has(this.noteKey)) this.showNote(false);
     }
   }
 
-  /** Sends dirtyChanged and historyChanged when, and only when, they change. */
+  /**
+   * Sends dirtyChanged and historyChanged when, and only when, they change. The history is
+   * the note's while one is edited, else the map's.
+   */
   private reportState(): void {
     const session = this.session;
     const editable = !!session && !this.readOnly;
+    const history = this.noteEditing ? this.view.noteHistory() : session;
     const now = {
       dirty: !!session && session.dirty,
-      canUndo: editable && session.canUndo,
-      canRedo: editable && session.canRedo,
+      canUndo: editable && !!history?.canUndo,
+      canRedo: editable && !!history?.canRedo,
     };
     if (now.dirty !== this.reported.dirty) this.post({ type: 'dirtyChanged', dirty: now.dirty });
     if (now.canUndo !== this.reported.canUndo || now.canRedo !== this.reported.canRedo) {

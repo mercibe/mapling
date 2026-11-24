@@ -17,6 +17,7 @@ const MARKDOWN = 'ID_1048198066'; // CONTENT-TYPE="plain/markdown"
 const NO_NOTE = 'ID_823833465'; // right node
 const ROOT = 'ID_452131666'; // fixture10, without a note
 const LEFT = 'ID_1768884868'; // left node, the last one: HTML note
+const WITH_NOTE = new Set([HTML, XML_HTML, MARKDOWN, LEFT]);
 
 function html(note: Note | null): Element {
   assert.ok(note && 'html' in note, 'an HTML note');
@@ -146,15 +147,28 @@ function setup(readOnly = false) {
   const formats: string[] = [];
   const revealed: string[] = [];
   let typed: string | null = null;
+  // The editor's history, as the text area keeps it: what undo and redo would go back to.
+  const history = { undone: [] as string[], redone: [] as string[] };
   const bridge = new Bridge((json) => sent.push(JSON.parse(json)), {
     show() {}, setReadOnly() {}, command() {}, center() {}, zoom() {}, editing: () => false,
     reveal: (key) => revealed.push(key),
     showNote: (note, editing) => {
       shown.push([note, editing]);
       typed = note && editing && 'text' in note ? note.text : null;
+      history.undone = [];
+      history.redone = [];
     },
     noteText: () => typed,
     formatNote: (format) => formats.push(format),
+    undoNote: (direction) => {
+      const [from, to] = direction === 'undo' ? [history.undone, history.redone] : [history.redone, history.undone];
+      const text = from.pop();
+      if (text === undefined) return;
+      to.push(typed as string);
+      typed = text;
+      bridge.noteInput();
+    },
+    noteHistory: () => ({ canUndo: history.undone.length > 0, canRedo: history.redone.length > 0 }),
   });
   const send = (message: object) => bridge.receive(JSON.stringify({ v: 1, ...message }));
   const data = Buffer.from(notes, 'utf8').toString('base64');
@@ -166,12 +180,20 @@ function setup(readOnly = false) {
     send({ type: 'openNote', id: key });
     send({ type: 'editNote', editing: true });
   };
-  return { bridge, send, take, shown, formats, revealed, data, edit, type: (text: string) => (typed = text), sent };
+  /** Types in the editor, as an input event: one step of its history. */
+  const type = (text: string) => {
+    history.undone.push(typed as string);
+    history.redone = [];
+    typed = text;
+    bridge.noteInput();
+  };
+  return { bridge, send, take, shown, formats, revealed, data, edit, type, sent };
 }
 
 /** What noteChanged tells of a note shown, read and editable unless said otherwise. */
 function shownNote(id: string, title: string, previous: string | null, next: string | null, more: object = {}) {
-  return { v: 1, type: 'noteChanged', note: { id, title, editable: true, editing: false, previous, next, ...more } };
+  const note = { id, title, editable: true, editing: false, hasNote: WITH_NOTE.has(id), previous, next, ...more };
+  return { v: 1, type: 'noteChanged', note };
 }
 
 test('the nodes of a map are in pre-order: the root, then each branch in document order', () => {
@@ -305,9 +327,9 @@ test('a note being typed is kept when the map becomes read-only, then read; edit
   type('kept');
   send({ type: 'setReadOnly', readOnly: true });
   assert.deepEqual(bridge.current?.map.note(NO_NOTE), { text: 'kept', markdown: true });
-  assert.deepEqual(take(), [shownNote(NO_NOTE, 'right node', MARKDOWN, LEFT, { editable: false })]);
+  assert.deepEqual(take(), [shownNote(NO_NOTE, 'right node', MARKDOWN, LEFT, { editable: false, hasNote: true })]);
   send({ type: 'setReadOnly', readOnly: false });
-  assert.deepEqual(take(), [shownNote(NO_NOTE, 'right node', MARKDOWN, LEFT)], 'still read, editable again');
+  assert.deepEqual(take(), [shownNote(NO_NOTE, 'right node', MARKDOWN, LEFT, { hasNote: true })], 'still read, editable again');
   send({ type: 'editNote', editing: true });
   send({ type: 'setReadOnly', readOnly: false });
   assert.equal(take().at(-1).note.editing, true, 'an editable map leaves the note edited');
@@ -324,4 +346,71 @@ test('a note kept on loading another map does not lend its revision to the new m
   send({ type: 'load', requestId: 'r2', name: 'notes.mm', data });
   assert.deepEqual(previous.map.note(NO_NOTE), { text: 'typed', markdown: true }, 'kept in its own map');
   assert.ok(bridge.current!.revision > previous.lastCreatedRevision);
+});
+
+test('removeNote removes a note of any kind, MODIFIED changed; false on a node without one', () => {
+  const map = new MindMap(notes);
+  assert.equal(map.removeNote(HTML, 42), true);
+  assert.equal(map.note(HTML), null);
+  assert.match(map.serialize(), /ID="ID_174053484"[^>]*MODIFIED="42"/);
+  assert.equal(map.removeNote(HTML), false, 'already gone');
+  assert.equal(map.removeNote(NO_NOTE), false);
+  assert.equal(map.removeNote(MARKDOWN), true);
+  assert.equal(map.note(MARKDOWN), null);
+});
+
+test('deleteNote removes the note shown, Markdown or HTML, which stays shown, empty and read', () => {
+  const { bridge, send, take, shown, sent, edit, type } = setup();
+  edit(MARKDOWN);
+  type('typed, dropped');
+  take();
+  send({ type: 'deleteNote', id: MARKDOWN });
+  assert.equal(bridge.current?.map.note(MARKDOWN), null);
+  assert.deepEqual(take(), [shownNote(MARKDOWN, 'Children with Markdown note', XML_HTML, NO_NOTE, { hasNote: false })]);
+  assert.deepEqual(shown.at(-1), [{ text: '', markdown: true }, false], 'empty, read');
+  send({ type: 'openNote', id: HTML });
+  send({ type: 'deleteNote', id: HTML });
+  assert.equal(bridge.current?.map.note(HTML), null);
+  assert.deepEqual(take().at(-1), shownNote(HTML, 'node1', null, 'ID_192583075', { hasNote: false, previous: ROOT }));
+  send({ type: 'undo' });
+  assert.ok(bridge.current?.map.note(HTML), 'one edit, undone with the note read: it comes back');
+  assert.deepEqual(take(), [shownNote(HTML, 'node1', ROOT, 'ID_192583075', { editable: false })], 'and is shown again');
+  send({ type: 'deleteNote', id: 'ID_unknown' });
+  assert.equal(sent.at(-1).code, 'OUTDATED_COMMAND');
+  edit(NO_NOTE);
+  type('a new note, not written yet');
+  send({ type: 'deleteNote', id: NO_NOTE });
+  assert.equal(bridge.current?.map.note(NO_NOTE), null);
+  send({ type: 'closeNote' });
+  assert.deepEqual(bridge.current?.map.note(NO_NOTE), { text: 'a new note, not written yet', markdown: true }, 'ignored: kept, then written');
+  const readOnly = setup(true);
+  readOnly.send({ type: 'deleteNote', id: HTML });
+  assert.ok(readOnly.bridge.current?.map.note(HTML), 'ignored on a read-only map');
+});
+
+test('while a note is edited, undo and redo act on its text only; read, on the map', () => {
+  const { bridge, send, sent, edit, type } = setup();
+  const history = () => sent.filter((m) => m.type === 'historyChanged').map((m) => [m.canUndo, m.canRedo]);
+  bridge.edit((map) => map.updateText(ROOT, 'changed root'));
+  edit(MARKDOWN);
+  assert.deepEqual(history(), [[true, false], [false, false]], "the map's history, then the editor's: empty");
+  type('one');
+  type('two');
+  send({ type: 'undo' });
+  assert.deepEqual(history().slice(2), [[true, false], [true, true]]);
+  send({ type: 'redo' });
+  send({ type: 'undo' });
+  send({ type: 'undo' });
+  assert.deepEqual(history().slice(4), [[true, false], [true, true], [false, true]]);
+  assert.equal(bridge.current?.map.text(ROOT), 'changed root', 'the map untouched');
+  send({ type: 'undo' });
+  assert.equal(history().length, 7, 'nothing left to undo in the note');
+  type('three');
+  send({ type: 'editNote', editing: false });
+  assert.deepEqual(bridge.current?.map.note(MARKDOWN), { text: 'three', markdown: true });
+  send({ type: 'undo' });
+  assert.match((bridge.current?.map.note(MARKDOWN) as { text: string }).text, /^# Main title/, 'read: undo acts on the map, the note as it was');
+  send({ type: 'editNote', editing: true });
+  bridge.closeNote(); // Escape with nothing typed: the map's history is reported back
+  assert.deepEqual(history().slice(-2), [[false, false], [true, true]]);
 });

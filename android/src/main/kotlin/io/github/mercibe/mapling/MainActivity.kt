@@ -378,10 +378,10 @@ class MainActivity : AppCompatActivity() {
         onBackPressedDispatcher.addCallback(this, backClosesDrawer)
     }
 
-    /** Undo, redo and save, always at hand; while a note is shown, the nodes around it and editing it. */
+    /** Undo, redo and save, always at hand. */
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         val tint = getColorStateList(R.color.toolbar_icon)
-        for ((id, title, icon) in TOOLBAR_ACTIONS + NOTE_ACTIONS) {
+        for ((id, title, icon) in TOOLBAR_ACTIONS) {
             menu.add(Menu.NONE, id, Menu.NONE, title).apply {
                 setIcon(icon)
                 iconTintList = tint
@@ -392,20 +392,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onPrepareOptionsMenu(menu: Menu): Boolean {
-        val shown = note
-        for ((id, _, _) in NOTE_ACTIONS) menu.findItem(id).isVisible = shown != null
-        if (shown != null) {
-            menu.findItem(MENU_PREVIOUS_NOTE).isEnabled = !shown.isNull("previous")
-            menu.findItem(MENU_NEXT_NOTE).isEnabled = !shown.isNull("next")
-            // A pencil to edit the note read, an eye to read the note edited.
-            val editing = shown.optBoolean("editing")
-            menu.findItem(MENU_EDIT_NOTE).apply {
-                isEnabled = editing || shown.optBoolean("editable")
-                setIcon(if (editing) R.drawable.ic_visibility else R.drawable.ic_edit)
-                setTitle(if (editing) R.string.read_note else R.string.edit_note)
-            }
-        }
-        val open = document != null && shown == null // a note hides the map's commands
+        val open = document != null
         for ((id, _, _) in TOOLBAR_ACTIONS) menu.findItem(id).isVisible = open
         menu.findItem(MENU_UNDO).isEnabled = canUndo
         menu.findItem(MENU_REDO).isEnabled = canRedo
@@ -416,13 +403,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        val shown = note
-        if (shown != null && item.itemId in listOf(MENU_UNDO, MENU_REDO, MENU_SAVE)) return true // hidden meanwhile
-        if (shown == null && item.itemId in NOTE_ACTIONS.map { it.first }) return true // hidden meanwhile
         when (item.itemId) {
-            MENU_PREVIOUS_NOTE -> openNote(shown!!.optString("previous"))
-            MENU_NEXT_NOTE -> openNote(shown!!.optString("next"))
-            MENU_EDIT_NOTE -> sendToCore(JSONObject().put("type", "editNote").put("editing", !shown!!.optBoolean("editing")))
             MENU_UNDO -> sendToCore(JSONObject().put("type", "undo"))
             MENU_REDO -> sendToCore(JSONObject().put("type", "redo"))
             MENU_SAVE -> save()
@@ -651,9 +632,15 @@ class MainActivity : AppCompatActivity() {
         findViewById<ImageButton>(R.id.add_child).setOnClickListener { nodeCommand("addChild") }
         findViewById<ImageButton>(R.id.add_sibling).setOnClickListener { nodeCommand("addSibling") }
         findViewById<ImageButton>(R.id.delete_node).setOnClickListener { deleteSelected() }
+        findViewById<ImageButton>(R.id.delete_note).setOnClickListener { deleteNote() }
         findViewById<ImageButton>(R.id.more).setOnClickListener { showMore() }
         // Any node's note is read, even on a node without one or in a read-only map.
         findViewById<ImageButton>(R.id.open_note).setOnClickListener { selection?.let { openNote(it.getString("id")) } }
+        findViewById<ImageButton>(R.id.previous_note).setOnClickListener { note?.let { openNote(it.optString("previous")) } }
+        findViewById<ImageButton>(R.id.next_note).setOnClickListener { note?.let { openNote(it.optString("next")) } }
+        findViewById<ImageButton>(R.id.edit_note).setOnClickListener {
+            note?.let { sendToCore(JSONObject().put("type", "editNote").put("editing", !it.optBoolean("editing"))) }
+        }
         for ((id, format) in FORMAT_BUTTONS) {
             findViewById<ImageButton>(id).setOnClickListener {
                 sendToCore(JSONObject().put("type", "formatNote").put("format", format))
@@ -871,7 +858,7 @@ class MainActivity : AppCompatActivity() {
             setTextColor(getColor(R.color.menu_detail))
             setPadding(dp(24), dp(16), dp(24), dp(8))
         })
-        fun entry(text: Int, icon: Int, action: () -> Unit) = list.addView(TextView(this).apply {
+        fun entry(text: Int, icon: Int, enabled: Boolean = true, action: () -> Unit) = list.addView(TextView(this).apply {
             setText(text)
             textSize = 16f
             setTextColor(getColor(R.color.message_text))
@@ -881,6 +868,8 @@ class MainActivity : AppCompatActivity() {
             gravity = Gravity.CENTER_VERTICAL
             minHeight = dp(48)
             setPadding(dp(24), 0, dp(24), 0)
+            isEnabled = enabled
+            alpha = if (enabled) 1f else 0.38f
             setBackgroundResource(selectableBackground())
             setOnClickListener {
                 sheet.dismiss()
@@ -889,13 +878,13 @@ class MainActivity : AppCompatActivity() {
         })
         // Centers the selected node, or the root: always at hand to find the map again.
         title(R.string.more_map)
-        entry(R.string.center, R.drawable.ic_filter_center_focus) { sendToCore(JSONObject().put("type", "center")) }
+        entry(R.string.center, R.drawable.ic_filter_center_focus, enabled = note == null) { sendToCore(JSONObject().put("type", "center")) }
         entry(R.string.map_info, R.drawable.ic_info) { showMapInfo() }
         // A new map has no file yet: nothing to read again.
         if (uri != NEW_MAP) entry(R.string.reload, R.drawable.ic_refresh) { leaveMap { open(uri) } }
         entry(R.string.save_as, R.drawable.ic_save) { saveAs() }
         if (uri.toString() in renamable) entry(R.string.rename, R.drawable.ic_edit) { renameMap() }
-        entry(R.string.close, R.drawable.ic_close, ::closeMap)
+        entry(R.string.close, R.drawable.ic_close) { closeMap() }
         // Last, out of the way of the frequent ones; shown only where it applies.
         if (uri.toString() in deletable) entry(R.string.delete_map, R.drawable.ic_delete) { confirmDeleteMap() }
         sheet.setContentView(list)
@@ -913,7 +902,13 @@ class MainActivity : AppCompatActivity() {
      * command runs only when its button or menu entry could be used now, as on the web.
      */
     private fun runShortcut(command: String, direction: String) {
-        if (note != null) return // the note's own keys are read by the core
+        // Also while a note is shown: the core sends these from it too.
+        when (command) {
+            "undo" -> { if (canUndo) sendToCore(JSONObject().put("type", "undo")); return }
+            "redo" -> { if (canRedo) sendToCore(JSONObject().put("type", "redo")); return }
+            "save" -> { if (dirty || document == NEW_MAP) save(); return }
+        }
+        if (note != null) return // the note's other keys are read by the core
         val node = selection.takeIf { !mapReadOnly }
         val notRoot = node != null && !node.getBoolean("root")
         when (command) {
@@ -921,9 +916,6 @@ class MainActivity : AppCompatActivity() {
             "addSibling" -> if (notRoot) nodeCommand("addSibling")
             "deleteNode" -> if (notRoot) deleteSelected()
             "moveNode" -> if (notRoot) sendToCore(JSONObject().put("type", "moveNode").put("id", node!!.getString("id")).put("direction", direction))
-            "undo" -> if (canUndo) sendToCore(JSONObject().put("type", "undo"))
-            "redo" -> if (canRedo) sendToCore(JSONObject().put("type", "redo"))
-            "save" -> if (dirty || document == NEW_MAP) save()
             "zoomIn", "zoomOut" -> sendToCore(JSONObject().put("type", command))
             "editLink" -> if (node != null) editLink(node)
             "followLink" -> selection?.takeIf { !it.isNull("link") }?.let { followLink(it.getString("link")) }
@@ -934,6 +926,17 @@ class MainActivity : AppCompatActivity() {
     /** Shows a node's note, read, over the map; the core selects the node and centers it. */
     private fun openNote(id: String) {
         if (id.isNotEmpty()) sendToCore(JSONObject().put("type", "openNote").put("id", id))
+    }
+
+    /** Removes the note shown, once confirmed; the note stays shown, empty and read. */
+    private fun deleteNote() {
+        val id = note?.optString("id")?.takeIf { it.isNotEmpty() } ?: return
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setMessage(R.string.confirm_delete_note)
+            .setPositiveButton(R.string.delete) { _, _ -> sendToCore(JSONObject().put("type", "deleteNote").put("id", id)) }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(getColor(R.color.danger))
     }
 
     /**
@@ -986,11 +989,20 @@ class MainActivity : AppCompatActivity() {
         if (!open) renderHome()
         // Shown whenever a map is open (its ⋮ applies to read-only maps too), so that the map
         // does not jump at each selection.
-        nodeBar.visibility = if (open && note == null) View.VISIBLE else View.GONE
-        findViewById<View>(R.id.format_bar).visibility = if (note?.optBoolean("editing") == true) View.VISIBLE else View.GONE
+        nodeBar.visibility = if (open) View.VISIBLE else View.GONE
+        val shown = note
+        findViewById<View>(R.id.format_bar).visibility = if (shown?.optBoolean("editing") == true) View.VISIBLE else View.GONE
         renderToolbar()
         val node = selection.takeIf { !mapReadOnly }
         val root = node?.getBoolean("root") ?: true
+        val onMap = if (shown == null) View.VISIBLE else View.GONE
+        val onNote = if (shown != null) View.VISIBLE else View.GONE
+        for (id in listOf(R.id.delete_node, R.id.edit_link, R.id.open_note, R.id.add_child, R.id.add_sibling)) {
+            findViewById<View>(id).visibility = onMap
+        }
+        for (id in listOf(R.id.delete_note, R.id.previous_note, R.id.edit_note, R.id.next_note)) {
+            findViewById<View>(id).visibility = onNote
+        }
         findViewById<View>(R.id.edit_link).apply {
             isEnabled = node != null
             val label = getString(if (node == null || node.isNull("link")) R.string.add_link else R.string.edit_link)
@@ -1001,6 +1013,18 @@ class MainActivity : AppCompatActivity() {
         findViewById<View>(R.id.add_child).isEnabled = node != null
         findViewById<View>(R.id.add_sibling).isEnabled = !root
         findViewById<View>(R.id.delete_node).isEnabled = !root
+        findViewById<View>(R.id.delete_note).isEnabled = !mapReadOnly && shown?.optBoolean("hasNote") == true
+        findViewById<View>(R.id.previous_note).isEnabled = shown != null && !shown.isNull("previous")
+        findViewById<View>(R.id.next_note).isEnabled = shown != null && !shown.isNull("next")
+        // A pencil to edit the note read, an eye to read the note edited.
+        val editing = shown?.optBoolean("editing") == true
+        findViewById<ImageButton>(R.id.edit_note).apply {
+            isEnabled = editing || shown?.optBoolean("editable") == true
+            setImageResource(if (editing) R.drawable.ic_visibility else R.drawable.ic_edit)
+            val label = getString(if (editing) R.string.read_note else R.string.edit_note)
+            contentDescription = label
+            tooltipText = label
+        }
         renderMessages()
         renderHints()
         backWhileModified.isEnabled = dirty && document != null
@@ -2038,21 +2062,11 @@ class MainActivity : AppCompatActivity() {
         const val ABOUT = 2
         const val MENU_UNDO = 4
         const val MENU_REDO = 5
-        const val MENU_PREVIOUS_NOTE = 6
-        const val MENU_NEXT_NOTE = 7
-        const val MENU_EDIT_NOTE = 8
 
         val TOOLBAR_ACTIONS = listOf(
             Triple(MENU_UNDO, R.string.undo, R.drawable.ic_undo),
             Triple(MENU_REDO, R.string.redo, R.drawable.ic_redo),
             Triple(MENU_SAVE, R.string.save, R.drawable.ic_save),
-        )
-
-        /** While a note is shown: the nodes before and after it in the map, and editing it or reading it again. */
-        val NOTE_ACTIONS = listOf(
-            Triple(MENU_PREVIOUS_NOTE, R.string.previous_node, R.drawable.ic_chevron_left),
-            Triple(MENU_NEXT_NOTE, R.string.next_node, R.drawable.ic_chevron_right),
-            Triple(MENU_EDIT_NOTE, R.string.edit_note, R.drawable.ic_edit),
         )
 
         /** The format bar's buttons, by the core's names of the formats (formatNote). */

@@ -104,94 +104,8 @@ SPDX-License-Identifier: GPL-3.0-or-later
         android:layout_height="wrap_content"
         android:orientation="vertical" />
 
-    <!-- With a map open: Delete at the start, the other commands on the selected node
-         centered, and at the end ⋮ for the less frequent ones, on the node and on the map. -->
-    <FrameLayout
-        android:id="@+id/node_bar"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:background="@color/node_bar"
-        android:visibility="gone">
-
-        <!-- Apart, at the start: away from the frequent commands and from ⋮, so that a
-             tap meant for another button does not delete a branch. -->
-        <ImageButton
-            android:id="@+id/delete_node"
-            style="?android:attr/borderlessButtonStyle"
-            android:layout_width="@dimen/node_button_width"
-            android:layout_height="48dp"
-            android:layout_gravity="start|center_vertical"
-            android:contentDescription="@string/delete_node"
-            android:src="@drawable/ic_delete"
-            app:tint="@color/node_icon"
-            android:tooltipText="@string/delete_node" />
-
-        <!-- Centered, with room kept at the start for Delete and at the end for ⋮, so that
-             it never overlaps them. -->
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:layout_marginStart="@dimen/node_button_width"
-            android:layout_marginEnd="@dimen/node_button_width"
-            android:orientation="horizontal">
-
-            <!-- Its description says add or edit, by the node (render). -->
-            <ImageButton
-                android:id="@+id/edit_link"
-                style="?android:attr/borderlessButtonStyle"
-                android:layout_width="@dimen/node_button_width"
-                android:layout_height="48dp"
-                android:contentDescription="@string/add_link"
-                android:src="@drawable/ic_link"
-                app:tint="@color/node_icon"
-                android:tooltipText="@string/add_link" />
-
-            <ImageButton
-                android:id="@+id/open_note"
-                style="?android:attr/borderlessButtonStyle"
-                android:layout_width="@dimen/node_button_width"
-                android:layout_height="48dp"
-                android:contentDescription="@string/open_note"
-                android:src="@drawable/ic_description"
-                app:tint="@color/node_icon"
-                android:tooltipText="@string/open_note" />
-
-            <ImageButton
-                android:id="@+id/add_child"
-                style="?android:attr/borderlessButtonStyle"
-                android:layout_width="@dimen/node_button_width"
-                android:layout_height="48dp"
-                android:contentDescription="@string/add_child"
-                android:src="@drawable/ic_subdirectory_arrow_right"
-                app:tint="@color/node_icon"
-                android:tooltipText="@string/add_child" />
-
-            <ImageButton
-                android:id="@+id/add_sibling"
-                style="?android:attr/borderlessButtonStyle"
-                android:layout_width="@dimen/node_button_width"
-                android:layout_height="48dp"
-                android:contentDescription="@string/add_sibling"
-                android:src="@drawable/ic_add_row_below"
-                app:tint="@color/node_icon"
-                android:tooltipText="@string/add_sibling" />
-        </LinearLayout>
-
-        <ImageButton
-            android:id="@+id/more"
-            style="?android:attr/borderlessButtonStyle"
-            android:layout_width="@dimen/node_button_width"
-            android:layout_height="48dp"
-            android:layout_gravity="end|center_vertical"
-            android:contentDescription="@string/more"
-            android:src="@drawable/ic_more_vert"
-            app:tint="@color/node_icon"
-            android:tooltipText="@string/more" />
-    </FrameLayout>
-
-    <!-- While a Markdown note is edited, in place of the node bar, above the keyboard: its
-         formats. Never focused, so that the note's text keeps the focus and the keyboard. -->
+    <!-- While a Markdown note is edited, above the bottom bar: its formats. Never focused,
+         so that the note's text keeps the focus and the keyboard. -->
     <LinearLayout
         android:id="@+id/format_bar"
         android:layout_width="match_parent"
@@ -252,6 +166,139 @@ SPDX-License-Identifier: GPL-3.0-or-later
             app:tint="@color/node_icon"
             android:tooltipText="@string/format_numbered_list" />
     </LinearLayout>
+
+    <!-- With a map open: its ends stay: Delete (the node, or the note shown) at the start,
+         and ⋮ at the end; in between, the selected node's commands, or the note's: ‹, pencil
+         or eye, ›. -->
+    <FrameLayout
+        android:id="@+id/node_bar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/node_bar"
+        android:visibility="gone">
+
+        <!-- Apart, at the start: away from the frequent commands and from ⋮, so that a
+             tap meant for another button deletes nothing. -->
+        <ImageButton
+            android:id="@+id/delete_node"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="@dimen/node_button_width"
+            android:layout_height="48dp"
+            android:layout_gravity="start|center_vertical"
+            android:contentDescription="@string/delete_node"
+            android:src="@drawable/ic_delete"
+            app:tint="@color/node_icon"
+            android:tooltipText="@string/delete_node" />
+
+        <ImageButton
+            android:id="@+id/delete_note"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="@dimen/node_button_width"
+            android:layout_height="48dp"
+            android:layout_gravity="start|center_vertical"
+            android:contentDescription="@string/delete_note"
+            android:src="@drawable/ic_delete"
+            android:visibility="gone"
+            app:tint="@color/node_icon"
+            android:tooltipText="@string/delete_note" />
+
+        <!-- Centered, with room kept at the start for Delete and at the end for ⋮, so that
+             it never overlaps them. -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:layout_marginStart="@dimen/node_button_width"
+            android:layout_marginEnd="@dimen/node_button_width"
+            android:orientation="horizontal">
+
+            <!-- Its description says add or edit, by the node (render). -->
+            <ImageButton
+                android:id="@+id/edit_link"
+                style="?android:attr/borderlessButtonStyle"
+                android:layout_width="@dimen/node_button_width"
+                android:layout_height="48dp"
+                android:contentDescription="@string/add_link"
+                android:src="@drawable/ic_link"
+                app:tint="@color/node_icon"
+                android:tooltipText="@string/add_link" />
+
+            <ImageButton
+                android:id="@+id/open_note"
+                style="?android:attr/borderlessButtonStyle"
+                android:layout_width="@dimen/node_button_width"
+                android:layout_height="48dp"
+                android:contentDescription="@string/open_note"
+                android:src="@drawable/ic_description"
+                app:tint="@color/node_icon"
+                android:tooltipText="@string/open_note" />
+
+            <ImageButton
+                android:id="@+id/add_child"
+                style="?android:attr/borderlessButtonStyle"
+                android:layout_width="@dimen/node_button_width"
+                android:layout_height="48dp"
+                android:contentDescription="@string/add_child"
+                android:src="@drawable/ic_subdirectory_arrow_right"
+                app:tint="@color/node_icon"
+                android:tooltipText="@string/add_child" />
+
+            <ImageButton
+                android:id="@+id/add_sibling"
+                style="?android:attr/borderlessButtonStyle"
+                android:layout_width="@dimen/node_button_width"
+                android:layout_height="48dp"
+                android:contentDescription="@string/add_sibling"
+                android:src="@drawable/ic_add_row_below"
+                app:tint="@color/node_icon"
+                android:tooltipText="@string/add_sibling" />
+
+            <ImageButton
+                android:id="@+id/previous_note"
+                style="?android:attr/borderlessButtonStyle"
+                android:layout_width="@dimen/node_button_width"
+                android:layout_height="48dp"
+                android:contentDescription="@string/previous_node"
+                android:src="@drawable/ic_chevron_left"
+                android:visibility="gone"
+                app:tint="@color/node_icon"
+                android:tooltipText="@string/previous_node" />
+
+            <!-- A pencil to edit the note read, an eye to read the note edited (render). -->
+            <ImageButton
+                android:id="@+id/edit_note"
+                style="?android:attr/borderlessButtonStyle"
+                android:layout_width="@dimen/node_button_width"
+                android:layout_height="48dp"
+                android:contentDescription="@string/edit_note"
+                android:src="@drawable/ic_edit"
+                android:visibility="gone"
+                app:tint="@color/node_icon"
+                android:tooltipText="@string/edit_note" />
+
+            <ImageButton
+                android:id="@+id/next_note"
+                style="?android:attr/borderlessButtonStyle"
+                android:layout_width="@dimen/node_button_width"
+                android:layout_height="48dp"
+                android:contentDescription="@string/next_node"
+                android:src="@drawable/ic_chevron_right"
+                android:visibility="gone"
+                app:tint="@color/node_icon"
+                android:tooltipText="@string/next_node" />
+        </LinearLayout>
+
+        <ImageButton
+            android:id="@+id/more"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="@dimen/node_button_width"
+            android:layout_height="48dp"
+            android:layout_gravity="end|center_vertical"
+            android:contentDescription="@string/more"
+            android:src="@drawable/ic_more_vert"
+            app:tint="@color/node_icon"
+            android:tooltipText="@string/more" />
+    </FrameLayout>
 </LinearLayout>
 
     <!-- The ☰ drawer: the open map (header), the commands, the recent maps, About. -->

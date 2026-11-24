@@ -293,6 +293,7 @@ export class JsMindView implements View {
       const editor = document.createElement('textarea');
       editor.className = 'mapling-note-editor';
       editor.value = note.text;
+      editor.addEventListener('input', () => this.bridge?.noteInput()); // typed, formatted, undone
       panel.append(editor);
       this.noteEditor = editor;
       editor.focus();
@@ -327,6 +328,21 @@ export class JsMindView implements View {
       editor.setRangeText(change.insert, change.from, change.to);
     }
     editor.setSelectionRange(change.start, change.end);
+  }
+
+  /**
+   * The editor's own history, which Chromium keeps for each text area: a run of typing is one
+   * step, a format another; a new editor starts with none (measured in Chromium 156).
+   */
+  undoNote(direction: 'undo' | 'redo'): void {
+    if (!this.noteEditor) return;
+    this.noteEditor.focus();
+    document.execCommand(direction);
+  }
+
+  noteHistory(): { canUndo: boolean; canRedo: boolean } {
+    const editing = !!this.noteEditor;
+    return { canUndo: editing && document.queryCommandEnabled('undo'), canRedo: editing && document.queryCommandEnabled('redo') };
   }
 
   /** One step of jsMind's zoom, around the middle of the map (no point given). */
@@ -401,7 +417,8 @@ export class JsMindView implements View {
    * The panel a note is shown in, over the map, scrolled on its own. Escape, or Ctrl+< and
    * Ctrl+> which opened it, close it, as the shell's back does; while it is read, PageUp and
    * PageDown show the previous and next node's note (in the editor, they keep their role).
-   * Its web links open apart, through the shell.
+   * Undo, redo and save go to the shell, as on the map: the bridge applies undo and redo to
+   * the editor, if the note is edited, and saves what is typed. Its web links open apart, through the shell.
    */
   private createNotePanel(): HTMLElement {
     const panel = document.createElement('div');
@@ -410,7 +427,9 @@ export class JsMindView implements View {
     panel.hidden = true;
     panel.addEventListener('keydown', (event) => {
       const plain = !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey;
-      if (event.key === 'Escape' || shortcutOf(event)?.command === 'openNote') this.bridge?.closeNote();
+      const shortcut = shortcutOf(event);
+      if (event.key === 'Escape' || shortcut?.command === 'openNote') this.bridge?.closeNote();
+      else if (shortcut && ['undo', 'redo', 'save'].includes(shortcut.command)) this.bridge?.shortcut(shortcut);
       else if (plain && !this.noteEditor && event.key === 'PageUp') this.bridge?.stepNote(-1);
       else if (plain && !this.noteEditor && event.key === 'PageDown') this.bridge?.stepNote(1);
       else return;

@@ -74,6 +74,8 @@
   "action.nextNote": "Nœud suivant",
   "action.editNote": "Modifier la note",
   "action.readNote": "Lire la note",
+  "action.deleteNote": "Supprimer la note",
+  "confirm.deleteNote": "Supprimer cette note ?",
   "action.closeNote": "Retour à la carte",
   "action.menu": "Menu",
   "action.more": "Plus",

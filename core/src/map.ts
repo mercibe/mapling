@@ -288,13 +288,10 @@ export class MindMap {
     const value = text.replace(/\r\n?/g, '\n');
     const blank = value.trim() === '';
     if (current ? current.text === value : blank) return false;
+    if (blank) return this.removeNote(key, now);
     this.ensureId(el);
     el.setAttribute('MODIFIED', String(now));
     const note = this.noteElement(el);
-    if (blank) {
-      this.detach(note as Element);
-      return true;
-    }
     const textEl = this.doc.createElement('text');
     textEl.appendChild(this.doc.createTextNode(value));
     if (note) {
@@ -316,6 +313,18 @@ export class MindMap {
     const firstChild = childElements(el, 'node')[0] ?? null;
     el.insertBefore(created, firstChild);
     el.insertBefore(this.doc.createTextNode('\n'), firstChild);
+    return true;
+  }
+
+  /** Removes the node's note, whatever its kind (HTML, Markdown…); MODIFIED changes. Returns false when it has none. */
+  removeNote(key: string, now = Date.now()): boolean {
+    this.checkMapEditable();
+    const el = this.element(key);
+    const note = this.noteElement(el);
+    if (!note) return false;
+    this.ensureId(el);
+    el.setAttribute('MODIFIED', String(now));
+    this.detach(note);
     return true;
   }
 

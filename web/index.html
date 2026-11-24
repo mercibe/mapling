@@ -74,7 +74,7 @@ It takes the whole window, as on a tablet.
   #format-bar { display: flex; justify-content: center; background: var(--node-bar); color: var(--forest); }
   #format-bar .icon-button { width: 56px; border-radius: 0; }
   /* Delete apart at the start, ⋮ at the end: a tap meant for another button deletes nothing. */
-  #node-bar [data-action="deleteNode"] { position: absolute; left: 0; }
+  #node-bar [data-action="deleteNode"], #node-bar [data-action="deleteNote"] { position: absolute; left: 0; }
   #node-bar [data-action="more"] { position: absolute; right: 0; }
 
   /* The ☰ drawer, over the app, with a scrim: touching it closes the drawer. */
@@ -117,12 +117,9 @@ It takes the whole window, as on a tablet.
     <button class="icon-button" data-action="menu" data-without-note><svg class="icon"><use href="icons.svg#menu"/></svg></button>
     <button class="icon-button" data-action="closeNote" data-with-note><svg class="icon"><use href="icons.svg#arrow_back"/></svg></button>
     <span id="map-title"></span>
-    <button class="icon-button" data-action="previousNote" data-with-note><svg class="icon"><use href="icons.svg#chevron_left"/></svg></button>
-    <button class="icon-button" data-action="nextNote" data-with-note><svg class="icon"><use href="icons.svg#chevron_right"/></svg></button>
-    <button class="icon-button" data-action="editNote" data-with-note><svg class="icon"><use id="edit-note-icon" href="icons.svg#edit"/></svg></button>
-    <button class="icon-button" data-action="undo" data-with-map data-without-note><svg class="icon"><use href="icons.svg#undo"/></svg></button>
-    <button class="icon-button" data-action="redo" data-with-map data-without-note><svg class="icon"><use href="icons.svg#redo"/></svg></button>
-    <button class="icon-button" data-action="save" data-with-map data-without-note><svg class="icon"><use href="icons.svg#save"/></svg></button>
+    <button class="icon-button" data-action="undo" data-with-map><svg class="icon"><use href="icons.svg#undo"/></svg></button>
+    <button class="icon-button" data-action="redo" data-with-map><svg class="icon"><use href="icons.svg#redo"/></svg></button>
+    <button class="icon-button" data-action="save" data-with-map><svg class="icon"><use href="icons.svg#save"/></svg></button>
   </div>
   <div id="messages"></div>
   <div id="map-area">
@@ -135,22 +132,27 @@ It takes the whole window, as on a tablet.
     </div>
   </div>
   <div id="hints" data-without-note></div>
-  <div id="node-bar" data-with-map data-without-note>
-    <button class="icon-button" data-action="deleteNode"><svg class="icon"><use href="icons.svg#delete"/></svg></button>
-    <button class="icon-button" data-action="editLink"><svg class="icon"><use href="icons.svg#link"/></svg></button>
-    <button class="icon-button" data-action="openNote"><svg class="icon"><use href="icons.svg#description"/></svg></button>
-    <button class="icon-button" data-action="addChild"><svg class="icon"><use href="icons.svg#subdirectory_arrow_right"/></svg></button>
-    <button class="icon-button" data-action="addSibling"><svg class="icon"><use href="icons.svg#add_row_below"/></svg></button>
-    <button class="icon-button" data-action="more"><svg class="icon"><use href="icons.svg#more_vert"/></svg></button>
-  </div>
-
-  <!-- While a Markdown note is edited: its formats, in place of the node bar. -->
+  <!-- While a Markdown note is edited: its formats, above the node bar. -->
   <div id="format-bar" data-with-edited-note>
     <button class="icon-button" data-action="bold"><svg class="icon"><use href="icons.svg#format_bold"/></svg></button>
     <button class="icon-button" data-action="italic"><svg class="icon"><use href="icons.svg#format_italic"/></svg></button>
     <button class="icon-button" data-action="heading"><svg class="icon"><use href="icons.svg#title"/></svg></button>
     <button class="icon-button" data-action="bulletList"><svg class="icon"><use href="icons.svg#format_list_bulleted"/></svg></button>
     <button class="icon-button" data-action="numberedList"><svg class="icon"><use href="icons.svg#format_list_numbered"/></svg></button>
+  </div>
+  <!-- Its ends stay: delete (the node, or the note shown) and ⋮; in between, the node's
+       commands, or the note's: ‹, pencil or eye, ›. -->
+  <div id="node-bar" data-with-map>
+    <button class="icon-button" data-action="deleteNode" data-without-note><svg class="icon"><use href="icons.svg#delete"/></svg></button>
+    <button class="icon-button" data-action="deleteNote" data-with-note><svg class="icon"><use href="icons.svg#delete"/></svg></button>
+    <button class="icon-button" data-action="editLink" data-without-note><svg class="icon"><use href="icons.svg#link"/></svg></button>
+    <button class="icon-button" data-action="openNote" data-without-note><svg class="icon"><use href="icons.svg#description"/></svg></button>
+    <button class="icon-button" data-action="addChild" data-without-note><svg class="icon"><use href="icons.svg#subdirectory_arrow_right"/></svg></button>
+    <button class="icon-button" data-action="addSibling" data-without-note><svg class="icon"><use href="icons.svg#add_row_below"/></svg></button>
+    <button class="icon-button" data-action="previousNote" data-with-note><svg class="icon"><use href="icons.svg#chevron_left"/></svg></button>
+    <button class="icon-button" data-action="editNote" data-with-note><svg class="icon"><use id="edit-note-icon" href="icons.svg#edit"/></svg></button>
+    <button class="icon-button" data-action="nextNote" data-with-note><svg class="icon"><use href="icons.svg#chevron_right"/></svg></button>
+    <button class="icon-button" data-action="more"><svg class="icon"><use href="icons.svg#more_vert"/></svg></button>
   </div>
   <div id="scrim"></div>
   <nav id="drawer">

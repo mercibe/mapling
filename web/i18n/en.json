@@ -74,6 +74,8 @@
   "action.nextNote": "Next node",
   "action.editNote": "Edit the note",
   "action.readNote": "Read the note",
+  "action.deleteNote": "Delete the note",
+  "confirm.deleteNote": "Delete this note?",
   "action.closeNote": "Back to the map",
   "action.menu": "Menu",
   "action.more": "More",

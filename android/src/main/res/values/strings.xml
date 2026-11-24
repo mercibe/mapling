@@ -31,6 +31,8 @@ SPDX-License-Identifier: GPL-3.0-or-later
     <string name="next_node">Next node</string>
     <string name="edit_note">Edit the note</string>
     <string name="read_note">Read the note</string>
+    <string name="delete_note">Delete the note</string>
+    <string name="confirm_delete_note">Delete this note?</string>
     <string name="format_bold">Bold</string>
     <string name="format_italic">Italic</string>
     <string name="format_heading">Heading</string>

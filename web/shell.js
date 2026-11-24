@@ -31,6 +31,8 @@ let requestCount = 0;
 
 /** The buttons of the format bar, named as the core's formats (formatNote). */
 const FORMATS = ['bold', 'italic', 'heading', 'bulletList', 'numberedList'];
+/** The commands on the map's nodes, unavailable while a note covers the map. */
+const NODE_ACTIONS = ['deleteNode', 'editLink', 'openNote', 'addChild', 'addSibling', 'moveNode', 'followLink', 'center', 'zoomIn', 'zoomOut'];
 
 // ---------- translation ----------
 
@@ -407,6 +409,7 @@ const actions = {
   addChild: () => send({ type: 'addChild', id: state.selection.id }),
   addSibling: () => send({ type: 'addSibling', id: state.selection.id }),
   deleteNode,
+  deleteNote,
   more: () => more.showModal(),
   center: () => send({ type: 'center' }),
   zoomIn: () => send({ type: 'zoomIn' }),
@@ -454,25 +457,33 @@ async function deleteNode() {
   request({ type: 'deleteNode', id, revision });
 }
 
+async function deleteNote() {
+  const { id } = state.note;
+  const answer = await ask(t('confirm.deleteNote'), [['', t('dialog.cancel')], ['delete', t('action.deleteNode')]]);
+  if (answer === 'delete') send({ type: 'deleteNote', id });
+}
+
 /** Whether each command can be used now. */
 function enabled(action) {
   const editable = !!state.map && !state.map.readOnly;
   const node = state.selection;
   // A note shown over the map: the way back, the nodes before and after it, editing it or
-  // reading it again, and the formats of a note being edited.
+  // reading it again, deleting it, and the formats of a note being edited. The map's
+  // commands stay, except those on its nodes, hidden under the note.
   const note = state.note;
-  if (note) {
-    if (action === 'previousNote') return note.previous !== null;
-    if (action === 'nextNote') return note.next !== null;
-    if (action === 'editNote') return note.editing || note.editable;
-    return action === 'closeNote' || (note.editing && FORMATS.includes(action));
-  }
+  if (FORMATS.includes(action)) return !!note?.editing;
+  if (note && NODE_ACTIONS.includes(action)) return false;
   switch (action) {
     case 'closeNote':
+      return !!note;
     case 'previousNote':
+      return !!note && note.previous !== null;
     case 'nextNote':
+      return !!note && note.next !== null;
     case 'editNote':
-      return false;
+      return !!note && (note.editing || note.editable);
+    case 'deleteNote':
+      return !!note && editable && note.hasNote;
     case 'menu':
     case 'open':
     case 'newMap':
@@ -514,10 +525,12 @@ function run(action, argument) {
 for (const button of document.querySelectorAll('[data-action]')) {
   // A click leaves the focus on the map, so that its keys keep acting (Enter would
   // otherwise click the button again); Tab still reaches the buttons. Not from a text being
-  // typed: leaving it validates it first, so that Save, for one, includes it. A format
-  // applies to the note being typed: its text keeps the focus.
+  // typed: leaving it validates it first, so that Save, for one, includes it. A format, an
+  // undo or a redo applies to the note being typed: its text keeps the focus.
   button.addEventListener('mousedown', (event) => {
-    if (!document.activeElement.matches('input, textarea') || FORMATS.includes(button.dataset.action)) event.preventDefault();
+    const action = button.dataset.action;
+    const inNote = FORMATS.includes(action) || (state.note?.editing && (action === 'undo' || action === 'redo'));
+    if (!document.activeElement.matches('input, textarea') || inNote) event.preventDefault();
   });
   button.addEventListener('click', () => {
     // An entry of the drawer or of the ⋮ menu closes it first.
